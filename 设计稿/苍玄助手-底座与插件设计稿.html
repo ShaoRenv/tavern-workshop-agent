@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang='zh-CN'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'>
+<title>苍玄助手 · 底座 + 插件 · 前端设计（v2）</title>
+<style>
+:root{
+  --veil:#0a0d11; --panel:#11151b;
+  --ink:#e9edf2; --muted:#7f8896; --faint:#5c6673;
+  --hair:#212832; --field:#171c24;
+  --accent:#2dd4bf; --accent-ink:#062420; --accent-dim:rgba(45,212,191,.13);
+  --warn:#fbbf24; --danger:#fb7185;
+  --r:10px; --fs:13px;
+}
+body.light{ --veil:#e9ecef; --panel:#fff; --ink:#12161c; --muted:#6b7480; --faint:#98a1ad;
+  --hair:#e3e7ec; --field:#f4f6f8; --accent-dim:rgba(13,148,136,.12); --accent:#0d9488; --accent-ink:#fff; }
+*{box-sizing:border-box;}
+body{margin:0;background:var(--veil);color:var(--ink);font:var(--fs)/1.75 'Microsoft YaHei',system-ui,sans-serif;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--hair);flex-wrap:wrap;}
+.top h1{margin:0;font-size:15px;}
+.top .sub{color:var(--muted);font-size:12px;}
+.top .spacer{flex:1;}
+.stage{display:flex;gap:22px;padding:24px;align-items:flex-start;}
+.col{flex:0 0 auto;}
+.col>h2{font-size:11px;color:var(--faint);font-weight:400;margin:0 0 10px 2px;letter-spacing:1.5px;}
+.phone{width:392px;height:848px;background:var(--panel);border:1px solid var(--hair);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45);}
+.bar{display:flex;align-items:center;gap:9px;padding:15px 18px 12px;}
+.bar .ttl{font-size:15px;font-weight:700;} .bar .st{font-size:11px;color:var(--muted);} .bar .spacer{flex:1;}
+.kebab{border:0;background:transparent;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;padding:2px 4px;}
+.seg{display:flex;gap:2px;margin:0 12px 4px;padding:3px;background:var(--field);border-radius:999px;}
+.seg>span{flex:1;text-align:center;padding:8px 0;border-radius:999px;font-size:11.5px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+.seg>span.on{background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.body{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:6px;}
+.body::-webkit-scrollbar{width:5px;} .body::-webkit-scrollbar-thumb{background:var(--hair);border-radius:3px;}
+.blk{border-top:1px solid var(--hair);padding:14px 18px 16px;} .blk:first-child{border-top:0;}
+.blkh{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.blkh .t{font-size:12px;font-weight:700;letter-spacing:1.2px;}
+.blkh .t::after{content:'';display:block;width:16px;height:2px;background:var(--accent);border-radius:2px;margin-top:5px;}
+.blkh .n{font-size:11px;color:var(--muted);} .blkh .spacer{flex:1;}
+.ghost{border:0;background:transparent;color:var(--accent);font-size:12px;padding:4px 7px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.ghost:hover{background:var(--accent-dim);} .ghost.dim{color:var(--muted);}
+.back{border:0;background:transparent;color:var(--accent);font:inherit;font-size:12.5px;padding:6px 8px;margin-left:-8px;cursor:pointer;white-space:nowrap;}
+.fill.dang{width:100%;background:transparent;border:1px solid var(--danger);color:var(--danger);font-family:inherit;font-weight:400;font-size:13px;padding:11px;border-radius:12px;cursor:pointer;}
+.lab{display:block;font-size:11px;letter-spacing:.8px;color:var(--muted);margin-bottom:6px;}
+input[type=text],input[type=password],input[type=number],textarea,select{width:100%;background:var(--field);color:var(--ink);border:1px solid transparent;border-radius:9px;padding:10px 12px;font:inherit;font-size:12.5px;outline:none;}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);}
+textarea{resize:vertical;line-height:1.8;}
+.mono{font:12.5px/1.8 ui-monospace,Consolas,menlo,monospace;}
+.f{margin-bottom:14px;} .f:last-child{margin-bottom:0;} .frow{display:flex;gap:8px;align-items:center;}
+.frow.grow>input,.frow.grow>select{flex:1;min-width:0;}
+.sw{width:36px;height:20px;border-radius:6px;background:var(--field);border:1px solid var(--hair);position:relative;flex:0 0 auto;cursor:pointer;}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:4px;background:var(--faint);transition:left .16s;}
+.sw.on{background:var(--accent-dim);border-color:var(--accent);} .sw.on::after{left:18px;background:var(--accent);}
+.swlab{font-size:12.5px;flex:1;min-width:0;}
+.tag{font-size:10px;padding:2px 7px;border-radius:5px;background:var(--field);color:var(--muted);white-space:nowrap;}
+.tag.ok{color:var(--accent);} .tag.warn{color:var(--warn);} .tag.dang{color:var(--danger);}
+.hint{font-size:11px;color:var(--faint);line-height:1.75;}
+.hint.warn{color:var(--warn);} .hint.dang{color:var(--danger);}
+.modebar{display:flex;align-items:center;gap:6px;padding:3px;background:var(--field);border-radius:999px;}
+.modebar>span.m{flex:1;text-align:center;font-size:12px;padding:7px 0;border-radius:999px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+.modebar>span.m.on{background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.modebar>span.m.off{opacity:.55;}
+/* 插件列表：只做导航，一行一件事 */
+.plrow{display:flex;align-items:center;gap:12px;min-height:56px;padding:12px 6px;border-bottom:1px solid var(--hair);cursor:pointer;}
+.plrow:last-child{border-bottom:0;}
+.plrow:hover{background:var(--field);}
+.pico{width:32px;height:32px;flex:0 0 auto;border-radius:9px;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;}
+.pmain{flex:1;min-width:0;}
+.pname{display:flex;align-items:center;gap:7px;}
+.nm{font-size:13.5px;font-weight:700;}
+.pdesc{font-size:11px;color:var(--faint);line-height:1.6;margin-top:1px;}
+.go{color:var(--muted);font-size:16px;}
+.dim{display:flex;align-items:center;gap:8px;}
+.dim input{flex:1;min-width:0;text-align:center;}
+.dim .x{color:var(--faint);font-size:11px;}
+.notes{width:392px;margin-top:12px;}
+.notes h3{font-size:11px;color:var(--faint);font-weight:400;letter-spacing:1.2px;margin:0 0 6px;}
+.notes ul{margin:0 0 14px;padding-left:16px;} .notes li{font-size:11.5px;color:var(--muted);line-height:1.8;}
+.notes b{color:var(--ink);}
+.card{border:1px solid var(--hair);border-radius:10px;padding:12px 14px;margin-bottom:12px;}
+.card h4{margin:0 0 6px;font-size:12px;}
+.col.wide{width:430px;}
+.q{border:1px solid var(--hair);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--panel);}
+.q b{color:var(--accent);font-size:12px;}
+.q p{margin:4px 0 0;font-size:11.5px;color:var(--muted);}
+.flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;}
+.flow .n{border:1px solid var(--hair);border-radius:8px;padding:5px 9px;font-size:11.5px;background:var(--field);}
+.flow .n.core{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.flow .ar{color:var(--faint);font-size:11px;}
+.two{display:flex;gap:10px;} .two>*{flex:1;min-width:0;}
+.edge{border:1px solid var(--hair);border-radius:10px;padding:10px 12px;margin-bottom:10px;}
+.edge h4{margin:0 0 6px;font-size:12px;}
+.edge.plug{border-style:dashed;}
+.edge ul{margin:0;padding-left:15px;} .edge li{font-size:11.5px;color:var(--muted);line-height:1.8;}
+.contrib{display:flex;align-items:center;gap:8px;min-height:44px;padding:9px 6px;border-bottom:1px solid var(--hair);cursor:pointer;}
+.contrib:last-child{border-bottom:0;}
+.contrib:hover{background:var(--field);}
+.contrib .pmain{flex:1;}
+.more{display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--hair);border-radius:9px;padding:9px;color:var(--muted);font-size:11.5px;margin-top:8px;}
+.srv{display:flex;align-items:center;gap:10px;min-height:52px;padding:10px 6px;border-bottom:1px solid var(--hair);}
+.srv:last-child{border-bottom:0;}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--faint);flex:0 0 auto;}
+.dot.ok{background:var(--accent);} .dot.warn{background:var(--warn);} .dot.dang{background:var(--danger);}
+.kv{display:flex;gap:8px;align-items:baseline;font-size:11.5px;color:var(--muted);margin:3px 0;}
+.kv b{color:var(--ink);font-weight:400;}
+</style>
+</head>
+<body>
+
+<div class='top'>
+  <h1>苍玄助手 · 底座 + 插件 · 前端设计</h1>
+  <span class='sub'>底座 = 选预设 → 跑一轮 → 看结果。工具 / 技能 / 页面 / 宏 = 四张注册表；插件还能声明设置字段，由宿主渲染</span>
+  <span class='spacer'></span>
+  <button class='ghost dim' id='themeBtn'>深浅色</button>
+</div>
+
+<div class='stage'>
+
+<!-- ============ 屏 1 · 边界 ============ -->
+<div class='col wide' id='p1'><h2>屏 1 / 边界：底座做四件事，其余全是插件</h2>
+<div class='phone' style='height:auto;padding-bottom:16px'>
+  <div class='blk' style='border-top:0'>
+    <div class='blkh'><span class='t'>底座（永不插件化）</span></div>
+    <div class='flow'>
+      <span class='n core'>① 跑一轮</span><span class='ar'>→</span>
+      <span class='n core'>② 接口</span><span class='ar'>→</span>
+      <span class='n core'>③ 预设 / 技能</span><span class='ar'>→</span>
+      <span class='n core'>④ 装载 / 存储</span>
+    </div>
+    <p class='hint' style='margin-top:8px'>
+      ① 对话循环 · 工具调用 · 停止 · 轮次与运行状态（● 运行中 · 第 N 轮）<br>
+      ② 模型接口（自填 / 酒馆）· 多模态 · 超时<br>
+      ③ 预设（items + 特殊层）· <b>技能</b>（按需加载的知识）· 轮数预算<br>
+      ④ 四张注册表（工具 / 技能 / 页面 / 宏）+ 脚本变量存储 · 导入导出
+    </p>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>四张注册表 + 一样声明</span></div>
+    <div class='hint'>
+      <div class='kv'><b>工具注册表</b><span>底座自带工具 / 内置插件 / 外部插件 / MCP（远端工具，运行时注册）</span></div>
+      <div class='kv'><b>技能库</b><span>用户自己写 + 插件自带（contributes.skills）</span></div>
+      <div class='kv'><b>页面注册表</b><span>核心页（对话 / 设置）+ 插件页（inTabbar / order）</span></div>
+      <div class='kv'><b>宏注册表</b><span>底座自己的宏（用户需求 / 世界书 / 产物…）+ 插件贡献的宏（图片提示词）；宏不单独占管理段，来源在插件管理页看得见</span></div>
+      <div class='kv'><b>设置字段</b><span>插件声明、宿主渲染 —— 不是第四张表，是「这个插件长什么样」的声明</span></div>
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>内置插件（这一版）</span></div>
+    <div class='edge plug'><h4>苍玄助手 · 默认开 · <b>没有页面</b></h4><ul>
+<li>它就是「苍玄界专用」的那一个功能，所以直接把原名给它（底座是 agent 底座，它只是其中一个功能）</li>
+<li>宏：图片提示词（角色卡 / 世界书 / 预设里都能用）</li>
+<li>工具：3 个（列角色 · 读元数据 · 读图片提示词）</li>
+<li>预设模板：智绘姬 · 技能：元数据格式</li>
+<li>设置里还有「手动元数据（传图）」</li></ul></div>
+    <div class='edge plug'><h4>世界书 · 默认开</h4><ul><li>页面：世界书</li><li>工具：7 个（列 / 搜 / 读 / 建 / 改 / 删 / 改属性）</li></ul></div>
+    <div class='edge plug'><h4>生图 · 默认关</h4><ul><li>工具：生图</li><li>设置：NovelAI（Key / 站点 / 模型 / 参数）</li></ul></div>
+    <div class='edge plug'><h4>MCP · 默认关 · 第 5 阶段</h4><ul><li>页面：MCP 服务器</li><li>把远端工具搬进工具注册表</li></ul></div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>判据（三句话）</span></div>
+    <div class='hint'>
+      1. 没有它，agent 还跑不跑得起来一轮？跑不起来 → 底座<br>
+      2. 它是某个内容 / 场景专有的吗？→ 插件<br>
+      3. 关掉它，用户还有没有「助手」？没了 → 底座；只是少个功能 → 插件<br>
+      <br>
+      <b>MCP 不是「网络工具」这一类功能工具，而是「工具来源」</b>：把远端 server 的工具注册进工具表。
+      跟「翻译插件」那种自己实现工具的不是一类，但都对底座呈现为同一个东西 —— 工具。<br><br>
+      <b>宏</b> = 文本里的占位符（<span class='mono'>{{名字}}</span>）：它给的是「文本里的一个值」，写在哪就在哪展开（角色卡 / 世界书 / 预设 / 酒馆提示词），所以它既不是工具也不是技能，是第四张表。<br><br>
+      <b>贡献分两类</b>：<b>活的</b>（工具 / 页面 / 技能 —— 关掉插件即消失）与 <b>入口</b>（预设模板 —— 点一下导入成你自己的预设，导入后归你，关插件不回收）。
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>为什么这样划</h3>
+  <ul>
+    <li><b>底座能用一句话说完</b>：选预设 → 跑一轮 → 看结果。说不完说明有东西该搬出去。</li>
+    <li><b>常用 ≠ 核心</b>：世界书很常用，但关掉它 agent 照样成立 → 插件（默认开）。</li>
+    <li><b>工具 vs 技能是一对原语</b>：工具＝可执行动作，技能＝按需加载的知识。两者都留底座，插件可以"自带"技能。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 2 · 顶栏 ============ -->
+<div class='col' id='p2'><h2>屏 2 / 顶栏：页面来自注册表</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span class='on'>对话</span><span>世界书</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>这一栏的每一格是谁给的</span></div>
+      <div class='two'>
+        <div class='edge'><h4>底座自带（常驻）</h4><ul><li>对话<b>（记录藏在它右上角 ⋯ 里）</b></li><li>设置</li></ul></div>
+        <div class='edge plug'><h4>插件贡献</h4><ul><li>世界书 ← 世界书插件</li></ul></div>
+      </div>
+      <p class='hint'>关掉世界书插件 → 「世界书」这一格自动消失，底座一行代码不用改；苍玄助手<b>不贡献页面</b>，它只给宏和工具。</p>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>这一轮又砍掉两格</span></div>
+      <div class='hint'>
+        <b>记录 → 收进对话页的右上角 ⋯</b>：压根没人天天看的东西不该占页面，也不该占格子 —— 放 Sheet 里，要用的时候点开。<br>
+        <b>苍玄助手（原「立绘」）→ 不要页面了</b>：它原来的工作台就是「选预设 → 填需求 → 生成」，而这正是<b>对话页</b>干的事 —— 页面是重复的。它现在只给宏和工具。<br>
+        砍完顶栏只剩 3 格：<b>对话 · 世界书 · 设置</b>。<br><br>
+        <b>容量规则留档</b>（现在用不上）：核心页常驻 → 插件页 <span class='mono'>inTabbar</span> 且按 <span class='mono'>order</span> 抢剩余格 → 抢不到的收进「⋯ · 更多页面」（= 「所有页面」Sheet）。<b>等真有第 3 个插件页再做</b>，不为假想需求写代码；低频页注册时写 <span class='mono'>inTabbar: false</span>，从插件管理页「它加了什么 → 页面」进。
+      </p>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>对话页 = agent 的正面</span></div>
+      <div class='hint'>
+        · 右上角 <b>⋯ 设置</b>里放<b>记录</b>（这次会话的事件流水：谁说了什么、调了哪个工具、改了什么）→ 点开是一张 Sheet，<b>不占页面也不占格子</b><br>
+        · 用户说话 / 附图 · 工具卡一行跑完才折叠<br>
+        · <b>出图就在这里显示</b>（插件页不做预览）<br>
+        · 顶部固定可见：● 运行中 · 第 N 轮
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>为什么要动顶栏</h3>
+  <ul>
+    <li>固定六页签 = 每加一个功能就动界面骨架；注册表驱动之后，页面是插件的产物。</li>
+    <li>顶栏回答「<b>你在哪</b>」，设置回答「<b>你怎么管</b>」，两者不再混在一栏里。</li>
+    <li><b>顶栏只放「你在哪」</b>：能不放的就不放 —— 能力进设置、记录进对话页右上角的 ⋯、苍玄助手（原立绘）干脆不要页面。</li>
+    <li><b>时间线</b>：阶段 1 保持现在的 6 格与老顺序（纯等价改写）；<b>阶段 2</b> 砍掉「能力」（进设置）与「记录」（进对话页右上角 ⋯）（→ 4 格：对话 / 苍玄助手 / 世界书 / 设置）；<b>阶段 3</b> 苍玄助手去页面 + 世界书归插件（→ 3 格：对话 / 世界书 / 设置）。上面画的是阶段 3 之后的目标形态。</li>
+    <li>老数据里 <span class='mono'>active_tab = records / portraits</span> 会落到对话页（页不存在 → 回落到第一个可用页），不用用户做任何事。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 3 · 设置总结构 + 能力·工具（带来源） ============ -->
+<div class='col' id='p3'><h2>屏 3 / 设置 · 能力 · 工具（带来源）</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>对话</span><span>世界书</span><span class='on'>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px'>
+      <div class='modebar'><span class='m off'>接口</span><span class='m off'>预设</span><span class='m on'>能力</span><span class='m off'>数据</span></div>
+    </div>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m on'>工具</span><span class='m off'>技能</span><span class='m off'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>工具</span><span class='n'>16 个 · 默认开 9</span><span class='spacer'></span><span class='hint'>点一行改说明</span></div>
+      <div class='contrib'>
+        <div class='pmain'><span class='nm'>列世界书</span></div><span class='tag'>世界书插件</span><span class='go'>›</span>
+      </div>
+      <div class='contrib'>
+        <div class='pmain'><span class='nm'>改条目</span></div><span class='tag'>世界书插件</span><span class='go'>›</span>
+      </div>
+      <div class='contrib'>
+        <div class='pmain'><span class='nm'>载入技能正文</span></div><span class='tag'>底座</span><span class='go'>›</span>
+      </div>
+      <div class='contrib'>
+        <div class='pmain'><span class='nm'>读图片提示词</span></div><span class='tag'>苍玄助手</span><span class='go'>›</span>
+      </div>
+      <div class='contrib'>
+        <div class='pmain'><span class='nm'>生图</span><span class='tag'>默认关</span></div><span class='tag'>生图</span><span class='go'>›</span>
+      </div>
+      <div class='contrib'>
+        <div class='pmain'><span class='nm'>查询天气</span><span class='tag'>默认关</span></div><span class='tag'>MCP · weather</span><span class='go'>›</span>
+      </div>
+      <p class='hint' style='margin-top:8px'>
+        <b>来源标签是插件化之后最重要的一条可读性</b>：一眼看出这个工具是谁给的 —— 底座 / 哪个插件 / 哪个 MCP 服务器（数字以 agent/registry.ts 为准，设计稿只引用）。<br>
+        <b>这一段是只读视图</b>：行上不放开关键。要停用一个工具，去它的<b>来源</b>处 —— 关插件、或关 MCP 服务器（服务器页里可逐条勾掉）；被来源停用时行上标「已停用」。
+      </p>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>设置只有四格</span></div>
+      <div class='hint'>
+        <b>接口</b>（模型 / 多模态 / 超时）· <b>预设</b>（items + 特殊层 + 能力范围）<br>
+        <b>能力</b>（工具 · 技能 · 插件）· <b>数据</b>（导入导出 / 清理 / 备份）
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>这一屏的要点</h3>
+  <ul>
+    <li>工具行只加一个来源标签，别的都不动 —— 信息量 +1，界面复杂度 +0。</li>
+    <li>MCP 工具跟内置工具在同一张表里（来源写 <span class='mono'>MCP · 服务器名</span>），不做第二套 UI。</li>
+    <li>「能力」从顶栏搬进设置：它本来就很少天天点。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 4 · 设置 · 能力 · 技能（留在底座） ============ -->
+<div class='col' id='p4'><h2>屏 4 / 设置 · 能力 · 技能（底座原语）</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>对话</span><span>世界书</span><span class='on'>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px'>
+      <div class='modebar'><span class='m off'>接口</span><span class='m off'>预设</span><span class='m on'>能力</span><span class='m off'>数据</span></div>
+    </div>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m off'>工具</span><span class='m on'>技能</span><span class='m off'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>技能</span><span class='n'>3 个 · 启用 2</span><span class='spacer'></span><button class='ghost'>＋ 新建</button></div>
+      <div class='contrib'>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>世界书势力整理</span><span class='tag ok'>启用</span><span class='tag'>自己写的</span></div>
+          <div class='pdesc'>把势力条目整理成表格：名字 / 立场 / 关系</div>
+        </div>
+        <span class='go'>›</span>
+      </div>
+      <div class='contrib'>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>智绘姬输出格式</span><span class='tag ok'>启用</span><span class='tag'>苍玄助手自带</span></div>
+          <div class='pdesc'>立绘预设的角色 JSON 字段说明</div>
+        </div>
+        <span class='go'>›</span>
+      </div>
+      <p class='hint' style='margin-top:8px'>
+        只有<b>名字 + 一句话</b>进系统提示词；正文等模型调 <span class='mono'>skill(名字)</span> 时才读。
+        插件自带的技能跟插件一起开关（关掉苍玄助手，这条也消失）。<br>
+        <b>「插件自带」是只读行</b>：要改就「复制成自己的」——复制后是普通技能，跟插件脱钩。
+      </p>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>为什么技能不做成插件</span></div>
+      <div class='hint'>
+        · 工具＝可执行动作，技能＝按需加载的知识，两者都是「模型能请求的东西」，是底座的一对原语<br>
+        · <b>工具的实现天然来自插件</b>（工具就是插件代码）；<b>技能的内容通常是用户自己的知识</b>，不属于任何插件 → 库必须留底座<br>
+        · 插件化技能会让"知识"这个概念散到每个插件里，没有统一入口
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>这一屏的要点</h3>
+  <ul>
+    <li>技能库是底座管理面，不占顶栏（跟工具/插件一样收进设置）。</li>
+    <li>技能行上标来源：「自己写的」/「苍玄助手自带」—— 跟工具来源标签同一套口径。</li>
+    <li><span class='mono'>contributes.skills</span> 是插件自带知识的唯一入口（第 3 阶段落地）。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 5 · 插件管理（纯列表）+ 插件页骨架 ============ -->
+<div class='col' id='p5'><h2>屏 5 / 插件列表（纯列表）→ 插件管理页</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>对话</span><span>世界书</span><span class='on'>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px'>
+      <div class='modebar'><span class='m off'>接口</span><span class='m off'>预设</span><span class='m on'>能力</span><span class='m off'>数据</span></div>
+    </div>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m off'>工具</span><span class='m off'>技能</span><span class='m on'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh' style='margin-bottom:4px'><span class='t'>插件</span><span class='n'>4 个 · 启用 2</span></div>
+      <div class='plrow'>
+        <span class='pico'>苍</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>苍玄助手</span><span class='tag ok'>已启用</span></div>
+          <div class='pdesc'>内置 · v0.1 · 1 宏 · 3 工具（没有页面）</div>
+        </div>
+        <span class='sw on' data-sw></span><span class='go'>›</span>
+      </div>
+      <div class='plrow'>
+        <span class='pico'>书</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>世界书</span><span class='tag ok'>已启用</span></div>
+          <div class='pdesc'>内置 · v0.1 · 1 页 · 7 工具</div>
+        </div>
+        <span class='sw on' data-sw></span><span class='go'>›</span>
+      </div>
+      <div class='plrow'>
+        <span class='pico' style='background:var(--field);color:var(--faint)'>图</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>生图</span><span class='tag'>未启用</span></div>
+          <div class='pdesc'>内置 · v0.1 · 1 工具</div>
+        </div>
+        <span class='sw' data-sw></span><span class='go'>›</span>
+      </div>
+      <div class='plrow'>
+        <span class='pico' style='background:var(--field);color:var(--faint)'>M</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>MCP</span><span class='tag warn'>缺配置</span></div>
+          <div class='pdesc'>内置 · v0.1 · 1 页 · 3 服务器</div>
+        </div>
+        <span class='sw on' data-sw></span><span class='go'>›</span>
+      </div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>页面：一行一个插件，没有别的东西</span></div>
+      <div class='hint'>
+        图标 · 名字 · 状态 · 来源版本与「它加了什么」· 快捷开关 · <span class='mono'>›</span><br>
+        页面上不放分工说明、不放「还没做」、不放某个插件的工具清单。<br>
+        <b>图标取名字第一个字</b>（苍 / 书 / 图 / M）—— 面板也叫苍玄助手，插件行的图标和说明第一句要让人一眼分出这是「苍玄界专用功能」。<br>
+        <b>名字不带「插件」后缀</b>（列表里每行都是插件，不用每行说一遍）：苍玄助手 / 世界书 / 生图 / MCP。<br>
+        <b>排序</b>：内置在前、外部随后，各自按 order / 名字。<b>状态标签只取一个</b>，优先级：未启用 &gt; 出错 &gt; 缺配置 &gt; 已启用（状态由插件自己算：契约里的 <span class='mono'>status(config)</span>，底座只画）。
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>这一屏的要点</h3>
+  <ul>
+    <li>插件列表行里就写清「它加了什么」（1 页 · 7 工具），省一次点击。</li>
+    <li>开关就在行上；进详情里也有同一个开关（改的是同一条 <span class='mono'>plugin_state</span>，不会打架）。</li>
+    <li>点 <span class='mono'>›</span> 进插件自己的页 —— 下一屏。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 6 · 插件页骨架（复杂 / 简单） ============ -->
+<div class='col' id='p6'><h2>屏 6 / 插件管理页骨架（同一套，内容随插件）</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>对话</span><span>世界书</span><span class='on'>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px'>
+      <div class='modebar'><span class='m off'>接口</span><span class='m off'>预设</span><span class='m on'>能力</span><span class='m off'>数据</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'>
+        <button class='back'>‹ 插件</button>
+        <span class='spacer'></span>
+        <span class='tag ok'>已启用</span>
+      </div>
+      <div class='pname'><span class='nm' style='font-size:15px'>苍玄助手</span><span class='tag'>内置</span><span class='tag'>v0.1</span><span class='tag'>没有页面</span></div>
+      <div class='f' style='margin-top:12px'>
+        <div class='frow'><span class='swlab'>启用</span><span class='sw on' data-sw></span></div>
+      </div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>它加了什么</span><span class='spacer'></span><span class='hint'>点一行跳过去</span></div>
+      <div class='contrib'><div class='pmain'><span class='nm'>宏：图片提示词</span><span class='tag ok'>可用</span></div><span class='go'>›</span></div>
+      <div class='contrib'><div class='pmain'><span class='nm'>工具：列角色 / 读元数据 / 读图片提示词</span></div><span class='go'>›</span></div>
+      <div class='contrib'><div class='pmain'><span class='nm'>预设模板：智绘姬</span><span class='tag'>导入即归你</span></div><span class='go'>›</span></div>
+      <div class='contrib'><div class='pmain'><span class='nm'>技能：元数据格式</span></div><span class='go'>›</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>这个插件自己的设置</span></div>
+      <div class='f'>
+        <span class='lab'>图库来源</span>
+        <select name='gallery' aria-label='图库来源'><option>状态栏脚本内嵌图库</option></select>
+      </div>
+      <div class='f'>
+        <span class='lab'>元数据读取规则</span>
+        <select name='meta_rule' aria-label='元数据读取规则'><option>自动（PNG 元数据 → 生图参数）</option></select>
+      </div>
+      <div class='f'>
+        <span class='lab'>手动元数据（传图）</span>
+        <div class='frow'><span class='swlab'>2 个角色有手动元数据</span><button class='ghost'>传图…</button></div>
+      </div>
+      <p class='hint'>它没有页面，所以从前在立绘页干的事全在这里 + 对话里：<b>读</b>交给模型调工具，<b>生成</b>就是「选智绘姬预设跑一轮」（对话页），<b>传图</b>在这。简单插件（生图）更少：一个工具、没有宏、没有页面。</p>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>插件页三块，永远这三块</h3>
+  <ul>
+    <li><b>头部</b>：‹ 返回 · 名字 + 来源 + 版本 · 一个启用开关</li>
+    <li><b>它加了什么</b>：只放可点的跳转行（页面 / 预设模板 / 技能 / 工具），<b>不写解释段落</b></li>
+    <li><b>它自己的设置</b>：插件声明的字段，宿主渲染（第 4 阶段落地后插件连表单都不画）</li>
+  </ul>
+  <h3>用词别混</h3>
+  <ul>
+    <li><b>插件内容页</b> = 插件贡献的页面（这一屏之外的世界书那种，能上顶栏）</li>
+    <li><b>插件管理页</b> = 这一屏（设置 · 能力 · 插件 → <span class='mono'>›</span>），每个插件都有</li>
+    <li>「预设模板」是<b>入口</b>不是活物：导入后归用户，关插件不回收；工具 / 页面 / 技能才是关掉即消失的活物</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 7 · MCP ============ -->
+<div class='col' id='p7'><h2>屏 7 / MCP（工具来源的一种）</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>对话</span><span>世界书</span><span class='on'>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px'>
+      <div class='modebar'><span class='m off'>接口</span><span class='m off'>预设</span><span class='m on'>能力</span><span class='m off'>数据</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'>
+        <button class='back'>‹ 插件</button>
+        <span class='spacer'></span>
+        <span class='tag ok'>已启用</span>
+      </div>
+      <div class='pname'><span class='nm' style='font-size:15px'>MCP</span><span class='tag'>内置</span><span class='tag'>v0.1</span></div>
+      <div class='f' style='margin-top:12px'>
+        <div class='frow'><span class='swlab'>启用</span><span class='sw on' data-sw></span></div>
+      </div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>服务器</span><span class='n'>3 个 · 在线 2</span><span class='spacer'></span><button class='ghost'>＋ 添加</button></div>
+      <div class='srv'>
+        <span class='dot ok'></span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>weather</span><span class='tag ok'>已连接</span></div>
+          <div class='pdesc'>http://127.0.0.1:3001/mcp · 4 个工具</div>
+        </div>
+        <span class='sw on' data-sw></span><span class='go'>›</span>
+      </div>
+      <div class='srv'>
+        <span class='dot ok'></span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>files</span><span class='tag ok'>已连接</span></div>
+          <div class='pdesc'>https://mcp.example.com/sse · 6 个工具</div>
+        </div>
+        <span class='sw on' data-sw></span><span class='go'>›</span>
+      </div>
+      <div class='srv'>
+        <span class='dot dang'></span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>search</span><span class='tag dang'>连不上</span></div>
+          <div class='pdesc'>https://mcp.other.dev/mcp · 上次失败：401</div>
+        </div>
+        <span class='sw' data-sw></span><span class='go'>›</span>
+      </div>
+      <p class='hint' style='margin-top:8px'>
+        每个服务器单独开关。它拉来的工具会出现在「设置 · 能力 · 工具」里，来源标 <span class='mono'>MCP · 服务器名</span>。<br>
+        <b>工具的逐条停用在这里勾</b>（存插件自己的设置 <span class='mono'>servers[].disabled_tools</span>）；「工具」段只读，不放开关键 —— 停用永远在来源处。
+      </p>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>实话</span></div>
+      <div class='hint'>
+        · 第一期只做 <b>HTTP / SSE</b>：浏览器里生不出进程，stdio 型 MCP 需要本机小桥（二期）<br>
+        · 远端工具的描述会进提示词、调用会真的执行 → 界面标「来自远端」+ 逐条可停用，不做门禁（既定原则）<br>
+        · <b>MCP 排在「外部插件装载（URL / 粘贴 JS）」之前做</b>：它不加载别人的代码，风险小一个数量级
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>为什么 MCP 是个插件</h3>
+  <ul>
+    <li>底座只有「工具」一个概念；MCP 只是把<b>远端声明的工具</b>注册进来 → 底座一行都不用改。</li>
+    <li>插件名一律<b>不带「插件」后缀</b>（列表里每行都是插件）：苍玄助手 / 世界书 / 生图 / MCP。</li>
+    <li>三件套映射：tools → 工具注册表；resources → 先当只读工具；prompts → 提示词块（二期）。</li>
+    <li>服务器页 = 它的工具清单（逐条可停用），跟「工具」段是同一份数据、两个视角。</li>
+    <li><b>工具是「运行时注册」的</b>：连上以后才 tools/list -> 逐个 upsert 进工具注册表，断开就撤销。底座因此完全不知道「MCP」这个词 —— 静态清单（manifest.tools）之外再开一条运行时通道，就够。</li>
+    <li>MCP 内容页默认 <span class='mono'>inTabbar: false</span>（从 设置 · 能力 · 插件 -> MCP -> 它加了什么 -> 页面 进）；想常驻顶栏就把它的 order 提前。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 8 · 页面注册表规则 ============ -->
+<div class='col wide' id='p8'><h2>屏 8 / 四张注册表与插件契约（前端适配的落点）</h2>
+<div class='phone' style='height:auto;padding-bottom:16px'>
+  <div class='blk' style='border-top:0'>
+    <div class='blkh'><span class='t'>页面定义</span></div>
+    <div class='card'>
+      <h4>PluginPage</h4>
+      <div class='hint'>
+        <span class='mono'>id</span> 页面 id（跟老页签 id 一致 → 零迁移）<br>
+        <span class='mono'>title</span> 顶栏显示名<br>
+        <span class='mono'>order</span> 排序（核心页 10/20/…，插件页往后排）<br>
+        <span class='mono'>inTabbar</span> 上不上顶栏（false = 从插件管理页进）
+      </div>
+    </div>
+    <div class='card'>
+      <h4>MacroDef（第四张表）</h4>
+      <div class='hint'>
+        <span class='mono'>key</span> 宏名（<span class='mono'>图片提示词</span>，不带花括号）<br>
+        <span class='mono'>scopes</span> 在哪生效：<span class='mono'>tavern</span>（酒馆宏，角色卡 / 世界书 / 酒馆预设都能用）· <span class='mono'>preset</span>（苍玄助手预设 items）<br>
+        <span class='mono'>resolve(ctx)</span> 取值函数；<b>注册 / 注销由底座做</b>（插件只给 resolve）<br>
+        关掉插件 → 宏立刻注销（写着的 <span class='mono'>{{图片提示词}}</span> 退回空串）
+      </div>
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>核心页只有两个</span></div>
+    <div class='hint'>对话（记录在它右上角 ⋯ 里的 Sheet）· 设置 —— 其余全是插件贡献的页面（现在只有世界书）。</div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>前端适配清单（对着现有代码）</span></div>
+    <div class='hint'>
+      <div class='kv'><b>core/pages.ts（新）</b><span>核心页定义：对话 / 设置 + 页面合并函数。记录不在这里 —— 它是对话页里的一张 Sheet</span></div>
+      <div class='kv'><b>core/types.ts</b><span>TAB_IDS / TabId <b>删掉</b>（页面 id 只在注册表里定义一份）；active_tab 放宽成 string；新增 plugin_state；别名 records / portraits → chat</span></div>
+      <div class='kv'><b>components/ui_types.ts</b><span>删掉手写 TAB_LABELS；UiTool 加 owner_plugin</span></div>
+      <div class='kv'><b>components/AppShell.vue</b><span>v-for 从 props.pages 渲染（核心页 + 已启用插件页 ∩ inTabbar）</span></div>
+      <div class='kv'><b>App.vue</b><span>页面按 id 查组件表渲染（阶段 3 前静态 import）；<b>RecordsView 收进对话页右上角 ⋯ 的 Sheet</b>；<b>PortraitsView 删掉</b>（它的活交给苍玄助手插件）；跨页跳转统一 ui.goto(pageId)；页面未知时兜底</span></div>
+      <div class='kv'><b>stores/app.ts</b><span>setTab(id: string) + 存在性校验；setPluginEnabled；关插件时当前页被撤 → 自动回落</span></div>
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>三条硬要求</span></div>
+    <div class='hint'>
+      1. <b>一个脚本 = 一个文件</b>：苍玄助手在酒馆里是一整段 JS，<span class='mono'>import()</span> 拆出的 chunk 没人能加载 → 阶段 1-3 <b>一律静态 import</b>，阶段 3 加 <span class='mono'>limitChunkCount = 1</span>；懒加载留给二期外部插件（那时才有独立 URL）。验收看「产物里不出现 chunk 请求」<br>
+      2. <b>页面取数契约</b>：插件页只拿 host + 自己插件的设置（<span class='mono'>host.config</span>），不许直接 import store<br>
+      3. <b>运行状态归宿主</b>：● 运行中 · 第 N 轮 / 输入框 / 通知条由 AppShell 统一画<br>
+      4. <b>页面级错误边界</b>：插件页抛错只挂它自己 —— 页内显示「这个插件挂了」+ 一个停用按钮，不许把整个面板带下去
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>插件契约（最小形态）</span></div>
+    <div class='hint mono' style='font-size:11px;line-height:1.9;white-space:pre-wrap'>interface PluginManifest {
+  id; name; version; apiVersion: 1; desc; builtin; defaultEnabled;
+  contributes: {
+    pages?: PluginPage[];      // { id, title, order, inTabbar }（可以一个都不要 —— 苍玄助手就没有）
+    tools?: string[];          // 阶段 1 = 工具名；阶段 3 起 = ToolDef（字段名、形状都只一种）
+    macros?: MacroDef[];       // 宏：{ key, scopes, resolve }，注册 / 注销由底座做
+    skills?: Skill[];          // 自带知识：随插件开关
+    presets?: PresetTemplate[];// 入口：点一下导入成用户的预设，关插件不回收
+    settings?: SettingsField[];// 第 4 阶段起：声明字段，宿主渲染
+  };
+  status?(config): { label; kind };  // 插件自己算状态（未启用 / 出错 / 缺配置 / 已启用）
+}
+// 运行时通道（MCP 这类）：registerRuntimeTools(pluginId, ToolDef[])，断开即撤销
+// contributes.prompts（提示词块）已从这一版删掉 —— 没有消费者，跟钩子总线一起放二期</div>
+    <p class='hint' style='margin-top:8px'>两条硬规矩：插件只拿得到 host（不许互相 import）；<b>活的贡献</b>（工具 / 页面 / 技能）必须「关掉即消失」。</p>
+  </div>
+</div>
+</div>
+
+<!-- ============ 屏 9 · 落地顺序 ============ -->
+<div class='col wide' id='p9'><h2>屏 9 / 落地顺序（每步可单独验收）</h2>
+<div class='phone' style='height:auto;padding-bottom:16px'>
+  <div class='blk' style='border-top:0'>
+    <div class='blkh'><span class='t'>五步（详细计划见 reports/苍玄助手-底座化实施计划.md）</span></div>
+    <div class='card'>
+      <h4>1 契约（含宏）+ 四张注册表 + 页面注册表 + plugin_state</h4>
+      <p class='hint'>苍玄助手（原立绘）/ 世界书先「标记」成插件页。<b>界面与现在完全一样（6 格、老顺序）</b>，只是页签由注册表来、插件开关统一到 plugin_state。</p>
+    </div>
+    <div class='card'>
+      <h4>2 能力进设置 + 记录进对话页 ⋯（顶栏 4 格）</h4>
+      <p class='hint'>工具（带来源）/ 技能 / 插件三段进「设置 · 能力」；<b>记录收进对话页右上角 ⋯ 的 Sheet</b>（RecordsView 不再挂页面）。</p>
+    </div>
+    <div class='card'>
+      <h4>3 搬家成内置插件 + 苍玄助手去页面（顶栏 3 格）</h4>
+      <p class='hint'>plugins/builtin/{cangxuan, worldbook, image}：世界书带页面，<b>苍玄助手（原立绘）带宏（图片提示词）+ 3 个图片工具、不带页面</b>（PortraitsView 删掉，传图进它的管理页），生图带工具；插件之间不许互相 import。</p>
+    </div>
+    <div class='card'>
+      <h4>4 声明式设置表单</h4>
+      <p class='hint'>插件声明字段 → 宿主渲染；插件页不再自己画 UI。</p>
+    </div>
+    <div class='card'>
+      <h4>5 MCP（HTTP / SSE）</h4>
+      <p class='hint'>服务器列表 + 工具搬运 + 来源标签。做完这一步，「能扩展」这件事就通了。</p>
+    </div>
+    <div class='card' style='border-style:dashed'>
+      <h4>二期：外部插件装载（URL / 粘贴 JS）+ 插件内容页懒加载</h4>
+      <p class='hint'>按之前冻结的节奏，等前五步稳了再做（要 apiVersion 校验 + 失败隔离）。</p>
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>本轮自查 + 需求变更改掉的（详见 reports/苍玄助手-设计自查.md）</span></div>
+    <div class='hint'>
+      <b>苍玄助手去页面</b>（原立绘的工作台就是对话页，页面是重复的）→ 改成 1 宏 + 3 工具，传图进它的管理页<br>
+      <b>记录收进对话页右上角 ⋯</b>（不占页面也不占格子）→ 核心页只剩 对话 / 设置，顶栏 3 格<br>
+      <b>宏成了第四张注册表</b>（原来是「三张注册表 + 设置声明」；宏没有独立管理段，来源在插件管理页）<br>
+      插件名去掉「插件」后缀：苍玄助手 / 世界书 / 生图 / MCP<br>
+      <b>懒加载不成立</b>（单文件脚本加载不了 chunk）→ 改成静态 import + limitChunkCount，验收改口径<br>
+      「三张注册表」下面列了四行 → 设置字段单独说（后来宏又成了第四张，见上）<br>
+      契约缺「预设模板」→ 补上，并定「入口 / 活物」两类贡献<br>
+      contributes.prompts 没人用 → 删，进二期<br>
+      默认开 8 是错的 → 9<br>
+      「逐条停用 MCP 工具」没落点 → 停用永远在来源处，逐条勾在服务器页<br>
+      「插件页」一词指两样 → 拆成 插件内容页 / 插件管理页<br>
+      TAB_IDS 是第二份事实来源 → 删掉<br>
+      顶栏顺序两份说法 → 阶段 1 不变、阶段 2 提到第一位
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>这一版已按你的答复定下来</span></div>
+    <div class='q'><b>记录</b><p>不占页面、也不占格子：放<b>对话页右上角 ⋯ 里</b>，点开是一张 Sheet。核心页只剩 对话 / 设置。</p></div>
+    <div class='q'><b>插件名</b><p>原来那个「立绘」插件 ← 直接叫回<b>苍玄助手</b>（底座是 agent 底座，它只是其中一个功能）；列表里是 苍玄助手 / 世界书 / 生图 / MCP。</p></div>
+    <p class='hint' style='margin-top:8px'>唯一要注意的：面板本身（脚本名 / 目录名）也叫苍玄助手，所以插件行的说明第一句就写清「苍玄界专用功能」，图标用「苍」，免得看混。</p>
+    <p class='hint' style='margin-top:8px'>其余（A1-A12 / B1-B8 / C1-C5）已按自查结论写进设计稿、理念、计划三份文档，不再问。</p>
+  </div>
+</div>
+</div>
+
+</div><!-- /stage -->
+
+<script>
+document.getElementById('themeBtn').addEventListener('click',function(){document.body.classList.toggle('light');});
+var sws=document.querySelectorAll('[data-sw]');
+for(var i=0;i<sws.length;i++){sws[i].addEventListener('click',function(e){e.stopPropagation();this.classList.toggle('on');});}
+var md=document.querySelectorAll('.modebar>span.m');
+for(var m=0;m<md.length;m++){md[m].addEventListener('click',function(){
+  var all=this.parentNode.children;
+  for(var n=0;n<all.length;n++){all[n].classList.remove('on');all[n].classList.add('off');}
+  this.classList.add('on');this.classList.remove('off');});}
+var only=location.hash.match(/^#only([1-9])$/);
+if(only){var keep='p'+only[1];var cols=document.querySelectorAll('.col');
+  for(var y=0;y<cols.length;y++){if(cols[y].id!==keep){cols[y].style.display='none';}}}
+</script>
+</body>
+</html>

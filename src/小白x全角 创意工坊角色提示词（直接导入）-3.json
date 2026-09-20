@@ -1,0 +1,2240 @@
+{
+  "type": "novel-draw-characters",
+  "version": 3,
+  "characters": [
+    {
+      "id": "char-1787476551005-72vm",
+      "name": "沈慕微",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "flat chest, slender waist, tall curvy figure, long narrow phoenix eyes, blue pupils, expressionless, long flowing black hair, 1.3::part bangs on top::,,1.4::sidelocks,wispy hair strands on forehead::,",
+      "negativeTags": "bare chest, forehead mark, bun, buns, undercut, ahoge",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "blue and white gradient robe, wrapped tightly, wide sleeves,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-n6yo",
+      "name": "江念",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "girl, brown eyes, brown pupils, cute gesture, bright eyes, high ponytail, long black hair, flowing hair, sidelocks, red flower hair ornament, red hair ribbon, hair flower, red flower on the right side of head, red ribbon tied in hair,",
+      "negativeTags": "forehead mark, bun, buns, undercut, ahoge",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "cyan sheer robe over white inner garment, moon white inner clothes, traditional chinese xiuxian shoes, hanfu shoes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-wkcn",
+      "name": "冷小凝",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "slender, phoenix eyes, light gray eyes, lifeless eyes, 1.7::forehead::, sidelocks, very long pure black hair, straight and stiff hair, flat chest, 1.5::very narrow waist::, 1.6::tight waist::, ",
+      "negativeTags": "forehead mark, bun, buns, undercut, bangs, bang, hair between eyes, ahoge, waist warp, waist belt",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.4::simple white thin straight hairpin wear behind head::, 1.5::white high collar plain robe::, black trim, long sleeves, white boots,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-3cvi",
+      "name": "印唯心",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "slender, narrow eyes, 1.3::crimson red eyes,white pupils::, 1.4::thin figure,narrow waist::, a tiny red mark on forehead, pure white absurdly long hair, 1.6::forehead::, sidelocks, barefoot,",
+      "negativeTags": "big red mark, large red mark, prominent mark, undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark red robe, black embroidery trim,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-73w3",
+      "name": "妖九烟",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "slit pupils, purple eyes, purple diamond scale mark on forehead, large breasts, dark purple hair, middle part bangs, 1.4::flipped bangs::,1.6::bare arms,legs::, 1.6::twin long braids, small golden bells on each braid tip::, bare shoulders,",
+      "negativeTags": "bun, buns, ahoge",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "purple robe, gold choker, golden waist belt, golden snake armlets on arms and legs,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-7jsg",
+      "name": "药芷若",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "slender blossom eyes, 1.6::grey brown eyes,white pupils::, deep brown hair, 1.8::middle part bangs on top::, 1.6::eposed full forehead::,high bun, hair flaps, sidelocks, narrow waist, step shake hair hairpins,",
+      "negativeTags": "forehead mark, undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "crimson red brocade tightly long dress, tightly black waist warp, jade gourd at waist, black boosts, {teal shawl}, draped over shoulders, beads inlaid on boosts"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-vnzl",
+      "name": "慕海棠",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "pitch yellow eye, slender figure,black hair, 1.4::golden underlayer hair::, 1.8::forehead,part bangs on top::, one low side bun, sidelocks, loose bun,",
+      "negativeTags": "forehead mark, long hair, undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "wide white robe, light grey inner robe, long black skirt, corners of clothes with burn marks and ink stains"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-5s6v",
+      "name": "姜昭昭",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "dark brown hair, messy hair, short hair, bangs, grey eyes, 1.8::short low ponytail::, blank stare, wuxia, 2::grey headcloth::,",
+      "negativeTags": "no grey headcloth",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "ancient chinese clothes, greyish-blue outer robe, open clothes, grey crossed collar, black inner clothes, cloth sash, knife sheath on waist, bare legs, short lower garment, black wrist wraps, black cloth boots, leg wraps"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-qchk",
+      "name": "苏酒儿",
+      "aliases": [],
+      "type": "mature female",
+      "appearance": "oval face, yellow eyes, smiling, black hair in loose bun with bamboo hairpin, 1.5::swept bangs,sidelocks::,",
+      "negativeTags": "forehead mark, undercut, long hair",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "navy blue cross-collar short hanfu jacket, white inner collar, black long skirt, brown faded apron tied at waist, sleeves rolled up to elbows,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-3qvp",
+      "name": "姜澄鸢",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "medium breasts, narrow waist, slender phoenix eyes, black eyes, high bun with gold hairpin,  {eposed full forehead}, 1.5::part bangs on top,sidelocks::,",
+      "negativeTags": "forehead mark, undercut, long hair",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black dragon robe, high-collar, gold dragon embroidery, wide sleeves with patterns, gold-inlaid jade belt, short knife at waist,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-9wyf",
+      "name": "潮听澜",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "small fang, short dark blue hair, low short ponytail, {eposed full forehead}, sidelocks, hair flaps, bare legs,",
+      "negativeTags": "forehead mark, bare arms, undercut, long hair",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark cyan short garment, 1.6::silver-white light armor,black shorts::, tide seal and short sword and waterproof sea chart at waist"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-yquv",
+      "name": "雪照宁",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "light lake-blue eyes, long white hair, light blue fluffy ribbon at back of head, sidelocks, hair between eyes,",
+      "negativeTags": "ponytail, forehead mark, undercut, bare arms, ahoge",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "white thick cloak, pure light blue inner robe with long skirt"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-bzyr",
+      "name": "欧阳诚",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "handsome, 1.8::tall and sturdy figure,broad shoulders::, 1.2::carrying a giant black sword::, short stubble on chin, medium-length hair, slicked back, tied into a small bun at the back, trailing hair ends,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "gray linen clothes, sleeves rolled up to elbows, straw sandals"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-88dn",
+      "name": "叶段英",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "1.3::strong muscular build,tall and strong::, pale skin, well-defined abs, dark red pupils, bright red hair, short hair, hair between eyes, shirtless,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black apron, long black gloves grey trousers, thick boots"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-cx1t",
+      "name": "谢忘生",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "1.5::dark brown eyes::, deadpan eyes, 1.4::tall and straight figure::, 1.3::\nlong hair,sidelocks::, 1.2::eposed full forehead::, 1.3::part bangs on top::, high bun with a wooden hairpin,",
+      "negativeTags": "old,beard,moustache,goatee,whiskers,wrinkle, forehead marks, undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "long green outer robe, white inner coat, 1.8::long black skirt, green cloth shoes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-empt",
+      "name": "萧天衍",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "1.2::tall and straight figure::, narrow waist, 1.8::blood-stained white cloth blindfold,white cloth covering eyes::, long white hair, bun tied up high on head, 1.5::part bangs on top::, sidelocks,",
+      "negativeTags": "eyes, undercut, hairpin, forehead marks",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "high collar black plain robe, white waist warp, barefoot, floating in the air,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-4f7a",
+      "name": "颂长风",
+      "aliases": [],
+      "type": "adult male",
+      "appearance": "golden vertical pupils, narrow and long eyes, cyan scales at the corner of eyes, dark green hair, multiple short braids close to the scalp, monster fangs tied at the end of braids, exposed firm chest and abdominal muscles covered with scratch marks, barefoot, bare chest,bare midriff,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "green coat draped casually over body, yellow slacks,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-08cp",
+      "name": "阎冥",
+      "aliases": [],
+      "type": "man",
+      "appearance": "broad shoulders, muscular male, flat chest, Adam's apple, masculine proportions, face obscured by black fog, two burning dim blue soul flames from eyes, hair formed by black fog, hanging hair under flat imperial crown, black gas drifting from edges, tattered black imperial dragon robe, tall and straight figure, no physical feet, rolling gray-black dead air at the bottom of robe",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-u4kt",
+      "name": "红",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "grey blue eyes, long messy turquoise hair, 1.5::part bangs on top::, tied up with a simple wooden hairpin,  sidelocks, hair flaps,",
+      "negativeTags": "forehead mark, undercut, bun, buns, ahoge",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "pure white upper garment, dark blue long skirt, yellow waistband, plum blossoms embroidered at edge of sleeves, an old cloth pouch hanging at waist, barefoot,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-1yfx",
+      "name": "白炉生",
+      "aliases": [],
+      "type": "middle-aged mature man",
+      "appearance": "{{short black hair with a few white hair}}, \nholding a large soup ladle",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "wear brown sheepskin hat, \nwearing a thick dark navy blue cotton-padded robe, a dark brown oilcloth apron over it, a string of copper coins and folded yellow cold-resistance talismans hanging at the waist, \nblack loose pants, thick-soled brown felt boots, traditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-emcb",
+      "name": "贝三娘",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "round face, thin eyebrows, faint smile lines at eye corners, soft curvy figure, smiling, \nblack long hair, shopkeeper, shrewd, approachable yet sharp.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "hair coiled into shell-shaped bun, {{three small seashells stuck in hair}},  {{abacus in hand}},\noff-white overcoat, sleeve cuffs embroidered with wave patterns, shell copper badge on chest,\nanti-slip soft-soled embroidered shoes,\ntraditional chinese hanfu"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-ksxq",
+      "name": "常笑",
+      "aliases": [],
+      "type": "middle-aged man",
+      "appearance": "round face, smile lines at corners of eyes, short nose,\n, ghost clerk, gentle, meticulous, slightly amused.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black hair tied in official bun, {{one old wooden pen stuck in bun}}, \n{{sleeves stuffed with paper slips}},\nblack civil official robe, white-edged sleeve cuffs, wrong-character notebook hanging on chest,\nofficial boots,\ntraditional chinese hanfu"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-fr8v",
+      "name": "地狱火",
+      "aliases": [],
+      "type": "adult male",
+      "appearance": "mid 30s appearance, dark red face, thick eyebrows, flat nose bridge, broad shoulders, thick back, old burn scars on arms, short stubble singed by sparks,\nshort stiff black hair, burnt and curled hair ends,\n blacksmith, rugged, rough.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black short jacket, fireproof leather apron, wet cloth wrapped around arms,\nthick-soled boots with iron nails,\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-5q8r",
+      "name": "杜子成",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "middle-aged man, long face, messy brows,  {{goatee on chin}}, old bamboo hat on head,black hair, {{feather at temples}}, lean, gray shirt, patched cloak, bird on shoulder, old boots.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-puac",
+      "name": "贰叁捌",
+      "aliases": [],
+      "type": "androgynous",
+      "appearance": "young adult, 20 years old appearance, androgynous, face with variable medicinal color, dull rounded features, medicine powder on nose tip,\n{{short cream hair wrapped in cloth}}, cloth with text \"238\" on it,\nsmall thin build, sleeves rolled up to forearms, neutral, working expression.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark durable gray clothes, leather apron, wooden test medicine tag on chest,\nnon-slip straw sandals,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-wfha",
+      "name": "范达克",
+      "aliases": [],
+      "type": "adult male",
+      "appearance": "early 30s appearance, long face, high nose bridge, deep brow bone, dark circles under eyes from staying up late,\ndark brown curly hair, tied in low ponytail, {{three charcoal pencils tucked in hair}},\ntall and thin, scholar, focused, tired but sharp.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "robe stained with ink spots at hem,\ndark blue formation master robe, slung with picture tube, small compass hanging on chest,\nsoft leather long boots,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-o0ch",
+      "name": "苟活",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "around 30 years old appearance, pointy face, sly eyebrows and eyes, gray hair, braided into small braids, copper coin strings hanging by ears,\nsmall thin figure,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "{carrying bulging cargo bag on back},\ngray short cloth robe, multi-pocket waistband, {ledger tucked in chest},\nsoft-soled quick boots,\ntraditional chinese hanfu"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-fsaa",
+      "name": "骨小宝",
+      "aliases": [],
+      "type": "adult man",
+      "appearance": "mid 20s appearance, short hair, {{black hair wrapped in white cloth}}, clean face, neat hairline, calm, meticulous, slightly eerie but tidy",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "gray-white deacon robe, protective gloves, small comb hanging at waist, black pants, clean black boots, traditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-btwr",
+      "name": "归尘",
+      "aliases": [],
+      "type": "adult male",
+      "appearance": "teenager, 16-17 years old appearance, youthful face, delicate light eyebrows, clean cheeks, faint golden star sand on center of forehead,\nblack hair, high bun, thin silver ring holding bun,\nslender build, thin, proper posture, sweeping motion, serene, unobtrusive.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "plain white short robe, light gray shawl, star sand pouch sewn on cuffs,\nwhite cloth boots,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-1rzz",
+      "name": "贾道学",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "middle-aged man, round face, short eyebrows, \nmessy medium-length black hair, gathered loosely at top of head with straw rope, forming a small messy bun, remaining hair falls naturally around ears and neck, one broken hairpin stuck in the bun\nslightly chubby,  street vendor, unkempt, friendly.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "faded daoist robe, oil-paper apron, fake jade pendant on chest,\nold cloth shoes,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-zqdg",
+      "name": "金不换",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "mid 30s appearance, square face, thick eyebrows, wide nose bridge, big smile showing white teeth,\nblack hair, slicked back shiny hair, hair bound with copper buckle at back of head,\nslightly protruding belly, \nmerchant, friendly,S shrewd.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "brown silk robe, short mandarin jacket, bulging money pouch at waist,\nthick-soled black boots,\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-qf1l",
+      "name": "陆潮生",
+      "aliases": [],
+      "type": "adult male",
+      "appearance": "around 30 years old appearance, wheat-colored skin, thick eyebrows, big eyes, loud laugh, red sunburn marks on face,\nblack hair, short messy hair sticking up, loosely tied with a faded red cloth strip,\nsturdy shoulders and back, boat captain, hearty, rugged",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "worn leather armor, wide belt, half-worn waterproof shoulder cape, salt crystals often on cuffs and pant hems,\nnon-slip short boots,\ntraditional chinese hanfu"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-y2ki",
+      "name": "毛绒绒",
+      "aliases": [],
+      "type": "adult woman",
+      "appearance": "mid 20s appearance, round face, short nose, {{animal paw print marks on cheeks}},\nchestnut brown short hair, tied in small bun, {{{{grass on head}}}},\nshort petite figure, holding feed basin in arms, animal caretaker, gentle, warm smile.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "light green short jacket, bite-proof fabric on cuffs,\nsoft-soled straw sandals,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-8q0t",
+      "name": "苗小青",
+      "aliases": [],
+      "type": "adult woman",
+      "appearance": "18-19 years old appearance, small face, lively eyebrows and eyes, {{green powder on nose tip}},\nblack hair, multiple thin braids, small bamboo beads at braid ends,\nlight and agile figure, bamboo cage hidden in sleeve,\npoison master, agile, mysterious",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark green short jacket, poison-proof cape,  {{flute at waist}}, black tight pants\nstraw-woven short boots,\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-a9pq",
+      "name": "宋听雪",
+      "aliases": [],
+      "type": "adult woman",
+      "appearance": "nose tip often slightly red from cold, \nblack short hair, fur-lined hood, \nsturdy build, carrying storm flags, \nearnest, resilient",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "heavy patrol short armor, white-gray fur collar cloak, {{road sign tag and small hammer at waist}}, a roll of storm flags strapped to back,\nblack pants, anti-sink snow long boots,\ntraditional chinese hanfu"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-kzyy",
+      "name": "太白",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "{blush on cheeks}, pure white long hair, tied in high ponytail, red cord wrapped hair, two thin strands hanging by temples,\ntall and slender figure, straight back, walking with sword cultivator's briskness, slightly drunk, large breasts",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "short white fox-fur jacket, pure red tight-sleeved sword outfit, wine gourd and slim sword at waist,\nwhite leather long boots,\ntraditional chinese outfit"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-7dws",
+      "name": "挽歌",
+      "aliases": [],
+      "type": "adult female",
+      "appearance": "long face, faint eyebrows and eyes, light lip color, {{wooden slip stuck on forehead}},\nblack hair hanging down to back, loosely tied with white rope,\nslender figure, {{holding paper umbrella}},\nghost ferry guide, quiet, serene, melancholy.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "gray-white long dress, black-edged cloak, bell hanging at waist,\ncloth shoes,\ntraditional chinese hanfu"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-6gdr",
+      "name": "王阿牛",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "middle-aged man, thick eyebrows, pale sickly complexion,\n{{{{messy short hair tied with red cloth strip}}}},\ntall, weak stance, gatekeeper, intimidating but fragile, slightly comical.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark red short gatekeeping robe, worn leather armor, wooden badge knife at waist, black pants\nblack cloth shoes,\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-2njn",
+      "name": "线头",
+      "aliases": [],
+      "type": "adult male",
+      "appearance": "24 years old appearance, small long face, flexible eyebrows and eyes, {{yellow talisman stuck on face}},\nblack hair, messy ponytail, forehead hair pressed down by sweat, \nlean and thin, carrying wooden thread box on back, thread layer, nimble, slightly confused expression.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "walking fast pace,\nshort-sleeved array blue pattern shirt, red thread belt, white pants, light cloth boots,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-sn2m",
+      "name": "幽魂子",
+      "aliases": [],
+      "type": "adult man",
+      "appearance": "mid 20s appearance, pale face, long slender eyes, light lip color,\nlong white hair, {{loose hair}}, {{ black diamond soul marl arrangement on forehead}}, slender build,  eerie, calm.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "red thread wrapped around wrist,\nblack soul-pattern robe, dark silver amulet inside, {{soul lamp at waist}},\nsoft boots, black pants (under robe),\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-uhip",
+      "name": "玉斫璜",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "25 years old appearance, oval face, warm and gentle eyebrows, delicate straight nose, light golden talisman paper stuck on forehead,\nblack hair, half-up daoist bun, remaining hair to shoulders, three thin jade sticks inserted in hair,\nslender build, sitting straight, fingers resting on tortoise shell edge,\nserene, calm.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "light moon-white greeting robe, light golden waistband, turtle shell and divination booklet hidden in sleeves,\ncloud-pattern soft shoes,\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-bp1s",
+      "name": "花怜",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "dark brown hair, half-up half-down hairstyle with a bun, long side strands, brown eyes, calm expression, holding round fan, soft blush,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "light purple hanfu with light purple wide sleeves, dark blue waist sash"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-wqod",
+      "name": "云鹤",
+      "aliases": [],
+      "type": "adult man",
+      "appearance": "long face, high brow bone, sharp straight nose, {{{{small white goatee}}}},\nsilver white hair, long hair, hair tied behind head, blue cord at hair end,\nslender build, thin, arms hidden in sleeves,\ncalm expression.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "white robe, {{blue-trimmed cloak}}, copper badge on chest,\nsoft-soled boots with cloud pattern,\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-juv2",
+      "name": "张铁柱",
+      "aliases": [],
+      "type": "middle-aged man",
+      "appearance": "mature man, square face, thick eyebrows, short stubble,\nblack hair, shaved short, {{sweatband tied on forehead}},\nbroad thick shoulders, mortal blacksmith, sturdy, slightly stern.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "coarse cloth short jacket, leather apron, iron hammer at waist,\nthick-soled cloth shoes,\ntraditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-c1ta",
+      "name": "祝雨晴",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "competent expression,\nblack hair, low bun, wooden hairpin, two small paper slips at side of head,\nmedium build, straight back, quick walking posture,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "short dark gray Chinese jacket, dark tight sleeves, black tight trousers, black cloth shoes,\nkeys chains and a ledger book at waist,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-hs7v",
+      "name": "铁娇娇",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "metal powder often on cheeks,\nblack hair, thick braid, pink iron ring at braid end,\nshort stature, steady hammer-holding posture,\nblacksmith,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "pink-edged black short Chinese jacket, gray forging skirt, small hammer tucked at waist,\nhard-soled short boots,\ntraditional chinese clothes"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-4m6c",
+      "name": "凌长霜",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "medium breasts, cold expression, blue forehead mark, golden eyes, purple gray hair, 1.4::layered high updo::, 1.4::middle part bangs::, sidelocks, black jade hair crown, black crystal hairpin, dangling jade ornaments, black ornate layered hanfu with palace dress, silver embroidery, white outer robe with blue trim, white jade tassels belt,",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-3dh6",
+      "name": "银摇枝",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "expressionless, dark red eyes, black hair, 1.5::low long thick ponytail::, 1.4::hair parted on top of head to both sides::, silver chain ornament at chest and forehead, large breasts, 1.8::dark red halterneck crop top, bare shoulders, midriff, cleavage, dark red veil over mouth, dark red hip scarf::, wide silver coin chain belt, bare feet, slender body, silver armlets, bracelets, anklets,",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-86l4",
+      "name": "蓝甜药",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "1.4::small round face::, smiling eyes, pink cheeks, 1.4::blunt bangs, sidelocks::, 1.3::one long black french braid with blue-dyed strand::, 1.4::small gourd at braid::,1.5::light blue short Chinese jacket::, 1.8::dark apron with small bottles::, wooden plaque at neck, herb bracelet on wrist, 1.3::cheerful friendly healer aura::",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-e19d",
+      "name": "慕泽",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "furrowed brows::, 1.3::dark circles under eyes::, 1.4::black hair in topknot::, 1.5::crooked hairpin::, lean tall figure, ink-stained hands, deep blue robe with array patterns and ink stains::, three calligraphy brushes at waist, 1.3::robe sleeves with ink marks::, focused eyes, intense gaze, thinking expression",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-ag0b",
+      "name": "裴不归",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "1.4::square face::, 1.6::thick heavy brows::, 1.3::scarred nose::, 1.8::short salt-and-pepper hair, white temples::, stocky hunched build, old grey patched robe with patches, worn notebook at waist, weary eyes,",
+      "negativeTags": "beard",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-70uj",
+      "name": "师长夷",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "1.4::sage green robe::, 1.6::chalk dust on sleeves::, 1.3::crooked long brown hair::, 1.2::gentle warm eyes::, 1.4::faint stubble on jaw::, calloused hands, ink stains on fingers, tired yet kind expression,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-deea",
+      "name": "丹心火",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "calm expression, 1.6::soot on nose::, 1.8::black hair in low bun with flame-pattern hairpin::, hair between eyes, 1.5::singed hair at temples::, medium build, 1.4::dark grey loose alchemist robe,fire scorch at sleeves::, grey coarse apron, 1.3::small shovel at waist::, black short boots",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-g1rm",
+      "name": "拂袖",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "1.3::light faint brows::, long hair, sidelocks, 1.8::black hair low tied with bamboo leaf bookmark at hair ends::, tall slender figure, 1.6::white wide-sleeved short robe::, 1.3::cyan waist belt::, bamboo leaf bookmark tucked in sleeve, plain green cloth shoes,",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-v4fi",
+      "name": "花非花",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "1.3::pretty playful eyes::, black eyes, 1.8::long black twin braids with paper flowers at ends::, 1.5::white robe top::, 1.4::pink skirt::, , 1.3::paper flower brooch::, small mirror at waist, embroidered cloth shoes, 1.2::whimsical dreamy aura::",
+      "negativeTags": "forehead mark, ahoge",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-gbv0",
+      "name": "剑不语",
+      "aliases": [],
+      "type": "man",
+      "appearance": "1.4::long face::, brown eyes, 1.8::black hair tightly tied back, no bangs::, sidelocks, 1.5::erect upright posture::, 1.5::dark green training plain robe::, 1.3::wooden sword strap::, 1.2::wood plaque at waist::, black trousers, black cloth shoes,",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-oajb",
+      "name": "林鹿雪",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "1.4::round face::, green eyes, 1.3::gentle mild eyes::, 1.6::dirt on nose tip::, 1.8::long black twin braids with print cloth::, small build, small herb shovel in hand, 1.5::light green plain robe::, grey cloth apron, rolled-up sleeves, straw sandals,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-u482",
+      "name": "沙知返",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "handsome, 1.3::short thick brows::, 1.8::messy dark brown hair tied with red cloth::, flyaway bangs, 1.4::stocky build::, 1.5::khaki short Chinese jacket::, 1.3::waterskin and map at waist::, black trousers, 1.4::thick-soled sand boots with traction cleats::,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-3fk4",
+      "name": "乌滴墨",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "deep brown skin::, grim tense expression::, 1.8::bald with grey cloth wrap::, 1.5::khaki short robe with rolled-up sleeves::, 1.4::chest plate with tokens::, 1.3::small balance scale at waist::, white trousers,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-0agc",
+      "name": "休别离",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "1.6::tired weary eyes::, yellow eyes, 1.8::loose black hair tied behind head::, hair flaps, thin slender build, holding old grey pillow, 1.5::loose grey-white long plain robe::, 1.3::wood ornaments at waist::, cloth shoes, sleepy drowsy aura::",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-1ox7",
+      "name": "依依兮",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "bright lively eyes::, blue eyes, 1.5::ink spots on cheeks::, 1.8::black double bun with cyan ribbon::, carrying old book bag, 1.5::blue student short plain robe::, 1.3::white inner skirt::, white cloth shoes,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-w7m6",
+      "name": "袁分罡",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "1.5::thick coarse brows::, 1.6::lime powder stains on face::, 1.8::short black hair with short ponytail::, 1.5::stocky sturdy build::, 1.5::grey-blue plain robe::, 1.3::multi-pocket grey shorts::, messy string diagram at waist::, worn cloth shoes,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-1dx2",
+      "name": "运蔚",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "1.8::black hair with high short ponytail::, 1.4::small pouch at ear::, thin slender build, 1.5::light yellow long plain robe with small pouch at waist::, soft cloth shoes,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-rpes",
+      "name": "沧无涯",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "1.4::square face::, thick brows, short grey-white hair, 1.4::dark blue headband on forehead::, 1.5::tall strong bulky build::, 1.5::dark grey sea-folk short Chinese jacket rolled sleeves::, open chest showing old scar, 1.3::iron ladle at waist::,",
+      "negativeTags": "beard, stubble, goatee",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-1vp1",
+      "name": "印唯命",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "sharp face, red eyes, {black hair with white streaks}, forehead, sidelocks, 1.6::high updo tight with dark golden crown::, 1.6::faint stubble on chin, 1.3::tall and strong figure::,",
+      "negativeTags": "old, lips stubble, wrinkle, undercut, forehead marks",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black robe, red token hanging on waist, red jade ornaments on waist, 1.5::dark red embroidered on cuffs, dark red embroidered on chest::,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-hxtu",
+      "name": "李灵云",
+      "aliases": [
+        "云端仙子"
+      ],
+      "type": "man",
+      "appearance": "sharp handsome features, stern expression, light blue eyes, pale cool-toned skin, pure white hair, long hair, loose hair, black and gold ancient robes, wide robes, faint sword patterns on robes, faint cloud patterns on robes, sword at waist, slim white sword,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-l9cj",
+      "name": "安七",
+      "aliases": [],
+      "type": "girl",
+      "appearance": ",silver white long hair, floating hair,wine red eyes, beautiful detailed eyes, merciful gaze,pale skin, slender body,expressionless, emotionless divine beauty, cold beauty, cold temperament, detached temperament, slight head tilt, cute airhead, calm, quiet,black and white taoist robes, wide sleeves, cyan hairpin, flowing fabric",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-vvj4",
+      "name": "小索",
+      "aliases": [],
+      "type": "other",
+      "appearance": "black cat, small, yellow eyes, white tail tip",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-33hu",
+      "name": "执裳璃",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "long straight hair, 1.6::swept bangs::, 1.4::sidelocks::, black hair, 1.8::light golden underlayer hair::, half-lidded eyes, purple eyes, white ribbon bow on one side of head, emotionless face, 1.4::pure white plain robe with golden bamboo embroidery at shoulder::, black skirt, black waist belt with jade ornaments, medium breasts,",
+      "negativeTags": "forehead mark, bun, buns, undercut, bangs covering eyes",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-8rok",
+      "name": "织离",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "long straight hair, 1.6::swept bangs::, 1.4::sidelocks::, white hair, 1.8::crimson underlayer hair::, wild and fierce expression, wide open fierce golden eyes, messy disheveled hair, white plain robe with golden bamboo embroidery at shoulder, black skirt, black waist belt with jade ornaments, medium breasts",
+      "negativeTags": "forehead mark, bun, buns, undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-c2im",
+      "name": "窑",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "1.2::white long straight hair::, 1.6::blunt bangs::, 1.4::sidelocks::, black eyes, pale skin, 1.5::sleeveless black cheongsam, pure white peony flowers pattern only (no other patterns)::, high side slits exposing legs, bare full arms, 2::round black sunglasses on forehead:, narrow waist, large bsreasts",
+      "negativeTags": "forehead mark, bun, buns, undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-0j03",
+      "name": "陶",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "dark brown round eyes, 1.4::bean eyebrows::, smiling showing two small tiger teeth,1.2::wear round black sunglasses::, white hair, long straight hair, 1.3::one long low ponytail::, hair flaps, thin short bangs on forehead, black kung fu uniform, dark white small plum blossom pattern on fabric, white sash belt, white Chinese kung fu tight shorts, bare legs, black cloth shoes, traditional Chinese clothe,",
+      "negativeTags": "animal ear, animal tail, forehead mark, bun, buns, ahoge",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-i139",
+      "name": "瓷",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "short black hair, sidelocks, 1.5::completely forehead::, 1.2::white eyes (pale pupils)::, 1.4::short traditional Chinese kung fu uniform, waist-length, pure white with black chrysanthemum patterns::, 1.5::black tight trousers::, 1.8::round black sunglasses on forehead::, traditional Chinese clothe, small breasts,  sly smile, playful eyes,",
+      "negativeTags": "forehead mark, bun, buns, undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-xndu",
+      "name": "彦烬",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "forehead, handsome, 1.5::tall figure,narrow waist::, 1.6::red pupils::, expressionless face, 1.6::faint stubble on chin, black hair::, 1.6::forehead::, sidelocks, low long straight ponytail,",
+      "negativeTags": "old, lips stubble, wrinkle, undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.7::one black plain robe with some red spider lilies pattern on shoulder::, black waist wraps,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-ck72",
+      "name": "夏尹生",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "1.8::closed eyes::, smiling crescent eyes, green long straight hair, 1.4::blunt bangs::, sidelocks, 1.3::very narrow waist::, medium breasts",
+      "negativeTags": "forehead mark, bun, buns, undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "white inner robe, 1.4::green wide-sleeve robe::, white waist wraps, green cloth herbal pouch at waist, plain cloth shoes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-40sz",
+      "name": "涂山浮笙",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "1.4::black fox ears, one large fluffy black fox tail::, slender figure, narrow waist, 1.2::slender cyan phoenix eyes::, crafty expression, absurdly black long hair with red cord tied, 1.6::blunt bangs::, 1.3::green Chinese hanfu dress::, white outer robe, bare feet, large breasts",
+      "negativeTags": "bare arms, bare legs, forehead mark, bun, buns,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-5g90",
+      "name": "蛸",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "octopus woman, absurdly long wavy purple hair, 1.2::hair covering one eyes::, purple eyes, blue starfish on hair, 1.5::large purple-black tentacles from back::, suction cups on tentacles, 1.4::white see-through cloth only covering vital parts::, bare full body, blue glass pendant on neck, barefoot, large breasts,",
+      "negativeTags": "forehead mark, bun, buns, clothe, ahoge",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-m1e1",
+      "name": "宁无霜",
+      "aliases": [],
+      "type": "mature female",
+      "appearance": "tired, dark circles, {black hair with white streaks}, neat bun with wooden pin, sidelocks, thin build, {blue-grey patched inner shirt}, black pants, old black shoes, stained white apron, weary, poor",
+      "negativeTags": "forehead mark, ahoge, undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-o8ry",
+      "name": "宁落雪",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "round face, {{{{right eye covered with black cloth}}}}, black hair in a top bun with pink tie, sidelocks, short light blue-grey traditional chinese tunic, black waist wraps, black pants, old black shoes, thin, timid",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-d43o",
+      "name": "莫愁",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "pink eyes, 1.2::mole under left eye::, 1.2::heart-shaped pupils::, 1.2::long black straight hair::, 1.4::sidelocks::, 1.6::swept bangs::, narrow waist, black thin silk robe, deep v-neck,1.2::bare cleavage,pink plum blossom tattoo on left breast::, black high-slit skirt, 1.6::bare legs::, barefoot, 1.2::bronze bell at waist::, large breasts,",
+      "negativeTags": "forehead mark, bun, buns, undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-ltg7",
+      "name": "梅芢",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "red_eyes, upturned_eye_corners, twin_long large_braids, large braids, small_fangs, white_short_bob_cut, petite_figure, small_build, bare_legs,",
+      "negativeTags": "animal ear, animal tail, forehead mark, bun, buns, ahoge",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.4::black jiaoling tight-fitting top, white oversized plain robe::, 1.4::white slouchy socks::, black short boots, black tight Chinese shorts, silver chain necklace with red bead,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-8g1k",
+      "name": "欧阳大力",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "wheat-colored hair,1.6::short bangs::,side ponytail,arrogant face,blue eyes,1.4::narrow phoenix eyes::,Chinese copper coin necklace,white short robe,black cropped tank top,1.4::exposed waist::,alluring waist,gray rags shorts,bandage wrapped around hand and leg,no shoes,barefoot",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-pp2l",
+      "name": "诗入梦",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "tall, flat chest, pale skin, black hair, long hair, high updo, hair bun, simple hair crown, white eyes, blank eyes, no pupils, languid expression, half-closed eyelids, barefoot, light beige-white wide-sleeved inner dress, ash greyish-cyan long straight-collar outer robe, beizi, hanfu, ancient chinese clothes",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-lejt",
+      "name": "月悟道",
+      "aliases": [],
+      "type": "adult man",
+      "appearance": "handsome face, long hair, 1.9::split black and white hair, half black half silver white::,neat large hair strands, no messy bangs, no flyaway hair, calm detached eyes, pale gray eyes, fair skin, black inner robe, white outer robe,subtle yin yang ornament,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-dc3f",
+      "name": "沉虚",
+      "aliases": [],
+      "type": "man",
+      "appearance": "handsome young man,tall and sturdy figure,1.4::white hair with hidden crimson underlayer hair::,short hair,white eyes,pale skin,1.8::wear black hood::,black taoist robe,white lining,1.6::the dress features a large scarlet fox face pattern on the chest::，1.4::Square jade pendant::",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-vkd8",
+      "name": "鲸戒",
+      "aliases": [],
+      "type": "adult female",
+      "appearance": "tall,medium breasts ,violet hair,short hair,violet eyes,narrow phoenix eyes,arrogant eyes,black high-slit bodysuit,exposing shoulder and arm, black sheer stockings,magnificent black cloak,gold trim,gold chain belt,leather boots, {{black Chinese straw hat}}",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-vctf",
+      "name": "凯撒",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "tall and sturdy figure,broad shoulders,White hair, purple eyes, slicked-back hair, medium-length hair swept to the side, evil smile,imperial robes, dark imperial robes with bright blue and dark purple patterns",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-ucdw",
+      "name": "姜芽芽",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "black hair, cat ears under straw hat, red heart-shaped pupils, petite, flat, gray martial robe with red trim, tattered black cloak over one shoulder, 1.2::torn:: black stockings, no shoes, bare shoulder",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-yxz5",
+      "name": "艾尔雯·游泽蒂尔·洛希恩·薇尔德希尔",
+      "aliases": [
+        "艾尔",
+        "艾尔雯"
+      ],
+      "type": "girl",
+      "appearance": "long blonde hair, bangs, green eyes, elf, flat chest, oval face, pale skin, cleric robe, cream-colored fabric, bishop sleeves, ornate trim, fully clothed, absurdly long hair, hair intakes, hair tied back, hair between eyes, ahoge, upturned eyes, high collar, off-white robe, thin gold waist belt, narrow waist, golden cross hair ornament with rose vines, sharp eyes, narrow eyes",
+      "negativeTags": "bare chest",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-9nnp",
+      "name": "白圭",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "narrowed eyes, pale purple eyes, long white hair, no bangs, white fox ears, teardrop crystal earring with blue flame, nine white fox tails, tail tips gradient to ice blue, cold fire on tail tips, dark purple cross-collar robe, gold embroidery on lapel, black sash belt",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-veaw",
+      "name": "卿心月",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "teenage girl, late teens, slim build, oval face, soft features, slightly full cheeks, large round pink eyes, pink pupils, long eyelashes, small upturned nose, small full lips, fanged smile, light blue long hair, fluffy hair, fox ears, light cyan cross-collar robe, wide sleeves, crescent moon embroidery on lapel, copper fox brooch on left shoulder, woven straw love knot at waist",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-dtl0",
+      "name": "雀儿",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "white long hair tied in high ponytail, light red hair ends, light amber eyes with red undertone, small fangs, small delicate face, white short jacket with cyan feather embroidery, cyan wide belt with long bow tails, cyan to white gradient long skirt, silver and cyan feather hairpin, two long white ribbon-like feathers with pale red edges hanging from shoulder blades,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-gpmn",
+      "name": "卜问天",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "very long straight grey hair, floor-length hair, heterochromia, one black eye, one white eye, glowing pupils, surrounded by thick black mist, dark aura, black long robe with gold embroidery, gold beast patterns, purple-gold crown with black pearl, black boots,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-7tza",
+      "name": "铭翩鸿",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "slender, long straight hair to waist, black hair, {{dark red streaked hair on both sides}}, ahoge, squinting, half-closed eyes, dark golden eyes, oval face, pale skin, deadpan, black cross-collar narrow-sleeved shirt with red string cuffs, black red and white mamianqun with silver embroidery, flat chest",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-ry38",
+      "name": "墨祈落",
+      "aliases": [],
+      "type": "adult man",
+      "appearance": "tall, unkempt beard, dark circles under eyes, square face, sharp jawline, high nose bridge, dark red eyes, tiger-like eyes, long straight black hair, high ponytail, {{a tuft of white hair on the left side of the top of the head}}, black cross-collar wide-sleeved inner shirt with white trim, white loose pants, dark red boots, dark red sleeveless long coat with silver embroidery on the back, black and white waist belt, carrying a giant writing brush at the waist, ink stains on clothes, decadent uncle look,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-pfg6",
+      "name": "纷雨",
+      "aliases": [],
+      "type": "adult woman",
+      "appearance": "slender, petite frame, orange long straight hair, a simple wooden hairpin on top of head, narrow eyes, very pale grey eyes with dark yellow edges, white ruqun with black ink patterns, red ribbon waist belt, translucent sheer shawl, flat chest, narrow",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-ina1",
+      "name": "洛樱",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "loli, petite, child, cute, \npink hair, long hair, messy hair, fluffy hair, disheveled hair, static hair, ahoge, \npurple eyes, pink eyeshadow, \noversized black robe, gold trim, off shoulder, oversized clothes, clothes dragging, white cotton inner wear, sleepwear, barefoot,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-rzhx",
+      "name": "白璃",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "petite girl, loli, cute, white hair, very long fluffy messy hair, silver hair, heterochromia, blue left eye, pink right eye, childlike body, white robe, elder robe, wide sleeves,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-kmef",
+      "name": "幻夕",
+      "aliases": [],
+      "type": "boy",
+      "appearance": "1.4::eminine face::, large eyes, heterochromia, left eye golden, right eye purple, long black hair with white hair tips, 1.6::M-shaped bangs, hair between eyes::, ahoge on top of head curling forward, wearing white silk hanfu robe, intricate embroidery, white shoes, black long robe draped over shoulders as cape, dynamic cloak, holding chinese sword,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-1j90",
+      "name": "云笺",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "slender figure, medium breasts, jade green eyes, emerald eyes, snow white hair, very long hair, cyan hair tips, gradient hair, straight bangs, bangs covering forehead, hanfu, traditional chinese clothing, white and cyan hanfu dress, flowing long skirt, upper body white, lower body cyan, long sleeves, cyan pibo, shoulder shawl, classical chinese style,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-8j7o",
+      "name": "诗怀影",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "slender body, petite, long black straight hair, long side bangs, 1.1::red eyes::, cute, hanfu, blue pibo, flowing shawl, left side red ribbon bow, right side white flower hairpin, 1.2::black layered robe::, embroidered trim, white inner garment, 1.1::black narrow embroidered shoulder straps::, grey chest sash, wide flowing sleeves, black long dress,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-bksx",
+      "name": "诗疏影",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "slender body, long straight white hair, long side bangs, blue eyes, hanfu, white long dress, flowing white dress, floor-length dress, faint blue glowing patterns, blue spiritual light, glowing hem, white pibo, flowing shawl, 1.2::holding white folding fan::, white and blue color scheme",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-q0uj",
+      "name": "苗霸天",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "curvy, large breasts,cat ears, long white cat tail, smooth fur,long white hair, side-swept bangs,red eyes, slit pupils, expressionless,wearing dark green long dress with gold cloud embroidery, high slit,sheer black outer robe with wide sleeves, silver tassels at cuffs, golden beast motif on back,red waist sash, jade pendant, wooden bead bracelet, thin silver choker,barefoot, copper bell anklet with runes,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-ofdk",
+      "name": "紫不语",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "very long purple hair, white hair ribbon, blue eyes, medium breasts, silver glowing mark on collarbone, no hair ornaments. dark blue inner robe with white wide-sleeved outer robe. Sleeves and trouser legs tightly wrapped with binding bands for mobility, white cloth boots , spotless boots, spotless surface",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-19wm",
+      "name": "徐东升",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "handsome face, sharp eyebrows, golden eyes,long hair,1.8::white and gold hair,layered hair::, messy hair,hair between eyes,pale skin, white daoist robes, luxurious golden embroidery, sun patterns, ancient celestial motifs",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-7ilx",
+      "name": "舒桐",
+      "aliases": [],
+      "type": "adult man",
+      "appearance": "long black hair with dark purple gradients,waist-length hair,half tied hairstyle,thin braids,moon crystal hair ornaments,pale skin,cold violet eyes,tall and slender body,black and deep purple robes,layered daoist robes,silver embroidery,moon patterns,star patterns,dark purple cloak,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-140z",
+      "name": "梁九音",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "girl, strong brow, red eyeshadow, left earlobe with red mole, black hair in a bun with dark wooden hairpin, a few loose strands beside ears,\ntall and slender, black short Chinese jacket with dark red cloud patterns, sheer black gauze outer robe with wide sleeves, vermilion red waist sash, white jade pendant, barefoot,\nholding a long spear, red rope wrapped on shaft",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-wyvb",
+      "name": "柳惑",
+      "aliases": [],
+      "type": "mature women",
+      "appearance": "curvy,1.2::femme fatale::,sensual,big breasts, 1.3::red dark skin::, white short hair,red inner hair,swept_bangs,white pupil, red eyes,dark-red  red  undereye teardrop facial mark,oneside blood-red spider lily hair ornament,bedroom eyes,\nmandarin collar choker, gold tassel, black string bikini, \n{dark-red fingerless gloves},asymmetrical legwear, one bare leg,\n1.3::single thighhigh, red thighhigh with gold trim::,  open-toed footwear, 1.2::bare toes::,\ntransparen sheer black shawl, dark blood-red gradient hem, gold cloud pattern,\n1.2::vertical see-through black cloth from underbust to pelvis::,\nholding blood-red sword,",
+      "negativeTags": "wings,symmetrical gloves, symmetrical footwear, matching boots, pair of boots, closed shoes,\nfull skirt, opaque skirt, waist skirt, miniskirt, long skirt, dress skirt, loincloth attached to waist, waist cloth, hip cloth, belt skirt, apron skirt,\nfront drape starting from waist, cloth attached to belt, opaque pelvic curtain, opaque front panel, thick fabric, non-transparent cloth, hidden abdomen, covered belly,\nsleeves, long sleeves, kimono sleeves,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-39ku",
+      "name": "白苏",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "light brown eyes, 1.5::green leaves at ears::, 1.7::dark green long hair with green leaves::, hair between eyes, sidelocks, slender build, 1.5::barelegs,bare midriff::, flat chest,",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "green leaves covering chest, green leaf skirt, 1.3::vines wrapping body::, white flower crown,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-yh8t",
+      "name": "柳知凡",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "1.4::narrow pale face::, 1.3::blue-purple eyes, white diamond pupil::, expressionless, 1.5::long white hime cut::, slim slender build, 1.8::light purple gradient high collar plain robe with silver star trim::, purple narrow belt, white soft cloth shoes, purple ribbon tied at sleeves,",
+      "negativeTags": "forehead mark, buns,bun, ahoge",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-3nyd",
+      "name": "今长乐",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "otoko no ko, petite, white hair, long flowing hair, fluffy white fox ears,golden eyes,no braids,(long sidelocks with multiple red ribbon knots at midway:1.3),red ribbon choker with front bow, hanfu ,  black obi with two thin gold lines and crescent ornament, long red pleated underskirt",
+      "negativeTags": "undercut,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-v6ic",
+      "name": "岁寒子",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "loli, white hair, very long hair, twin straight tails, blunt bangs, gradient hair, light blue hair ends, (slender pointed light blue dragon horns:1.4), pointy ears, red forehead mole, golden eyes, cold expression, (short white dragon tail:1.4), ice blue tail tip,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark navy hanfu, white fur collar, dragon embroidery cuffs, cloud waistband, long skirt, leg wraps, white boots"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-g439",
+      "name": "栖辞",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "black eyes, expressionless, 1.9::red dyed forehead bangs::, white long hair, hair between eyes, hair flaps, long white feather ears, 1.4::long white feathers tail::, 1.5::black bird claws feet::, slender tall figure, narrow waist, 1.4::high collar pure white plain robe with feathers sleeves::,",
+      "negativeTags": "forehead mark, bun, buns, ahoge",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-0acq",
+      "name": "涂山绯",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "kitsune girl, black fox ears, white inner fur,\nblack fluffy tail, white tip,\ncenter-parted long black hair, straight hair, long bangs, hair between eyes,\nred eyes, pale skin,\n(youthful:1.1), petite, large expressive eyes, soft round face, cute,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "red and black fox pattern robe, wide sleeves, loose collar"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-33ww",
+      "name": "洛青棠",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "blue hair, M-shaped bangs, ahoge, very long single high ponytail, light green eyes, bare legs",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "white oversized hoodie, black \"P\" symbol on left chest, black athletic shorts, red and white sneakers,small black choker covering only the throat"
+        },
+        {
+          "name": "变身",
+          "tags": "blue and white magical girl outfit, short pleated skirt, phoenix cloud embroidery on cuffs and hem, translucent ice-blue fairy wings, blue magic sword, white knee-high boots"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-8gyh",
+      "name": "陆凉瑶",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "blue medium hair, straight hair, small straight braids,a small green x on left head, hair over shoulder, light pink tips, grey eyes, left side swept bangs, sharp teeth, clenched teeth, large deep blue hanfu with grey trim, overlapping collar, small white capelet with blue wave embroidery,black cloth boots,small breasts,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-bit4",
+      "name": "萧遥瑚",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "teen, fox girl, blonde fox ears, large fluffy blonde fox tail, orange tail tuft, white fluffy, tareme, blue eyes, light blonde absurdly long hair, gradient orange hair, deep orange inner hair, blunt bangs, light grey white hanfu with white trim,brown branch embroidery, medium breasts, brown ribbon belt, white thighhighs,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-76kz",
+      "name": "常铁花",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "orange eyes, long red hair 1.8::one long drill hair high ponytail::, hair between eyes, ancient Chinese wuxia, athletic toned build, barefeet,",
+      "negativeTags": "forehead mark, bun, buns, ahoge,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.4::red sleeveless short robe::, black trim, deep red shorts, black iron waist warp,   confident posture, hands on hips, loud energetic presence,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-zcn3",
+      "name": "蒲若云",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "pale skin, green eyes, half-lidded tired eyes, absurdly long hair, 1.2::grey-white thin sparse hair::, bony thin,",
+      "negativeTags": "forehead mark, bun, buns,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.4::oversize loose grey-white plain robe, robe hem trailing on the floor::,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-rj6v",
+      "name": "寥雯香",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "medium breasts, half-lidded weary eyes, magenta eyes, 1.6::eposed full forehead::, 1.6::part bangs on top:::, long straight black hair, narrow waist, holding one smoke pipe,",
+      "negativeTags": "forehead mark, bun, buns, bangs covering eyes",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.8::tight black full body stocking::, 1.5::black cheongsam, wide sleeves::, 1.4::narrow waist::,  {magenta shawl}, draped over elbows,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-zdrc",
+      "name": "卜桑",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "mall breasts, messy medium black hair, 1.6::blunt bangs covering eyes::, gloomy expression, hollow eyes, slight smile, dark eye circles, thin figure, slouching posture, hair intakes,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.4.::black tightly robe::, 1.5::silver star pattern at sleeves::, 1.3::silver star pattern hairband on head::, 1.4::narrow wiast warp::,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-5738",
+      "name": "洛归客",
+      "aliases": [],
+      "type": "man",
+      "appearance": "adult male, light grey long hair, (half-up high ponytail:1.1), loose flowing hair, gentle dark grey eyes, (vertical cyan forehead mark between eyebrows:1.2),",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "pure white ancient robe, (ornate shoulder guards:1.1), pale gold cloud embroidery on robe, wide flowing sleeves, black leather belt, jade plaque at center of belt, black boots"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-lbg9",
+      "name": "史龙墨仪",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "grey eyes, black low-tied long hair, extra long hair, hair past waist, yellow gradient hair tips, a pair of small black dragon horns, narrow waist, large breasts,",
+      "negativeTags": "forehead mark,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black sheer wide-sleeve outer robe with gold trim, black jiaoling ruqun, knee-length white Chinese skirt, black short boots, traditional chinese hanfu,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-l0tz",
+      "name": "月落明砂",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "loli, light purple eyes, white hair, half updo, double bun, absurdly long hair, hair tips periwinkle gradient, small light purple dragon horns, barefoot,",
+      "negativeTags": "forehead mark, bare chest",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "wrapped tightly, white chest-level ruqun, light grey-purple short skirt, purple sash, purple flowing long ribbon around back in sky, traditional chinese hanfu,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-2qwb",
+      "name": "月落澹宵",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "light purple eyes, very white long hair, blunt bangs, pale purple gradient hair tips, silver-purple dragon horns, blush, large breasts, narrow waist,",
+      "negativeTags": "forehead mark, bare chest, cleavage",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "white jiaoling ruqun, pale purple wide-sleeve outer robe, open robe, loose collar, white knee-length Chinese skirt, traditional chinese hanfu, blue floating silk ribbon, draped over arms,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-iede",
+      "name": "卫圣恒煦",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "serious expression, cyan-blue eyes, deep blue long hair, curtained hair, sidelocks, deep blue dragon horns, muscular, broad shoulders,",
+      "negativeTags": "forehead mark",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "",
+          "tags": "pure white inner robe underneath, white crossed-collar hanging down over pants, blue waist sash, blue wide-sleeve outer robe over white robe, robe slit, deep blue-grey pants, tall black boots, traditional chinese clothes,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-l2nq",
+      "name": "白弦织空",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "pale skin, large blue eyes, pure white long loose hair, two thin front braids with blue streaks, 1.4::small tiny white dragon horns::, barefoot,",
+      "negativeTags": "forehead mark",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "white sheer outer robe over white jiaoling ruqun, blue trim, short white Chinese skirt, light blue waist warp, traditional chinese hanfu,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-dz5m",
+      "name": "阳德星芽",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "golden-green eyes, muted green hair, 1.2::lunt bangs,low twintails::, hair rings, yellow-green gradient hair tips, a pair of muted desaturated green dragon horns,",
+      "negativeTags": "forehead mark",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "bright yellow flowing long ribbon around back in sky, white chest-level ruqun, white outer robe, traditional chinese hanfu, barefoot,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-uamn",
+      "name": "晏离",
+      "aliases": [],
+      "type": "mature female",
+      "appearance": "emotionless, half-closed eyes, reddish-brown eyes, long greyish-black hair, straight hair, parted in the middle, no bangs, forehead visible, hair blowing in the wind,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "plain white cross-collar inner shirt, light greyish-blue open robe with wide sleeves, dark grey pleated wide skirt, orange thin sash at waist, traditional wooden wine gourd at waist"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-847v",
+      "name": "敖芷",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "dragon girl, (slender pointed light blue dragon horns:1.4), (short blue dragon tail:1.4), dark blue long hair, blue eyes, lazy expression, half-lidded eyes, pale skin, large breasts",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "white taoist robe, gold cyan trim, crane print, high slit, tassel, jade pendant, black lining, strappy boots"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-eep3",
+      "name": "薛忆舒",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "loli, 1.8::neko mouth::, golden eyes, black golden, 1.6::two moles under both eyes::, 1.4::two black long thick braid::, 1.5::blunt bangs::, sidelocks, 1.5::twins cone hair bun on head top::, holding a brush, narrow waist,",
+      "negativeTags": "forehead mark, undercut, ahoge",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark blue short plain robe, white taotie pattern trim, white long trousers,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-n2jl",
+      "name": "谭琴",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "dark brown eyes, half-lidded eyes, 1.3::mole under left eye::, 1.4::very long straight black hair::, swept bangs, sidelocks, 1.3::orchid wood hairpin on back of head:, narrow waist, with white jade flute,",
+      "negativeTags": "forehead mark, outer robe, outer wear, bun, buns, undercut,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.5::full body white plain robe::,white dress, cyan waist warp, 1.4::see-through cyan shawl floating over elbows::, floating shawl,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-gq92",
+      "name": "少司寒",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "1.4::white long hair::, high side ponytail, blunt bangs, thin braids on both sides, subtle red hair highlights, elf ears, magenta-purple eyes, 1.6::red mark under eyes::, forehead diamond mark,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "ancient Chinese cyan hanfu with delicate embroidery,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-t8i4",
+      "name": "付琉梨",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "dark brown eyes, 1.6::light pinkish beige absurdly long hair::, sidelocks, 1.6::swept bangs::, pear flower hairpin on back of head, 1.5::one big white plum flower on side of head::, narrow waist, big breasts, expressionless,",
+      "negativeTags": "forehead mark, undercut, bun, buns,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.8::one pure dark blue plain robe with white embroidered lace trim,Chinese jiaoling robe::, white waist warp,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-w5ky",
+      "name": "铃久",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "teen cat girl, medium height, (black twin tails with white streak:1.2), red ribbons, straight bangs, (black cat ears:1.2), (single fluffy black tail:1.1), (light blue tareme eyes:1.2)",
+      "negativeTags": "forehead mark",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "(light gray cross-collar hanfu golden-brown trim cloud embroidery:1.2), dark gray skirt, (black belt brown ribbon tassels:1.1), wide sleeves,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-ik27",
+      "name": "时雨",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "petite body, short stature, mischievous expression, cute loli,\nblack hair, plain white hair ribbon, loose crooked low ponytail, messy small ponytail,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "pink white ancient chinese hanfu, layered robes, delicate pink and white silk dress, wide sleeves,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-g1dm",
+      "name": "明月",
+      "aliases": [
+        "昭岳"
+      ],
+      "type": "woman",
+      "appearance": "(black straight waist-length hair:1.2), straight bangs, (black eyes:1.5), captivating gaze, long eyelashes, biting lower lip, red lips, white hairband, white necklace, light black strapless long dress,intricate embroider,silk hanfu, light gold sheer robe draped, wide golden silk belt,enormous breasts slender waist, bare shoulders,(cleavage:1.3)",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-cl18",
+      "name": "鸾凤",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "brown eyes,black hair, long hair, high ponytail, beautiful face, large breasts, curvy figure, (black tight suit, eastern martial arts outfit, hanfu elements:1.1), black boots, knee-high boots, (dark cyan cape:1.2), (carrying a chinese traditional sword on waist:1.2), (carrying a horizontal giant chinese broadsword on lower back:1.5)",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-qedb",
+      "name": "独孤碎月",
+      "aliases": [
+        "独孤",
+        "碎月"
+      ],
+      "type": "girl",
+      "appearance": "short hair, platinum blonde hair, 1.8::bob cut, hair tie, blue hairband::, yellow eyes, 1.6::blue eyeshadow::, white robe with blue fire trim, 1.8::blue scarf with bule fire::,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-atbi",
+      "name": "白歌",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "bright yellow eyes, white medium hair, (dark grey ends:1.4), (fluffy messy hair:1.2), (one ahoge on top of head, bird feather on side:1.4), flat chest.",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "(huge thick soft white fur collar:1.5), (grey long robe, white open long coat over inner robe, white waist warp:1.3),"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-d0t8",
+      "name": "鳣跃清",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "mermaid, 2::long  white rainbow pearlescent scales tail::, glowing scales, white hair long hair, hair between eyes, floating hair, white fin ears, blue eyes, tsurime, huge breasts, collarbone, bare midriff, 1.6::white scales hands and forearms::, 1.8::deep cleavage::, white halterneck,criss-cross halter top, {revealing clothes},",
+      "negativeTags": "forehead marks, ahoge, bun, buns, shell, ponytail, bare hands, gloves",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-8i15",
+      "name": "秦藿",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "1.7::forehead::, part bangs, sidelocks, black hair, 1.4::high bun::, narrow waist，black eyes, tsurime, small breasts, large button,",
+      "negativeTags": "double_bun, undercut, forehead mark, pattern, trim, white ribbon, bare arms, bare legs",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "{{black long tight sleeves short cheongsam}}, bandage cuffs,black waist warp, {black tight leggings}, 1.5::one straight black Chinese sword at waist::,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-nde9",
+      "name": "余白柏",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "petite, tareme, black straight hair, long low ponytail, sidelocks, forehead, part bang, bare legs, barefoot,",
+      "negativeTags": "undercut, forehead marks, ahoge, bangs, bun, buns",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.3::water blue short plain robe with scales, scales full of robe::, long sleeves, black fur collar, black fur trimming on sleeves and hem, 1.2::narrow waist, black waist warp::,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-lnsl",
+      "name": "团子",
+      "aliases": [
+        "玄水龟"
+      ],
+      "type": "other",
+      "appearance": "animal, big turtle, round turtle, blue turtle shell, glowing blue runes on shell, luminous blue veins across shell, cyan patterns on limbs and head, floating water droplets, aquatic aura,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-2d1q",
+      "name": "梦禅汐",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "cat girl, black hair, (twin tails:1.1),(heterochromia:1.4), (right eye yellow:1.5), (left eye blue:1.5), (hair over one eye:1.3),  (cleavage:1.2), masterpiece, best quality, high detail",
+      "negativeTags": "(yellow right eye), (blue left eye), same eye color,forehead mark",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "(pure white hanfu:1.3), (silver crane embroidery:1.3), (pale blue trim:1.1), (white silk ribbon:1.1)"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-d9po",
+      "name": "宁楚瑶",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "white hair, medium hair, double bun, fluffy hair, yellow eyes,bare shoulders, blush, bandaged hands,masterpiece, best quality",
+      "negativeTags": "forehead mark",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "(white improved cheongsam:1.4), (detached white sleeves:1.3),(red trim:1.2), (red chinese knots:1.1), (black sash:1.0),\n(silver crane embroidery:1.3), (high thigh slit:1.3)"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-4v9k",
+      "name": "梦云瑶",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "cat girl, (cat ears:1.2), (red eyes:1.3), red hair, long hair,masterpiece, best quality",
+      "negativeTags": "jade buttons misaligned, extra frog buttons, messy frog buttons,forehead mark",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "(ming style yuanlingpao:1.3), (black robe with red cloud embroidery:1.4), (white inner lining:0.8),mandarin collar, (diagonal frog buttons:1.5), (jade buttons aligned diagonally from right shoulder to left waist:1.4),black waist sash with red tassel, wide sleeves, flowing fabric, tailored fit"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-o5og",
+      "name": "苍鳽",
+      "aliases": [
+        "夜师傅"
+      ],
+      "type": "girl",
+      "appearance": "red eyes, tsurime, narrow waist, dark grey blue long straight hair, hair between eyes, sidelocks,",
+      "negativeTags": "undercut, forehead, forehead marks, trim",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "2::white antenna hair::, white robe, 1.5::dark grey blue outer robe, white waist warp, white leggings, yellow boots,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-0agz",
+      "name": "暮鸫",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "yellow eyes, black feather bird ears, black hair, long straight hair, long big hair between eyes, sidelocks, very narrow waist,",
+      "negativeTags": "undercut, forehead marks, ahoge, ears",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.4::brown triangle scarf::, 1.3::black plain robe, long sleeves, brown feather cuffs::, no trim, black waist warp, 1.2::long black tight legwear::, black boots,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-8iix",
+      "name": "常幼梨",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "artisan, light orange eyes, amber eyes, (smudge on cheek, dirt on face:0.8), short light brown hair, ahoge, (hair stick, brass hairpin:1.1),\npetite body, flat chest,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "(red short martial arts robe, daoist robe:1.1), tight cuffs with iron rings, thick leather boots,\n(carrying giant wooden mechanical box on back, huge wooden chest:1.2),"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-g21j",
+      "name": "药心",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "black long hair, red underlayer hair,  red eyeshadow, red hairclip, alternate hairstyle, hair behind ear, red eyes, tsurime，medium breasts, curvy,  purple gourd at waist,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "modified long black cheongsam with side slit, dark red gradient hem, red-black-gold color palette, chinese traditional costume, sleeveless,barefoot,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-myne",
+      "name": "井俏俏",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "blue eyes,spiky hair, short hair ,white hair,1.2:: small high ponytail::, messy layered hair,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "sharp hair strands,black half face mask,1.4::mesh halter top, fishnet sleeveless top::, dark gray baggy harem pants,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-lzcz",
+      "name": "公孙乌珑",
+      "aliases": [
+        "乌珑"
+      ],
+      "type": "mature woman",
+      "appearance": "flat chest, narrow waist, slender, red eyes, middle part bangs, 1.3::forehead::, long sidelocks, very long black low ponytail, blank expression,",
+      "negativeTags": "undercut, forehead marks, bun, buns, bangs, bang",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "1.5::dark cyan high collar plain robe::, wide drooping sleeves, {intricate golden embroidered on chest}, plain black leather belt, black boots, {keys hanging on waist},"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-9p9b",
+      "name": "姬无双",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "{petite}, long low ponytail, beige hair, middle part bangs, 2::forehead,sidelocks::, french braid, flat chest, narrow shoulders, golden eyes, tsurime,",
+      "negativeTags": "undercut, forehead marks, buns, bun, bangs, bang,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "{black short robe,magenta trim, black trousers}, {long narrow sleeves,black wristbands}, magenta leather belt, 1.5::iron token, copper keys, dagger, thin rope hanging on waist::, black boots"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-7evz",
+      "name": "董问舒",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "long straight black hair, sidelocks, hair between eyes, purple eyes, narrow waist, slender figure, mole under mouth,",
+      "negativeTags": "undercut, forehead marks, buns, bun,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark brown plain robe, wide drooping sleeves, white long skirt,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-opc2",
+      "name": "北正义",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "brown eyes, 1.3::dark brown hair::, 1.8::high twintails, voluminous hair, tousled hair, ahoge, 1.5::red hair bobbles, large hair ornaments on both sides of head::, child",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "halterneck, sleeveless, black top, high collar, red trim, chinese knot button, black flared skirt, red inner skirt, ornate gold belt buckle, black belt, black mid-calf boots"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-ez73",
+      "name": "南宫宁宁",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "long hair, silver eyes, white hair, blush, svery long hair, ahoge, hair between eyes, hair ornament, hairclip, {shining hair}, chinese clothes, black robe, off-shoulder, bare shoulders, detached sleeves, wide sleeves, Chinese-style long skirt, {blush},",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-u484",
+      "name": "何墨思",
+      "aliases": [],
+      "type": "mature man",
+      "appearance": "handsome face,burgundy short hair,1.2::curly messy hair::,grey eyes,white pupils,dark circles,tired face,",
+      "negativeTags": "old,beard,moustache,goatee,whiskers,wrinkle,2::coat::",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black robe,1.2::arm guards::,1.3::black pleated long skirt::,silver belt"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-if3n",
+      "name": "墨遥铃",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "cat girl, small chest, short black hair, blue streaked hair, blue eyes, peach blossom eyes, beauty mark under eye, cat ear, black cat tail,",
+      "negativeTags": "big mark, large mark, prominent mark,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black organza, transparent clothes, body jewelry, oriental dancer,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-9e4a",
+      "name": "白漓",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "long white hair, yellow eyes, slit pupils, black tight bodysuit, snake scales on waist, stealth outfit, narrow waist, tactical boots,",
+      "negativeTags": "big mark, large mark, prominent mark,",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-k051",
+      "name": "蓬莱院蒲草",
+      "aliases": [
+        "蒲草"
+      ],
+      "type": "girl",
+      "appearance": "large deep blue eyes, white and red mixed long hair, black tassel hair ornament on forehead, flat chest, classic miko outfit, white kosode, red hakama, white thighhighs, tabi, geta, holding white gohei,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-7ygo",
+      "name": "葛叶",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "fox girl, white animal ears, long white hair, large breasts, cleavage, revealing japanese kimono, off shoulder, sexy posture, playful smile, attractive,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-z9xn",
+      "name": "玉藻前",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "fox girl, brown animal ears, long brown hair, large breasts, tightly buttoned conservative japanese kimono,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-2053",
+      "name": "大天狗",
+      "aliases": [],
+      "type": "boy",
+      "appearance": "handsome youth, pure black skin, silver hair, white eyes, blank stare, world-weary face, grey japanese kimono, holding naginata, dark skin male,",
+      "negativeTags": "",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-92qr",
+      "name": "海坊主",
+      "aliases": [],
+      "type": "mature male",
+      "appearance": "muscular old man, blue skin, shirtless, upper body naked, hemp trousers, holding trident harpoon, gentle expression, calm, blue skin male,",
+      "negativeTags": "old",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-uc0g",
+      "name": "灰风",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "silver long hair, hair between eyes, blue eyes, eye reflection, small breasts,",
+      "negativeTags": "2::hair ornament::,",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "{{layered black dress}}, {{military sci-fi}}, {gold trim}, {dark red pattern}, {mini dress}, short sleeves, {many badge on chest}, {black and gold armlet}, white thighhighs, military boots, {{structured clothing}}, sharp silhouette, 4::side slit::,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-3xhn",
+      "name": "星琯珩",
+      "aliases": [],
+      "type": "mature woman",
+      "appearance": "normal face skin, white straight hair, flowing long hair, 2::closed eyes::, 1.2::third eye on forehead::, 1.2::blue teardrop facepaint under eyes::, nude, 1.6::galaxy skin::, 1.4::cosmic skin body::, dark universe texture on body, glowing stars on body, 1.5::galaxy halo over head::,",
+      "negativeTags": "normal body skin, ahoge, clothe",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-22ea",
+      "name": "魏舒窈",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "slender, narrow waist, tsurime, black eyes, 1.6::cyan pupils::, dark black purple hair, hime cut,  1.4::crown braid::, silver earings,",
+      "negativeTags": "forehead marks, bun, buns, ponytail",
+      "danbooruTag": "",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "golden robe, Chinese cross collar, black gorgeousl embroidered on chest, black gorgeousl  embroidered on sleeves, black leather belt, cyan jade ornaments on waist"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-vnnt",
+      "name": "燕砂",
+      "aliases": [],
+      "type": "woman",
+      "appearance": "black long straight hair, blue eyes, blunt bangs, large breasts, long stoking gloves, (harem outfit, black mouth veil, white breast curtain, white pelvic curtain:1.1), 1.8::full bodystocking::, see-through, elbow gloves,",
+      "negativeTags": "forehead marks, bare skin",
+      "danbooruTag": "",
+      "outfits": []
+    },
+    {
+      "id": "char-1787476551005-3vca",
+      "name": "白霜",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "blue eyes, sharp pupils, scar under eye, silver black gradient hair, 1.4::long high ponytail::, sidelocks, hair between eyes, grey wolf ears, black ear tips, 1.2::bare only one arm::, bare feet, large wolf tail, balck at tail end",
+      "negativeTags": "undercut, cheongsam",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "bone waist belt, black iron arm bracer, black dress, 1.2::bare one arm::, bare feet, black leather tied around ankle, wolf tooth pendant"
+        }
+      ],
+      "danbooruTag": ""
+    },
+    {
+      "id": "char-1787476551005-0e6j",
+      "name": "朱绫罗",
+      "aliases": [],
+      "type": "mature female",
+      "appearance": "mature female, monster girl, red hollow eyes, 1.3::multiple eyes::, 1.2::spider eyes::, 1.3::extra eyes on cheeks::, mole under right eye, dark green hair, 1.4::flipped bangs::, absurdly long hair, loose hair,",
+      "negativeTags": "cheongsam, forehead marks, old, wrinkle, ahoge, large breasts,",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "black long dress, off-shoulder, bare shoulders, spiderweb tattoo under collarbone, transparent spider-silk armlets on arms, bare legs"
+        }
+      ],
+      "danbooruTag": ""
+    },
+    {
+      "id": "char-1787476551005-5d9x",
+      "name": "殷煞煞",
+      "aliases": [],
+      "type": "mature_female",
+      "appearance": "black_hair, hair_gradient, red_hair_gradient, diagonal_bangs, sidelocks, long_straight_hair, dark_red_eyes, cold_expression, 1.2::white_puplis::, bare_feet, 1.6::red hands and forearms with white amrs markings::,",
+      "negativeTags": "old, wrinkle, undercut,  buns, bun, ponytail",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "dark_red_robe, white_gorgeousl_embroidered_on_chest, white_gorgeousl_trim, wide_sleeves,\nsimple_silver_hairpin_behind_head,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-7z7e",
+      "name": "邰巧倩",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "black_hair, long_straight_hair, sidelocks, green_eyes, forehead, cute",
+      "negativeTags": "forehead_mark, buns, bun, ponytail, undercut",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "blue_floral_print, miao_clothes, miao_hat, tassel, white_crown, wide_sleeves, hoop_earrings, jewelry, black_hanfu, white_trim, bracelet,"
+        }
+      ]
+    },
+    {
+      "id": "char-1787476551005-kci0",
+      "name": "何令辞",
+      "aliases": [],
+      "type": "girl",
+      "appearance": "petite, slender figure, small breasts,\n{{hands hidden inside oversized sleeves}}, deep black hair, perfectly straight hair, very long hair, neat hair, blunt bangs, long straight side locks,{{small silver flower hairpins on side of head}},expressionless, \nblue-purple gradient eyes,",
+      "negativeTags": "forehead mark",
+      "outfits": [
+        {
+          "name": "常服",
+          "tags": "{{white oversized robe}}, cross-collar, extremely long wide sleeves,"
+        }
+      ]
+    }
+  ]
+}

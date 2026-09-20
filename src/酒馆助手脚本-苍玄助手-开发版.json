@@ -1,0 +1,17 @@
+{
+  "type": "script",
+  "enabled": true,
+  "name": "苍玄助手（开发版）",
+  "id": "c8f3a1d2-5b6e-4c7a-9d18-2e4f6a8b0c11",
+  "info": "开发版：正文从本机开发服务器拉取最新构建，改代码后刷新酒馆即生效。数据存在本脚本自己的脚本变量里，与正式版互不影响。需要先在项目目录运行 pnpm dev。",
+  "button": {
+    "enabled": true,
+    "buttons": []
+  },
+  "data": {},
+  "export_with": {
+    "data": false,
+    "button": false
+  },
+  "content": "// 苍玄助手 · 开发版（自动推送）\n// 正文只做一件事：从开发服务器拉最新构建并运行。\n// 候选地址按顺序试：局域网 IP（手机上的酒馆要用）→ 本机 127.0.0.1。\n// 改了代码刷新酒馆就是新版本；开发服务器没起来也不会影响别的脚本。\nconst CX_DEV_BASES = ['http://192.168.71.15:8787', 'http://127.0.0.1:8787'];\n\nfunction cxDevFetch(base) {\n  var url = base + '/panel.js?t=' + Date.now();\n  console.warn('[苍玄助手·开发版] import 失败，改用 fetch + new Function 再试：' + url);\n  return fetch(url)\n    .then(function (response) {\n      if (!response.ok) throw new Error('HTTP ' + response.status);\n      return response.text();\n    })\n    .then(function (code) {\n      new Function(code)();\n      console.info('[苍玄助手·开发版] fetch 方式成功，面板已启动（' + base + '）');\n      return true;\n    });\n}\n\n(async function cxDevLoad() {\n  var lastError = null;\n  for (var i = 0; i < CX_DEV_BASES.length; i++) {\n    var base = CX_DEV_BASES[i];\n    var url = base + '/panel.js?t=' + Date.now();\n    console.info('[苍玄助手·开发版] 正在拉取 ' + url);\n    try {\n      await import(url);\n      console.info('[苍玄助手·开发版] import 成功，面板已启动（' + base + '）');\n      return;\n    } catch (error) {\n      lastError = error;\n      console.warn('[苍玄助手·开发版] import 失败：' + base, error);\n      try {\n        var ok = await cxDevFetch(base);\n        if (ok) return;\n      } catch (fallbackError) {\n        lastError = fallbackError;\n      }\n    }\n  }\n  console.error('[苍玄助手·开发版] 所有地址都失败了：', lastError);\n  try {\n    if (typeof toastr !== 'undefined' && toastr && toastr.error) {\n      toastr.error('拉不到面板，已试过：' + CX_DEV_BASES.join(' / ') + '（先在项目目录运行 pnpm dev:port）', '苍玄助手');\n    }\n  } catch (ignore) {}\n})();\n"
+}

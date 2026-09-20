@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang='zh-CN'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'>
+<title>苍玄助手 · 前端草稿 v8（技能 + 看图）</title>
+<style>
+:root{
+  --veil:#0a0d11; --panel:#11151b;
+  --ink:#e9edf2; --muted:#7f8896; --faint:#5c6673;
+  --hair:#212832; --field:#171c24;
+  --accent:#2dd4bf; --accent-ink:#062420; --accent-dim:rgba(45,212,191,.13);
+  --warn:#fbbf24; --danger:#fb7185;
+  --r:10px; --fs:13px;
+}
+body.light{ --veil:#e9ecef; --panel:#fff; --ink:#12161c; --muted:#6b7480; --faint:#98a1ad;
+  --hair:#e3e7ec; --field:#f4f6f8; --accent-dim:rgba(13,148,136,.12); --accent:#0d9488; --accent-ink:#fff; }
+*{box-sizing:border-box;}
+body{margin:0;background:var(--veil);color:var(--ink);font:var(--fs)/1.75 'Microsoft YaHei',system-ui,sans-serif;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--hair);flex-wrap:wrap;}
+.top h1{margin:0;font-size:15px;}
+.top .sub{color:var(--muted);font-size:12px;}
+.top .spacer{flex:1;}
+.stage{display:flex;gap:20px;padding:24px;align-items:flex-start;}
+.col{flex:0 0 auto;}
+.col>h2{font-size:11px;color:var(--faint);font-weight:400;margin:0 0 10px 2px;letter-spacing:1.5px;}
+.phone{width:392px;height:848px;background:var(--panel);border:1px solid var(--hair);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45);}
+.bar{display:flex;align-items:center;gap:9px;padding:15px 18px 12px;}
+.bar .ttl{font-size:15px;font-weight:700;} .bar .st{font-size:11px;color:var(--muted);} .bar .spacer{flex:1;}
+.kebab{border:0;background:transparent;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;padding:2px 4px;}
+.seg{display:flex;gap:2px;margin:0 12px 4px;padding:3px;background:var(--field);border-radius:999px;}
+.seg>span{flex:1;text-align:center;padding:8px 0;border-radius:999px;font-size:11.5px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+.seg>span.on{background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.body{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:6px;}
+.body::-webkit-scrollbar{width:5px;} .body::-webkit-scrollbar-thumb{background:var(--hair);border-radius:3px;}
+.blk{border-top:1px solid var(--hair);padding:14px 18px 16px;} .blk:first-child{border-top:0;}
+.blkh{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.blkh .t{font-size:12px;font-weight:700;letter-spacing:1.2px;}
+.blkh .t::after{content:'';display:block;width:16px;height:2px;background:var(--accent);border-radius:2px;margin-top:5px;}
+.blkh .n{font-size:11px;color:var(--muted);} .blkh .spacer{flex:1;}
+.ghost{border:0;background:transparent;color:var(--accent);font-size:12px;padding:4px 7px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.ghost:hover{background:var(--accent-dim);} .ghost.dim{color:var(--muted);} .ghost.dang{color:var(--danger);}
+.fill{width:100%;border:0;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:14.5px;padding:13px;border-radius:12px;cursor:pointer;font-family:inherit;}
+.tiny{border:1px solid var(--hair);background:transparent;color:var(--muted);font-size:11px;padding:3px 8px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.tiny:hover{color:var(--ink);border-color:var(--accent);}
+.lab{display:block;font-size:11px;letter-spacing:.8px;color:var(--muted);margin-bottom:6px;}
+input[type=text],textarea,select{width:100%;background:var(--field);color:var(--ink);border:1px solid transparent;border-radius:9px;padding:10px 12px;font:inherit;font-size:12.5px;outline:none;}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);}
+textarea{resize:vertical;line-height:1.8;}
+.f{margin-bottom:14px;} .f:last-child{margin-bottom:0;} .frow{display:flex;gap:8px;align-items:center;}
+.sw{width:36px;height:20px;border-radius:6px;background:var(--field);border:1px solid var(--hair);position:relative;flex:0 0 auto;cursor:pointer;}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:4px;background:var(--faint);transition:left .16s;}
+.sw.on{background:var(--accent-dim);border-color:var(--accent);} .sw.on::after{left:18px;background:var(--accent);}
+.row{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:8px;cursor:pointer;}
+.row:hover{background:var(--field);}
+.row .nm{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.row.sub{padding-left:24px;} .row.sub .nm{color:var(--muted);}
+.list{display:flex;flex-direction:column;gap:1px;}
+.tag{font-size:10px;padding:2px 7px;border-radius:5px;background:var(--field);color:var(--muted);white-space:nowrap;}
+.tag.ok{color:var(--accent);} .tag.warn{color:var(--warn);} .tag.dang{color:var(--danger);}
+.hint{font-size:11px;color:var(--faint);line-height:1.75;}
+.macros{display:flex;flex-wrap:wrap;gap:6px;}
+.chip{font-size:11px;padding:5px 11px;border-radius:999px;background:var(--field);color:var(--accent);cursor:pointer;}
+/* 模式 / 分段小药丸 */
+.modebar{display:flex;align-items:center;gap:6px;padding:3px;background:var(--field);border-radius:999px;}
+.modebar>span.m{flex:1;text-align:center;font-size:12px;padding:7px 0;border-radius:999px;color:var(--muted);cursor:pointer;}
+.modebar>span.m.on{background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.modebar>span.m.off{opacity:.55;}
+.draftbar{display:flex;align-items:center;gap:8px;background:var(--accent-dim);border-radius:10px;padding:9px 12px;}
+.draftbar .d{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:0 0 auto;} .draftbar .x{font-size:12.5px;}
+.chat{display:flex;flex-direction:column;gap:11px;}
+.m{max-width:88%;font-size:13px;line-height:1.8;}
+.m.a{align-self:flex-start;}
+.m.u{align-self:flex-end;background:var(--field);border-radius:12px 12px 3px 12px;padding:8px 12px;max-width:80%;}
+.m .who{display:block;font-size:10px;color:var(--faint);letter-spacing:1px;margin-bottom:3px;}
+/* 工具卡片：默认只有一行，点开才展开 */
+.tool{border:1px solid var(--hair);border-radius:10px;background:var(--field);overflow:hidden;}
+.tool .th{display:flex;align-items:center;gap:7px;padding:8px 10px;font-size:11.5px;cursor:pointer;}
+.tool .cv{color:var(--faint);font-size:9px;transition:transform .15s;}
+.tool.open .cv{transform:rotate(90deg);}
+.tool .tk{color:var(--accent);} .tool.err .tk{color:var(--danger);}
+.tool .tn{font-family:ui-monospace,Consolas,monospace;font-weight:700;color:var(--ink);}
+.tool .ta{font-family:ui-monospace,Consolas,monospace;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px;}
+.tool .tp{margin-left:auto;font-size:10.5px;white-space:nowrap;}
+.tool .tr{display:none;padding:7px 10px 9px;font-size:11px;color:var(--muted);border-top:1px dashed var(--hair);}
+.tool.open .tr{display:block;}
+.tool.err{border-color:rgba(251,113,133,.5);} .tool.err .tr{display:block;}
+.tool.patch{border-color:var(--accent);} .tool.patch .tr{display:block;font-family:ui-monospace,Consolas,monospace;}
+.add{color:var(--accent);} .del{color:var(--danger);}
+.tool.skill .tk{color:#c084fc;}
+/* 生图卡：永远展开，图直接摆在对话里 */
+.tool.img{border-color:var(--accent);} .tool.img .tr{display:block;}
+.gen{border-radius:10px;overflow:hidden;background:linear-gradient(135deg,#1b2b2c 0%,#243036 55%,#1d2530 100%);height:158px;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:11px;letter-spacing:1px;}
+.gmeta{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:10.5px;color:var(--faint);}
+.composer{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--hair);background:var(--panel);}
+.composer input{flex:1;}
+.ibtn2{width:34px;height:34px;flex:0 0 auto;border:1px solid var(--hair);background:transparent;color:var(--muted);border-radius:9px;font-size:15px;cursor:pointer;line-height:1;}
+.send{border:0;background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:13px;padding:0 16px;height:34px;border-radius:9px;cursor:pointer;font-family:inherit;flex:0 0 auto;}
+/* 工具勾选 */
+.trow{display:flex;align-items:flex-start;gap:9px;padding:9px 8px;border-radius:8px;cursor:pointer;}
+.trow:hover{background:var(--field);} .trow input{margin-top:3px;}
+.trow .tn2{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink);}
+.trow .td{font-size:11px;color:var(--faint);line-height:1.6;} .trow.off .tn2{color:var(--faint);}
+/* 技能卡 */
+.skill{display:flex;align-items:flex-start;gap:10px;padding:12px 10px;border-radius:10px;border:1px solid var(--hair);margin-bottom:8px;cursor:pointer;}
+.skill:hover{border-color:var(--accent);}
+.skill.off{opacity:.5;}
+.skill .sn{font-size:13px;font-weight:700;}
+.skill .sd{font-size:11px;color:var(--faint);line-height:1.6;margin-top:2px;}
+.skill .sm{font-size:10px;color:var(--faint);margin-top:5px;}
+/* 普通预设：消息序列行 */
+.mslist{display:flex;flex-direction:column;}
+.mrow{display:flex;align-items:center;gap:8px;padding:11px 6px;border-bottom:1px solid var(--hair);cursor:pointer;}
+.mrow:last-child{border-bottom:0;} .mrow:hover{background:var(--field);} .mrow.off{opacity:.42;}
+.grip{color:var(--faint);cursor:grab;font-size:13px;flex:0 0 auto;letter-spacing:-1px;}
+.rl{font-size:9.5px;font-weight:700;letter-spacing:1px;flex:0 0 auto;width:34px;}
+.rl.system{color:#fbbf24;} .rl.user{color:#38bdf8;} .rl.assistant{color:#2dd4bf;}
+.enm{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rb{width:26px;height:24px;flex:0 0 auto;border:1px solid var(--hair);background:transparent;color:var(--muted);border-radius:7px;font-size:11px;cursor:pointer;padding:0;line-height:1;}
+.rb:hover{color:var(--ink);border-color:var(--accent);} .rb.dang:hover{color:var(--danger);border-color:var(--danger);}
+/* 弹窗 */
+.veil{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:99;}
+.veil.on{display:flex;}
+.sheet{width:min(600px,92vw);max-height:88vh;background:var(--panel);border:1px solid var(--hair);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 26px 80px rgba(0,0,0,.55);}
+.sheet .sh{padding:16px 18px 12px;display:flex;align-items:center;gap:10px;}
+.sheet .sb{padding:0 18px 16px;overflow:auto;display:flex;flex-direction:column;gap:14px;}
+.sheet .sf{padding:14px 18px;border-top:1px solid var(--hair);display:flex;gap:8px;align-items:center;}
+pre.code{margin:0;padding:14px;background:var(--veil);border-radius:10px;font:12px/1.8 ui-monospace,Consolas,monospace;color:#b9c6d3;overflow:auto;max-height:42vh;}
+pre.diff{margin:0;padding:14px;background:var(--veil);border-radius:10px;font:12px/1.9 ui-monospace,Consolas,monospace;color:var(--muted);overflow:auto;max-height:42vh;white-space:pre-wrap;}
+.sfile{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--hair);border-radius:9px;margin-bottom:7px;font-size:12px;}
+.sfile .fn{flex:1;font-family:ui-monospace,Consolas,monospace;} .sfile .fs{font-size:10.5px;color:var(--faint);}
+.note{width:300px;background:var(--panel);border:1px solid var(--hair);border-radius:16px;padding:18px;}
+.note h3{margin:0 0 9px;font-size:12px;letter-spacing:1px;}
+.note ul{margin:0 0 15px;padding-left:16px;font-size:11.5px;color:var(--muted);line-height:1.95;}
+.note code{background:var(--field);padding:1px 5px;border-radius:5px;color:var(--accent);font-size:11px;}
+@media (max-width: 1280px){
+  html,body{max-width:100%;overflow-x:hidden;}
+  .stage{flex-direction:column;align-items:stretch;padding:12px;gap:16px;}
+  .col{width:100%;min-width:0;} .phone{width:100%;min-width:0;height:88vh;} .note{width:100%;}
+  .top .sub{display:none;}
+  .seg>span{padding:10px 0;font-size:12.5px;}
+  input[type=text],textarea,select{padding:12px;font-size:14px;}
+  .ghost{font-size:13px;padding:8px 10px;} .fill{padding:15px;font-size:15.5px;}
+  .m{font-size:14.5px;max-width:92%;} .tool .th{font-size:12.5px;padding:11px 12px;}
+  .tool .tr{font-size:12px;} .ibtn2{width:42px;height:42px;font-size:17px;} .send{height:42px;font-size:14.5px;}
+  .sw{width:48px;height:28px;border-radius:8px;} .sw::after{width:20px;height:20px;top:3px;left:3px;border-radius:6px;} .sw.on::after{left:24px;}
+  .row{padding:13px 8px;} .row .nm{font-size:14.5px;}
+  .skill{padding:14px 12px;} .skill .sn{font-size:14.5px;}
+  .sheet{width:100%!important;max-width:100vw;max-height:90vh;border-radius:16px 16px 0 0;}
+  .veil{align-items:flex-end;} .sheet .sf{padding-bottom:calc(14px + env(safe-area-inset-bottom));}
+}
+</style>
+</head>
+<body>
+
+<div class='top'>
+  <h1>苍玄助手 · 前端草稿 v8</h1>
+  <span class='sub'>预设分两种类型：Agent（系统提示词+工具+技能）/ 普通（消息列表）—— 切换预设，设置页就跟着变</span>
+  <span class='spacer'></span>
+  <button class='ghost dim' id='themeBtn'>深浅色</button>
+  <button class='ghost' id='openSkill'>技能编辑弹窗</button>
+  <button class='ghost' id='openDiff'>diff 弹窗</button>
+  <button class='ghost' id='openMsg'>消息编辑弹窗</button>
+</div>
+
+<div class='stage'>
+
+<!-- 1 立绘 -->
+<div class='col' id='p1'><h2>1 / 立绘</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span class='on'>立绘</span><span>世界书</span><span>对话</span><span>技能</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>提示词</span><span class='spacer'></span><button class='ghost'>去设置 →</button></div>
+      <span class='lab'>用哪个预设</span>
+      <select><option>智绘姬 · 角色立绘</option><option>小白x · 角色立绘</option></select>
+      <div class='frow' style='margin-top:10px'><span class='tag ok'>产出 JSON</span><span class='tag'>工具 0 个</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>角色</span><span class='n'>3 / 22</span><span class='spacer'></span><button class='ghost'>全选</button><button class='ghost dim'>清空</button></div>
+      <div class='f'><input type='text' placeholder='搜索角色名…'></div>
+      <div class='list'>
+        <label class='row'><input type='checkbox' checked><span class='nm'>潮听澜</span><span class='tag'>状态栏</span><span class='tag ok'>有图</span></label>
+        <label class='row'><input type='checkbox' checked><span class='nm'>江念</span><span class='tag'>工坊</span><span class='tag warn'>无元数据</span><button class='tiny'>传图</button></label>
+        <label class='row'><input type='checkbox' checked><span class='nm'>紫不语</span><span class='tag'>内置</span><span class='tag ok'>有图</span></label>
+        <label class='row'><input type='checkbox'><span class='nm'>白露</span><span class='tag'>内置</span><span class='tag ok'>有图</span></label>
+      </div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>用户需求</span></div>
+      <textarea rows='3' placeholder='例：全部换成夏日泳装，泳池边，黄昏光线'></textarea>
+    </div>
+  </div>
+  <div class='blk' style='border-top:1px solid var(--hair);padding:12px 18px'><button class='fill js-result'>生成</button></div>
+</div></div>
+
+<!-- 2 世界书 -->
+<div class='col' id='p2'><h2>2 / 世界书</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span class='on'>世界书</span><span>对话</span><span>技能</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>世界书</span><span class='n'>2 本</span><span class='spacer'></span><button class='ghost'>全选</button><button class='ghost dim'>清空</button></div>
+      <div class='list'>
+        <label class='row'><input type='checkbox' checked><span class='nm'>苍玄界</span><span class='tag ok'>当前启用</span></label>
+        <label class='row'><input type='checkbox'><span class='nm'>角色卡内嵌世界书</span></label>
+        <label class='row'><input type='checkbox' checked><span class='nm'>苍玄界 - 备份 0613</span></label>
+      </div>
+      <div class='hint' style='margin-top:8px'>这是 Agent 能读改的范围；它自己也能列全部世界书。</div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>条目</span><span class='n'>21 / 219</span><span class='spacer'></span><button class='ghost'>全选</button><button class='ghost'>反选</button><button class='ghost dim'>清空</button></div>
+      <div class='f'><input type='text' placeholder='搜索条目…'></div>
+      <div class='macros' style='margin-bottom:10px'><span class='chip'>角色设定 21</span><span class='chip'>势力概览 18</span><span class='chip'>其它 180</span></div>
+      <div class='list'>
+        <label class='row'><input type='checkbox' checked><span class='nm'>====角色设定====（21 项）</span></label>
+        <label class='row sub'><input type='checkbox' checked><span class='nm'>潮听澜</span></label>
+        <label class='row sub'><input type='checkbox' checked><span class='nm'>江念</span></label>
+        <label class='row'><input type='checkbox'><span class='nm'>====势力概览====（18 项）</span></label>
+      </div>
+    </div>
+  </div>
+  <div class='blk' style='border-top:1px solid var(--hair);padding:12px 18px'><button class='fill'>去对话页开工 →</button></div>
+</div></div>
+
+<!-- 3 对话 -->
+<div class='col' id='p3'><h2>3 / 对话（Agent）</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span class='on'>对话</span><span>技能</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-bottom:10px'>
+      <div class='modebar'><span class='m on'>Agent</span><span class='m off'>聊天</span></div>
+    </div>
+    <div class='blk' style='padding-top:10px;padding-bottom:10px'>
+      <div class='draftbar'><span class='d'></span><span class='x'>草稿 · 12 处改动</span><span class='spacer'></span>
+        <button class='ghost'>看 diff</button><button class='ghost'>保存</button></div>
+    </div>
+    <div class='blk'>
+      <div class='chat'>
+        <div class='m a'><span class='who'>苍玄 · 助手</span>先看一眼这两条势力条目。</div>
+        <div class='tool'><div class='th'><span class='cv'>▶</span><span class='tk'>◆</span><span class='tn'>wb_search</span><span class='ta'>天枢阁</span><span class='tp'><span class='add'>✓</span> 3 条</span></div>
+          <div class='tr'>42 天枢阁 · 51 天枢阁分舵 · 63 天枢阁主</div></div>
+        <div class='tool skill'><div class='th'><span class='cv'>▶</span><span class='tk'>◈</span><span class='tn'>skill</span><span class='ta'>世界书精修</span><span class='tp'><span class='add'>✓</span> 1.4k 字</span></div>
+          <div class='tr'>已载入技能正文，按它的规矩改。</div></div>
+        <div class='m a'>总部位置太含糊，补了一句，顺手加了口癖。</div>
+        <div class='tool patch'><div class='th'><span class='cv'>▶</span><span class='tk'>✎</span><span class='tn'>entry_edit</span><span class='ta'>uid 42</span><span class='tp'><span class='add'>+2</span> <span class='del'>−1</span></span></div>
+          <div class='tr'><span class='add'>+ 总部位于苍梧山巅</span><br><span class='del'>− 总部在苍梧山</span></div></div>
+        <div class='m u'>幽冥殿那块别动</div>
+        <div class='m a'>好，只收尾剩下三条。</div>
+        <div class='tool img'><div class='th'><span class='tk'>◆</span><span class='tn'>gen_image</span><span class='ta'>苍梧山巅 · 云海</span><span class='tp'><span class='add'>✓</span> 4.2s</span></div>
+          <div class='tr'><div class='gen'>生成的图（这里直接显示）</div>
+            <div class='gmeta'><span>1024×1024</span><span>·</span><span>2/3</span><span class='spacer' style='flex:1'></span><button class='tiny'>重画</button><button class='tiny'>看原图</button></div></div></div>
+        <div class='m a'>山上太秃了，我加两株古松再出一张。</div>
+        <div class='tool img'><div class='th'><span class='tk'>◆</span><span class='tn'>gen_image</span><span class='ta'>苍梧山巅 · 云海 · 古松</span><span class='tp'><span class='add'>✓</span> 4.0s</span></div>
+          <div class='tr'><div class='gen' style='height:120px'>第 2 张（模型自己看过的）</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class='composer'><button class='ibtn2'>＋</button><input type='text' placeholder='说点什么…'><button class='ibtn2'>⏹</button><button class='send'>发送</button></div>
+</div></div>
+
+<!-- 4 技能 -->
+<div class='col' id='p4'><h2>4 / 技能</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span class='on'>技能</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>技能</span><span class='n'>4 个 · 启用 3</span><span class='spacer'></span><button class='ghost'>＋ 新建</button></div>
+      <div class='skill'>
+        <input type='checkbox' checked>
+        <div style='flex:1;min-width:0'><div class='sn'>世界书精修</div>
+          <div class='sd'>把啰嗦的条目压成蓝灯精简，保持人设口吻</div>
+          <div class='sm'>正文 1.4k 字 · 参考文件 2 个</div></div>
+      </div>
+      <div class='skill'>
+        <input type='checkbox' checked>
+        <div style='flex:1;min-width:0'><div class='sn'>势力关系梳理</div>
+          <div class='sd'>从多条目里抽出势力之间的关系，补成互相引用</div>
+          <div class='sm'>正文 900 字</div></div>
+      </div>
+      <div class='skill'>
+        <input type='checkbox' checked>
+        <div style='flex:1;min-width:0'><div class='sn'>立绘提示词打磨</div>
+          <div class='sd'>按智绘姬格式产出/修正生图提示词</div>
+          <div class='sm'>正文 2.1k 字 · 参考文件 1 个</div></div>
+      </div>
+      <div class='skill off'>
+        <input type='checkbox'>
+        <div style='flex:1;min-width:0'><div class='sn'>考据校对</div>
+          <div class='sd'>对照设定集查前后矛盾</div>
+          <div class='sm'>正文 600 字 · 已关</div></div>
+      </div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>怎么用</span></div>
+      <div class='hint'>
+        · 只有<b>名称 + 一句话描述</b>会进模型，正文等它需要时才读 —— 不占 token<br>
+        · 模型调用 <code>skill("名字")</code> 就能拿到正文，<code>read_skill_file</code> 拿参考文件<br>
+        · 关掉的技能完全不给模型看<br>
+        · 能导入/导出，跟别人换着用
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- 5 设置 -->
+<div class='col' id='p5'><h2>5 / 设置</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span>技能</span><span class='on'>设置</span></div>
+  <div class='body'>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>接口</span><span class='spacer'></span><span class='hint'>全局共用</span></div>
+      <div class='f'><span class='lab'>走哪条路</span>
+        <div class='modebar'><span class='m on'>自己填的接口</span><span class='m off'>酒馆默认</span></div>
+        <div class='hint' style='margin-top:7px'>自己填 → 能发原生 tools；酒馆默认 → 自动降级用文本标记。</div>
+      </div>
+      <div class='f'><span class='lab'>接口地址</span><input type='text' value='https://gcli.ggchan.dev/v1'></div>
+      <div class='f'><span class='lab'>API Key</span><input type='text' value='sk-······················' style='-webkit-text-security:disc'></div>
+      <div class='f'><span class='lab'>模型</span><div class='frow'><input type='text' value='build-gemini-3.8-flash'><button class='tiny'>获取</button></div></div>
+      <div class='f'><div class='frow'><span style='flex:1;font-size:12.5px'>发送图片（多模态）</span><span class='sw on'></span></div>
+        <div class='hint' style='margin-top:6px'>开着，模型才看得见自己生的图。</div></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>预设</span><span class='spacer'></span><button class='ghost'>⋯</button></div>
+      <span class='lab'>用哪个</span>
+      <select><option>世界书 · 势力整理 Agent</option><option>立绘 · 智绘姬角色预设（普通）</option><option>聊天 · 破限对话（普通）</option></select>
+      <div class='frow' style='margin-top:12px;gap:8px'><span class='tag ok'>Agent 类型</span><span class='tag'>工具 10 / 13</span><span class='tag'>技能 3</span></div>
+      <div class='hint' style='margin-top:10px'>预设类型是 Agent，这块就是「系统提示词 + 工具 + 技能」。换成普通预设，它会变成消息列表。</div>
+      <span class='lab' style='margin-top:14px'>系统提示词</span>
+      <textarea rows='5' style='font:12.5px/1.8 ui-monospace,Consolas,monospace'>你是苍玄界世界书的整理助手。改之前先读，只改该改的地方。需要专门手法时看看有哪些技能可用。做完调 submit。</textarea>
+      <div class='macros' style='margin-top:10px'>
+        <span class='chip'>{{世界书}}</span><span class='chip'>{{已选条目}}</span><span class='chip'>{{用户需求}}</span>
+        <span class='chip'>{{角色列表}}</span><span class='chip'>{{上下文}}</span><span class='chip'>{{截图}}</span>
+      </div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>工具</span><span class='n'>10 / 13</span><span class='spacer'></span><button class='ghost dim'>全开</button><button class='ghost dim'>全关</button></div>
+      <div class='list'>
+        <label class='trow'><input type='checkbox' checked><div><div class='tn2'>wb_search / wb_read</div><div class='td'>搜索、读条目</div></div></label>
+        <label class='trow'><input type='checkbox' checked><div><div class='tn2'>entry_edit / create / delete</div><div class='td'>改、增、删条目</div></div></label>
+        <label class='trow'><input type='checkbox' checked><div><div class='tn2'>skill / read_skill_file</div><div class='td'>按需读取技能正文和参考文件</div></div></label>
+        <label class='trow'><input type='checkbox' checked><div><div class='tn2'>gen_image</div><div class='td'>调生图 API，出图直接进对话，模型看得见</div></div></label>
+        <label class='trow off'><input type='checkbox'><div><div class='tn2'>entry_meta</div><div class='td'>改蓝绿灯 / 深度 / 关键词</div></div></label>
+        <label class='trow off'><input type='checkbox'><div><div class='tn2'>ask_user</div><div class='td'>停下来问你一句</div></div></label>
+      </div>
+      <div class='hint' style='margin-top:10px'>清单是脚本内置的，你只能勾要不要；想加新的告诉我。</div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>技能</span><span class='n'>3 / 4</span><span class='spacer'></span><button class='ghost'>去技能页管理 →</button></div>
+      <div class='list'>
+        <label class='trow'><input type='checkbox' checked><div><div class='tn2'>世界书精修</div><div class='td'>把啰嗦的条目压成蓝灯精简</div></div></label>
+        <label class='trow'><input type='checkbox' checked><div><div class='tn2'>势力关系梳理</div><div class='td'>抽出势力关系并互相引用</div></div></label>
+        <label class='trow'><input type='checkbox' checked><div><div class='tn2'>立绘提示词打磨</div><div class='td'>按智绘姬格式修生图提示词</div></div></label>
+        <label class='trow off'><input type='checkbox'><div><div class='tn2'>考据校对</div><div class='td'>查设定前后矛盾</div></div></label>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- 5b 设置（切到普通预设） -->
+<div class='col' id='p6'><h2>5b / 设置（切到普通预设）</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span>技能</span><span class='on'>设置</span></div>
+  <div class='body'>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>接口</span><span class='spacer'></span><button class='ghost'>改</button></div>
+      <div class='hint'>自己填的接口 · https://gcli.ggchan.dev/v1 · build-gemini-3.8-flash · 多模态开</div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>预设</span><span class='spacer'></span><button class='ghost'>⋯</button></div>
+      <span class='lab'>用哪个</span>
+      <select><option>立绘 · 智绘姬角色预设</option><option>世界书 · 势力整理 Agent</option><option>聊天 · 破限对话</option></select>
+      <div class='frow' style='margin-top:12px;gap:8px'><span class='tag'>普通类型</span><span class='tag'>消息 5 条</span><span class='tag ok'>产出 JSON</span></div>
+      <div class='hint' style='margin-top:10px'>普通预设不挂工具，也不用写系统提示词 —— 你说什么它就收到什么。</div>
+      <div class='blkh' style='margin-top:16px'><span class='t'>消息</span><span class='n'>5 条</span><span class='spacer'></span><button class='ghost'>＋ 添加一条</button></div>
+      <div class='mslist'>
+        <div class='mrow' data-role='system'><span class='grip'>⠿</span><span class='rl system'>SYST</span><span class='enm'>开场白</span><span class='sw on'></span><button class='rb'>⇅</button><button class='rb'>✎</button><button class='rb dang'>✕</button></div>
+        <div class='mrow' data-role='assistant'><span class='grip'>⠿</span><span class='rl assistant'>AI</span><span class='enm'>明白了</span><span class='sw on'></span><button class='rb'>⇅</button><button class='rb'>✎</button><button class='rb dang'>✕</button></div>
+        <div class='mrow' data-role='user'><span class='grip'>⠿</span><span class='rl user'>USER</span><span class='enm'>世界书：{{世界书}}</span><span class='sw on'></span><button class='rb'>⇅</button><button class='rb'>✎</button><button class='rb dang'>✕</button></div>
+        <div class='mrow' data-role='user'><span class='grip'>⠿</span><span class='rl user'>USER</span><span class='enm'>{{角色列表}}</span><span class='sw on'></span><button class='rb'>⇅</button><button class='rb'>✎</button><button class='rb dang'>✕</button></div>
+        <div class='mrow off' data-role='user'><span class='grip'>⠿</span><span class='rl user'>USER</span><span class='enm'>按这个格式输出 JSON：…</span><span class='sw'></span><button class='rb'>⇅</button><button class='rb'>✎</button><button class='rb dang'>✕</button></div>
+      </div>
+      <div class='hint' style='margin-top:10px'>点一行弹出编辑：角色 / 名称 / 内容 / 插宏。开关关掉的那条不发出去。</div>
+    </div>
+  </div>
+  <div class='blk' style='border-top:1px solid var(--hair);padding:12px 18px'><button class='fill js-result'>一键生成</button></div>
+</div></div>
+<!-- 说明 -->
+<div class='col'><h2>NOTE / 不是界面</h2>
+<div class='note'>
+  <h3>这一版新增</h3>
+  <ul>
+    <li>工具卡<b>默认折叠</b>，点一行才展开；失败的和改动的自动展开</li>
+    <li><b>生图卡永远展开</b>，图就摆在对话里</li>
+    <li>出的图会<b>回灌给模型</b>（以图片消息发的），它能自己看、自己改</li>
+    <li>新增 <b>技能页</b>：名称 + 一句话描述 + 正文 + 参考文件</li>
+    <li>只有描述进 system，正文靠 <code>skill()</code> 按需读 —— 省 token</li>
+  </ul>
+  <h3>技能 = 什么</h3>
+  <ul>
+    <li>一段可复用的「怎么做」说明，比预设小、比提示词专</li>
+    <li>能开关、能导入导出、能带参考文件</li>
+    <li>多个预设可以共用同一批技能</li>
+  </ul>
+</div></div>
+
+</div><!-- /stage -->
+
+<!-- 技能编辑弹窗 -->
+<div class='veil' id='skill'>
+  <div class='sheet'>
+    <div class='sh'><span style='flex:1;font-size:14px;font-weight:700'>编辑技能</span><span class='tag ok'>启用</span><button class='kebab js-c'>✕</button></div>
+    <div class='sb'>
+      <div><span class='lab'>名称</span><input type='text' value='世界书精修'></div>
+      <div><span class='lab'>一句话描述（这句会进模型，写清楚什么时候用）</span><input type='text' value='把啰嗦的条目压成蓝灯精简，保持人设口吻'></div>
+      <div><span class='lab'>正文（模型调用时才读）</span>
+        <textarea style='min-height:170px;font:12.5px/1.8 ui-monospace,Consolas,monospace'># 世界书精修
+
+1. 先 wb_read 把条目读全，不要凭标题猜。
+2. 只保留：身份、外貌、能力、关键关系。
+3. 每条压到 150 字以内，用蓝灯。
+4. 改完对照原文检查一遍有没有丢设定。</textarea></div>
+      <div><span class='lab'>参考文件</span>
+        <div class='sfile'><span class='fn'>模板·角色条目.md</span><span class='fs'>1.1k</span><button class='tiny'>看</button><button class='tiny'>删</button></div>
+        <div class='sfile'><span class='fn'>范例·势力条目.json</span><span class='fs'>640</span><button class='tiny'>看</button><button class='tiny'>删</button></div>
+        <button class='tiny' style='margin-top:4px'>＋ 添加文件</button></div>
+    </div>
+    <div class='sf'><button class='ghost dang'>删除</button><button class='ghost dim'>复制</button><button class='ghost dim'>导出</button><span class='spacer' style='flex:1'></span><button class='ghost js-c'>保存</button></div>
+  </div>
+</div>
+
+<!-- diff 弹窗 -->
+<div class='veil' id='diff'>
+  <div class='sheet'>
+    <div class='sh'><span style='flex:1;font-size:14px;font-weight:700'>草稿改动 · 12 处</span><span class='tag ok'>未保存</span><button class='kebab js-c'>✕</button></div>
+    <div class='sb'>
+      <div><span class='lab'>天枢阁 · uid 42</span>
+        <pre class='diff'><span class='del'>− 天枢阁总部在苍梧山，掌门为凌霄真人</span>
+<span class='add'>+ 天枢阁总部位于苍梧山巅，掌门为凌霄真人</span>
+<span class='add'>+ 口头禅："此事须从长计议"</span></pre></div>
+      <div class='hint'>保存 = 写回酒馆世界书；也可以导出 JSON 先留着。</div>
+    </div>
+    <div class='sf'><button class='ghost dim js-c'>关闭</button><span class='spacer' style='flex:1'></span><button class='ghost dim'>导出 JSON</button><button class='ghost'>全部保存</button></div>
+  </div>
+</div>
+
+<!-- 产物弹窗 -->
+<div class='veil' id='result'>
+  <div class='sheet'>
+    <div class='sh'><span style='flex:1;font-size:14px;font-weight:700'>产物 JSON</span><span class='tag ok'>22 个角色</span><button class='kebab js-c'>✕</button></div>
+    <div class='sb'>
+      <pre class='code'>{
+  'characters': [
+    { 'name': '潮听澜', 'appearance': '银白长发，赤瞳，海蓝长裙…' },
+    … 共 22 项
+  ]
+}</pre>
+      <div><span class='lab'>文件名</span><input type='text' value='苍玄界-角色立绘-2026-06-13.json'></div>
+    </div>
+    <div class='sf'><button class='ghost dim js-c'>关闭</button><span class='spacer' style='flex:1'></span><button class='ghost dim'>复制</button><button class='ghost'>保存 JSON</button></div>
+  </div>
+</div>
+
+<!-- 消息编辑弹窗 -->
+<div class='veil' id='msg'>
+  <div class='sheet'>
+    <div class='sh'><span style='flex:1;font-size:14px;font-weight:700'>编辑消息</span><span class='tag ok'>启用</span><button class='kebab js-c'>✕</button></div>
+    <div class='sb'>
+      <div class='modebar' style='max-width:220px'><span class='m'>System</span><span class='m on'>User</span><span class='m'>AI</span></div>
+      <div><span class='lab'>名称</span><input type='text' value='世界书'></div>
+      <div><span class='lab'>内容</span>
+        <textarea style='min-height:170px;font:12.5px/1.8 ui-monospace,Consolas,menlo,monospace'>世界书：
+{{世界书}}</textarea></div>
+      <div><span class='lab'>插宏</span>
+        <div class='macros'>
+          <span class='chip'>{{用户需求}}</span><span class='chip'>{{世界书}}</span><span class='chip'>{{已选条目}}</span>
+          <span class='chip'>{{角色列表}}</span><span class='chip'>{{角色名}}</span><span class='chip'>{{图片元数据}}</span>
+          <span class='chip'>{{上下文}}</span><span class='chip'>{{截图}}</span><span class='chip'>{{当前时间}}</span>
+        </div></div>
+    </div>
+    <div class='sf'><button class='ghost dang'>删除</button><button class='ghost dim'>复制</button><span class='spacer' style='flex:1'></span><button class='ghost dim js-c'>取消</button><button class='ghost js-c'>保存</button></div>
+  </div>
+</div>
+<script>
+function on(id,v){document.getElementById(id).classList.toggle('on',v);}
+var cs=document.querySelectorAll('.js-c');for(var i=0;i<cs.length;i++){cs[i].addEventListener('click',function(){on('skill',false);on('diff',false);on('result',false);on('msg',false);});}
+var rs=document.querySelectorAll('.js-result');for(var j=0;j<rs.length;j++){rs[j].addEventListener('click',function(){on('result',true);});}
+document.getElementById('openSkill').addEventListener('click',function(){on('skill',true);});
+document.getElementById('openDiff').addEventListener('click',function(){on('diff',true);});
+document.getElementById('openMsg').addEventListener('click',function(){on('msg',true);});
+var vs=document.querySelectorAll('.veil');for(var k=0;k<vs.length;k++){vs[k].addEventListener('click',function(e){if(e.target===this){this.classList.remove('on');}});}
+// 工具卡点开/收起
+var tls=document.querySelectorAll('.tool');for(var t=0;t<tls.length;t++){
+  tls[t].querySelector('.th').addEventListener('click',function(e){e.stopPropagation();this.parentNode.classList.toggle('open');});}
+document.getElementById('themeBtn').addEventListener('click',function(){document.body.classList.toggle('light');});
+var md=document.querySelectorAll('.modebar>span.m');for(var m=0;m<md.length;m++){md[m].addEventListener('click',function(){
+  var all=this.parentNode.children;for(var n=0;n<all.length;n++){all[n].classList.remove('on');all[n].classList.add('off');}this.classList.add('on');this.classList.remove('off');});}
+var sws=document.querySelectorAll('.sw');for(var q=0;q<sws.length;q++){sws[q].addEventListener('click',function(e){e.stopPropagation();this.classList.toggle('on');});}
+var only=location.hash.match(/^#only([1-6])$/);
+if(only){var keep='p'+only[1];var cols=document.querySelectorAll('.col');for(var y=0;y<cols.length;y++){if(cols[y].id!==keep){cols[y].style.display='none';}}}
+if(location.hash==='#diff'){on('diff',true);}
+if(location.hash==='#skill'){on('skill',true);}
+if(location.hash==='#msg'){on('msg',true);}
+var mrs=document.querySelectorAll('.mrow');for(var z2=0;z2<mrs.length;z2++){mrs[z2].addEventListener('click',function(e){if(e.target.classList.contains('sw')||e.target.classList.contains('rb')){return;}on('msg',true);});}
+</script>
+</body>
+</html>

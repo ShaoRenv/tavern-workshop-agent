@@ -1,0 +1,135 @@
+@import 'tailwindcss';
+
+/* 苍玄界立绘工坊：整体走深色玻璃质感，与状态栏/创意工坊风格保持一致 */
+
+:root {
+  --cx-bg-1: rgba(18, 16, 28, 0.92);
+  --cx-bg-2: rgba(10, 12, 20, 0.96);
+  --cx-border: rgba(167, 139, 250, 0.22);
+  --cx-border-soft: rgba(167, 139, 250, 0.1);
+  --cx-accent: #a78bfa;
+  --cx-accent-soft: rgba(139, 92, 246, 0.18);
+  --cx-text: #f4f2fb;
+  --cx-muted: #b9b4cc;
+  --cx-ok: #6ee7b7;
+  --cx-warn: #fcd34d;
+  --cx-error: #fca5a5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--cx-text);
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  font-size: 13px;
+}
+
+#app {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(160deg, var(--cx-bg-1), var(--cx-bg-2));
+  border: 1px solid var(--cx-border);
+  border-radius: 12px;
+}
+
+/* 表格与滚动区域：用 max-height 而非 vh，避免撑高宿主楼层 */
+.cx-scroll {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.cx-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.cx-scroll::-webkit-scrollbar-thumb {
+  background: var(--cx-accent-soft);
+  border-radius: 4px;
+}
+
+table.cx-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+table.cx-table th,
+table.cx-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--cx-border-soft);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+table.cx-table th {
+  position: sticky;
+  top: 0;
+  background: #1a1729;
+  color: var(--cx-muted);
+  font-weight: 600;
+  z-index: 1;
+}
+
+.cx-input,
+.cx-select,
+.cx-textarea {
+  width: 100%;
+  padding: 4px 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--cx-border);
+  border-radius: 6px;
+  color: var(--cx-text);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.cx-textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.cx-btn {
+  padding: 4px 10px;
+  background: var(--cx-accent-soft);
+  border: 1px solid var(--cx-border);
+  border-radius: 6px;
+  color: var(--cx-text);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cx-btn:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.32);
+}
+
+.cx-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cx-btn-danger {
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.cx-pre {
+  margin: 0;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--cx-border-soft);
+  border-radius: 6px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

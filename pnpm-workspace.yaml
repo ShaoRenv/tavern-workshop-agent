@@ -1,0 +1,6 @@
+# pnpm 10+ 不再读取 package.json 里的 pnpm 字段，依赖构建许可改由本文件管理。
+# 这些包需要在安装时执行构建脚本（原生绑定 / 类型产物），否则相关依赖会缺少产物。
+allowBuilds:
+  '@parcel/watcher': true
+  unrs-resolver: true
+  vue-demi: true

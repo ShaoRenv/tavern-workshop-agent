@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>苍玄助手</title>
+<!--
+  面板 iframe。
+
+  它是脚本自己创建的，因此**拿不到酒馆助手注入全局函数的运行环境**（前端界面才直接拥有）。
+  所以这里做了三件事，顺序不能变：
+    1. Vue 用官方 global 构建、zod 用 ESM 载入后挂到 window.z（应用读的是全局变量）
+    2. 酒馆助手接口由父级脚本通过 window.__CX_HOST_API__ 桥接进来
+    3. 应用 JS 用 Blob URL 动态 import，保证以上全局在它求值前就已就绪
+-->
+<script src="https://testingcf.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://testingcf.jsdelivr.net/npm/vue@3.5.13/dist/vue.global.prod.js"></script>
+<style>
+html, body { margin: 0; padding: 0; background: transparent; overflow-x: hidden; }
+#cx-boot { margin: 0; padding: 8px; color: #fca5a5; font: 12px/1.6 Consolas, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<pre id="cx-boot"></pre>
+<script type="module">
+var APP_CSS_B64 = '__APP_CSS_B64__';
+var APP_JS_B64 = '__APP_JS_B64__';
+// 开发版用：指向本机开发服务器的地址；发布包里这两行占位符会被替换成空串，于是走上面的 base64。
+var APP_CSS_URL = '__APP_CSS_URL__';
+var APP_JS_URL = '__APP_JS_URL__';
+
+// 需要从脚本上下文桥接过来的酒馆助手接口
+// 注意：这份名单要覆盖应用里**所有**通过宿主桥调用的接口，
+// 少一个那个函数在 iframe 里就是 undefined（storage/worldbook/transport 会静默降级）。
+var HOST_KEYS = [
+  // 变量（脚本作用域）
+  'getVariables',
+  'insertOrAssignVariables',
+  'replaceVariables',
+  'updateVariablesWith',
+  'getScriptId',
+  // 脚本 / 角色来源
+  'getScriptTrees',
+  // 世界书
+  'getWorldbookNames',
+  'getGlobalWorldbookNames',
+  'getCharWorldbookNames',
+  'getChatWorldbookName',
+  'getWorldbook',
+  'replaceWorldbook',
+  'createWorldbook',
+  'deleteWorldbook',
+  'createOrReplaceWorldbook',
+  // 生成
+  'generateRaw',
+  'stopAllGeneration',
+  'getModelList',
+  // 酒馆宏
+  'substitudeMacros'
+];
+
+function cxBase64ToText(base64) {
+  var binary = atob(base64);
+  var bytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+}
+
+function cxShowError(error) {
+  var box = document.getElementById('cx-boot');
+  var message = error && error.message ? error.message : String(error);
+  if (box) box.textContent = '苍玄助手加载失败：' + message;
+  console.error('[苍玄助手]', error);
+}
+
+async function cxWaitForHost(timeoutMs) {
+  var deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (window.__CX_HOST_API__) return window.__CX_HOST_API__;
+    await new Promise(function (resolve) { setTimeout(resolve, 25); });
+  }
+  return null;
+}
+
+(async function () {
+  // 1) 先把应用的样式注入进来（推迟到脚本执行，避免阻塞解析）
+  if (APP_CSS_URL) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = APP_CSS_URL;
+    document.head.appendChild(link);
+  } else {
+    var style = document.createElement('style');
+    style.textContent = cxBase64ToText(APP_CSS_B64);
+    document.head.appendChild(style);
+  }
+
+  // 2) 等父级脚本把酒馆助手接口桥接进来
+  var host = await cxWaitForHost(20000);
+  if (!host) {
+    console.warn('[苍玄助手] 未能从脚本上下文取得酒馆助手接口，酒馆相关功能将不可用');
+  }
+  var bridged = host || {};
+  var missing = [];
+  HOST_KEYS.forEach(function (key) {
+    var fn = bridged[key];
+    if (typeof fn === 'function') {
+      // 保持函数原本的调用语义：不把 this 绑成桥接对象
+      window[key] = function () { return fn.apply(undefined, arguments); };
+    } else {
+      missing.push(key);
+    }
+  });
+  if (missing.length > 0) {
+    console.warn('[苍玄助手] 以下酒馆助手接口不可用：' + missing.join('、'));
+  }
+
+  // 3) 补一个 errorCatched（前端界面环境原生就有，这里没有）
+  window.errorCatched = function (fn) {
+    return function () {
+      try {
+        return fn.apply(null, arguments);
+      } catch (error) {
+        console.error('[苍玄助手]', error);
+      }
+    };
+  };
+
+  // 3.5) 告诉应用「我是哪个脚本」—— 数据存在脚本变量里，靠它定位
+  try {
+    if (typeof window.getScriptId === 'function') {
+      var scriptId = window.getScriptId();
+      if (typeof scriptId === 'string' && scriptId.trim()) window.__CX_SCRIPT_ID__ = scriptId.trim();
+    }
+  } catch (error) {
+    console.warn('[苍玄助手] 取 script id 失败，退回脚本上下文自动识别', error);
+  }
+
+  // 4) zod：应用读的是全局 z，且会用 z.z 这种形态取值，两种形态都兜住
+  var zod = await import('https://testingcf.jsdelivr.net/npm/zod/+esm');
+  window.z = Object.assign({}, zod, { z: zod.z || zod });
+
+  // 5) 最后才加载应用本体
+  if (APP_JS_URL) {
+    await import(APP_JS_URL);
+  } else {
+    var url = URL.createObjectURL(new Blob([cxBase64ToText(APP_JS_B64)], { type: 'text/javascript' }));
+    try {
+      await import(url);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  window.__CX_HOST_READY__ = true;
+})().catch(cxShowError);
+</script>
+</body>
+</html>

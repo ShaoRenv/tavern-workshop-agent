@@ -1,0 +1,17 @@
+{
+  "type": "script",
+  "enabled": true,
+  "name": "酒馆同步（官方）",
+  "id": "a1b2c3d4-1111-4222-8333-444455556666",
+  "info": "StageDog 官方 tavern_sync 客户端：让酒馆能接收本地 node tavern_sync.mjs 推送的角色卡 / 世界书 / 预设。它自己也会自动更新。本地没跑 tavern_sync.mjs 时不会有任何影响。",
+  "button": {
+    "enabled": true,
+    "buttons": []
+  },
+  "data": {},
+  "export_with": {
+    "data": false,
+    "button": false
+  },
+  "content": "import 'https://testingcf.jsdelivr.net/gh/StageDog/tavern_sync/dist/script.js'"
+}

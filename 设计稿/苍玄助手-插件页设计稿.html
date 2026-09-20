@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang='zh-CN'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'>
+<title>苍玄助手 · 插件页设计稿 v2（列表只有列表 · 插件页只有它自己的设置）</title>
+<style>
+:root{
+  --veil:#0a0d11; --panel:#11151b;
+  --ink:#e9edf2; --muted:#7f8896; --faint:#5c6673;
+  --hair:#212832; --field:#171c24;
+  --accent:#2dd4bf; --accent-ink:#062420; --accent-dim:rgba(45,212,191,.13);
+  --warn:#fbbf24; --danger:#fb7185;
+  --r:10px; --fs:13px;
+}
+body.light{ --veil:#e9ecef; --panel:#fff; --ink:#12161c; --muted:#6b7480; --faint:#98a1ad;
+  --hair:#e3e7ec; --field:#f4f6f8; --accent-dim:rgba(13,148,136,.12); --accent:#0d9488; --accent-ink:#fff; }
+*{box-sizing:border-box;}
+body{margin:0;background:var(--veil);color:var(--ink);font:var(--fs)/1.75 'Microsoft YaHei',system-ui,sans-serif;}
+.top{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;padding:14px 24px;background:var(--panel);border-bottom:1px solid var(--hair);flex-wrap:wrap;}
+.top h1{margin:0;font-size:15px;}
+.top .sub{color:var(--muted);font-size:12px;}
+.top .spacer{flex:1;}
+.stage{display:flex;gap:22px;padding:24px;align-items:flex-start;}
+.col{flex:0 0 auto;}
+.col>h2{font-size:11px;color:var(--faint);font-weight:400;margin:0 0 10px 2px;letter-spacing:1.5px;}
+.phone{width:392px;height:848px;background:var(--panel);border:1px solid var(--hair);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.45);}
+.bar{display:flex;align-items:center;gap:9px;padding:15px 18px 12px;}
+.bar .ttl{font-size:15px;font-weight:700;} .bar .st{font-size:11px;color:var(--muted);} .bar .spacer{flex:1;}
+.kebab{border:0;background:transparent;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;padding:2px 4px;}
+.seg{display:flex;gap:2px;margin:0 12px 4px;padding:3px;background:var(--field);border-radius:999px;}
+.seg>span{flex:1;text-align:center;padding:8px 0;border-radius:999px;font-size:11.5px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+.seg>span.on{background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.body{flex:1;overflow-y:auto;overflow-x:hidden;padding-bottom:6px;}
+.body::-webkit-scrollbar{width:5px;} .body::-webkit-scrollbar-thumb{background:var(--hair);border-radius:3px;}
+.blk{border-top:1px solid var(--hair);padding:14px 18px 16px;} .blk:first-child{border-top:0;}
+.blkh{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.blkh .t{font-size:12px;font-weight:700;letter-spacing:1.2px;}
+.blkh .t::after{content:'';display:block;width:16px;height:2px;background:var(--accent);border-radius:2px;margin-top:5px;}
+.blkh .n{font-size:11px;color:var(--muted);} .blkh .spacer{flex:1;}
+.ghost{border:0;background:transparent;color:var(--accent);font-size:12px;padding:4px 7px;border-radius:7px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.ghost:hover{background:var(--accent-dim);} .ghost.dim{color:var(--muted);}
+.back{border:0;background:transparent;color:var(--accent);font:inherit;font-size:12.5px;padding:6px 8px;margin-left:-8px;cursor:pointer;white-space:nowrap;}
+.fill.dang{width:100%;background:transparent;border:1px solid var(--danger);color:var(--danger);font-family:inherit;font-weight:400;font-size:13px;padding:11px;border-radius:12px;cursor:pointer;}
+.lab{display:block;font-size:11px;letter-spacing:.8px;color:var(--muted);margin-bottom:6px;}
+input[type=text],input[type=password],input[type=number],textarea,select{width:100%;background:var(--field);color:var(--ink);border:1px solid transparent;border-radius:9px;padding:10px 12px;font:inherit;font-size:12.5px;outline:none;}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);}
+textarea{resize:vertical;line-height:1.8;}
+.mono{font:12.5px/1.8 ui-monospace,Consolas,menlo,monospace;}
+.f{margin-bottom:14px;} .f:last-child{margin-bottom:0;} .frow{display:flex;gap:8px;align-items:center;}
+.frow.grow>input,.frow.grow>select{flex:1;min-width:0;}
+.sw{width:36px;height:20px;border-radius:6px;background:var(--field);border:1px solid var(--hair);position:relative;flex:0 0 auto;cursor:pointer;}
+.sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:4px;background:var(--faint);transition:left .16s;}
+.sw.on{background:var(--accent-dim);border-color:var(--accent);} .sw.on::after{left:18px;background:var(--accent);}
+.swlab{font-size:12.5px;flex:1;min-width:0;}
+.tag{font-size:10px;padding:2px 7px;border-radius:5px;background:var(--field);color:var(--muted);white-space:nowrap;}
+.tag.ok{color:var(--accent);} .tag.warn{color:var(--warn);} .tag.dang{color:var(--danger);}
+.hint{font-size:11px;color:var(--faint);line-height:1.75;}
+.hint.warn{color:var(--warn);} .hint.dang{color:var(--danger);}
+.modebar{display:flex;align-items:center;gap:6px;padding:3px;background:var(--field);border-radius:999px;}
+.modebar>span.m{flex:1;text-align:center;font-size:12px;padding:7px 0;border-radius:999px;color:var(--muted);cursor:pointer;white-space:nowrap;}
+.modebar>span.m.on{background:var(--accent-dim);color:var(--accent);font-weight:700;}
+.modebar>span.m.off{opacity:.55;}
+/* 插件列表：只做导航，一行一件事 */
+.plrow{display:flex;align-items:center;gap:12px;min-height:56px;padding:12px 6px;border-bottom:1px solid var(--hair);cursor:pointer;}
+.plrow:last-child{border-bottom:0;}
+.plrow:hover{background:var(--field);}
+.pico{width:32px;height:32px;flex:0 0 auto;border-radius:9px;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;}
+.pmain{flex:1;min-width:0;}
+.pname{display:flex;align-items:center;gap:7px;}
+.nm{font-size:13.5px;font-weight:700;}
+.pdesc{font-size:11px;color:var(--faint);line-height:1.6;margin-top:1px;}
+.go{color:var(--muted);font-size:16px;}
+.dim{display:flex;align-items:center;gap:8px;}
+.dim input{flex:1;min-width:0;text-align:center;}
+.dim .x{color:var(--faint);font-size:11px;}
+.notes{width:392px;margin-top:12px;}
+.notes h3{font-size:11px;color:var(--faint);font-weight:400;letter-spacing:1.2px;margin:0 0 6px;}
+.notes ul{margin:0 0 14px;padding-left:16px;} .notes li{font-size:11.5px;color:var(--muted);line-height:1.8;}
+.notes b{color:var(--ink);}
+.card{border:1px solid var(--hair);border-radius:10px;padding:12px 14px;margin-bottom:12px;}
+.card h4{margin:0 0 6px;font-size:12px;}
+.col.wide{width:430px;}
+.q{border:1px solid var(--hair);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:var(--panel);}
+.q b{color:var(--accent);font-size:12px;}
+.q p{margin:4px 0 0;font-size:11.5px;color:var(--muted);}
+</style>
+</head>
+<body>
+
+<div class='top'>
+  <h1>苍玄助手 · 插件页设计稿 v2</h1>
+  <span class='sub'>规矩：列表页只有列表 · 插件页只有这个插件自己的设置（工具在工具段，出图在对话页）</span>
+  <span class='spacer'></span>
+  <button class='ghost dim' id='themeBtn'>深浅色</button>
+</div>
+
+<div class='stage'>
+
+<!-- ============ 屏 1 · 插件列表（多插件容器） ============ -->
+<div class='col' id='p1'><h2>屏 1 / 插件列表（这一页只有列表）</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span class='on'>能力</span><span>记录</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m off'>工具</span><span class='m off'>技能</span><span class='m on'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh' style='margin-bottom:4px'><span class='t'>插件</span><span class='n'>5 个 · 启用 1</span></div>
+
+      <div class='plrow'>
+        <span class='pico'>图</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>生图插件</span><span class='tag ok'>已启用</span></div>
+          <div class='pdesc'>NovelAI · v0.1</div>
+        </div>
+        <span class='sw on' data-sw></span>
+        <span class='go'>›</span>
+      </div>
+
+      <div class='plrow'>
+        <span class='pico' style='background:var(--field);color:var(--faint)'>搜</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>联网搜索插件</span><span class='tag'>未启用</span></div>
+          <div class='pdesc'>内置 · v0.1</div>
+        </div>
+        <span class='sw' data-sw></span>
+        <span class='go'>›</span>
+      </div>
+
+      <div class='plrow'>
+        <span class='pico' style='background:var(--field);color:var(--faint)'>译</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>翻译插件</span><span class='tag warn'>缺 API Key</span></div>
+          <div class='pdesc'>内置 · v0.1</div>
+        </div>
+        <span class='sw on' data-sw></span>
+        <span class='go'>›</span>
+      </div>
+
+      <div class='plrow'>
+        <span class='pico' style='background:var(--field);color:var(--faint)'>声</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>语音朗读插件</span><span class='tag'>未启用</span></div>
+          <div class='pdesc'>内置 · v0.1</div>
+        </div>
+        <span class='sw' data-sw></span>
+        <span class='go'>›</span>
+      </div>
+
+      <div class='plrow'>
+        <span class='pico' style='background:var(--field);color:var(--faint)'>检</span>
+        <div class='pmain'>
+          <div class='pname'><span class='nm'>向量检索插件</span><span class='tag'>未启用</span></div>
+          <div class='pdesc'>内置 · v0.1</div>
+        </div>
+        <span class='sw' data-sw></span>
+        <span class='go'>›</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>这一屏的规矩</h3>
+  <ul>
+    <li><b>只有列表</b>：图标 · 名字 · 状态 · 来源与版本 · 开关 · <b>&gt;</b>。行与行完全同构，以后加什么插件都是这一行，不给出任何一个插件开小灶。</li>
+    <li><b>&gt; 进这个插件的页面</b>；行尾开关是快捷启停（进详情里也有同一个开关，改的是同一个值）。</li>
+    <li><b>页面上不放别的</b>：不放分工说明、不放「还没做」、不放某个插件的工具清单和生图预览——那些要么属于工具段，要么在对话页里自然出现。</li>
+    <li><b>列表会长</b>：插件多了就往下长，不加分组、不做折叠、不做内嵌滚动区。头上一行「5 个 · 启用 1」。</li>
+    <li>下面 4 行是**示例**（用来验证列表长度与状态色），真做了才出现；状态色只有三档：未启用（灰）/ 缺配置（黄）/ 已启用（青）。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 2 · 插件页：头部 + 接口 ============ -->
+<div class='col' id='p2'><h2>屏 2 / 插件页 · 头部 + 接口</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span class='on'>能力</span><span>记录</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m off'>工具</span><span class='m off'>技能</span><span class='m on'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'>
+        <button class='back'>‹ 插件</button>
+        <span class='spacer'></span>
+        <span class='tag ok'>已启用</span>
+      </div>
+      <div class='pname'><span class='nm' style='font-size:15px'>生图插件</span><span class='tag'>NovelAI</span><span class='tag'>v0.1</span></div>
+      <div class='f' style='margin-top:12px'>
+        <div class='frow'><span class='swlab'>启用</span><span class='sw on' data-sw></span></div>
+        <p class='hint' style='margin-top:6px'>关掉就完全不用它：它的工具不进能力，模型看不到。</p>
+      </div>
+    </div>
+
+    <div class='blk'>
+      <div class='blkh'><span class='t'>接口</span></div>
+      <div class='f'>
+        <span class='lab'>API Key</span>
+        <div class='frow grow'>
+          <input type='password' value='pst-xxxxxxxxxxxxxxxxxxxxxxxx'>
+          <button class='ghost dim'>显示</button>
+        </div>
+        <p class='hint' style='margin-top:6px'>NovelAI 官网「Account → Persistent Token」。跟其它数据一起存在脚本变量里，导出会带上。</p>
+      </div>
+      <div class='f'>
+        <span class='lab'>站点</span>
+        <div class='modebar'><span class='m on'>官网直连</span><span class='m off'>反代 / 中转</span></div>
+        <p class='hint' style='margin-top:6px'>浏览器直连官网可能被 CORS 挡；被挡就选「反代」填自己的地址。</p>
+      </div>
+      <div class='f'>
+        <span class='lab'>模型</span>
+        <select><option>NAI Diffusion 4.5 Full（v4.5）</option></select>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>插件页的骨架（所有插件都一样）</h3>
+  <ul>
+    <li><b>头部</b>：‹ 返回列表 · 名字 + 来源 + 版本 · 一个启用开关。</li>
+    <li>下面是<b>这个插件自己的设置</b>，生图插件就是：接口 / 提示词 / 参数 / 高级。</li>
+    <li><b>这里没有的东西</b>（都是故意的）：它提供哪些工具（去工具段看）、当前能不能被模型用（那由「能力 + 预设」决定，不在这页）、试画与预览（出图在对话页显示）。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 3 · 插件页：提示词 ============ -->
+<div class='col' id='p3'><h2>屏 3 / 插件页 · 提示词</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span class='on'>能力</span><span>记录</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m off'>工具</span><span class='m off'>技能</span><span class='m on'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>提示词</span><span class='spacer'></span><span class='hint'>每张图都带上</span></div>
+      <div class='f'>
+        <span class='lab'>固定正面（拼在最前）</span>
+        <textarea rows='3' class='mono'>masterpiece, best quality, cinematic lighting</textarea>
+      </div>
+      <div class='f'>
+        <span class='lab'>后置固定正面（拼在最后）</span>
+        <textarea rows='2' class='mono' placeholder='画风 / 镜头，例如：depth of field, film grain'></textarea>
+      </div>
+      <div class='f'>
+        <span class='lab'>固定负面</span>
+        <textarea rows='2' class='mono'>extra fingers, watermark, text</textarea>
+      </div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>质量词</span><span class='spacer'></span><span class='hint'>官方那套，别自己写</span></div>
+      <div class='f'>
+        <div class='frow'><span class='swlab'>追加官方质量词</span><span class='sw on' data-sw></span></div>
+        <p class='hint' style='margin-top:6px'>当前模型会加上：<span class='mono'>very aesthetic, masterpiece, no text</span></p>
+      </div>
+      <div class='f'>
+        <span class='lab'>负面质量预设</span>
+        <select><option>重（官方默认）</option><option>轻</option><option>人像向</option><option>不用</option></select>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>为什么这样切</h3>
+  <ul>
+    <li><b>「固定」要咬死</b>：三段各自注明拼在哪一头，中间那段留给模型（或对话页里那句要求）。</li>
+    <li><b>质量词不让手写</b>：开关 + 把当前模型会追加的那串原样显示（各版本不一样）。</li>
+    <li>三个框跟内容自动增高，不做内嵌小滚动区。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 4 · 插件页：生成参数 ============ -->
+<div class='col' id='p4'><h2>屏 4 / 插件页 · 生成参数</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span class='on'>能力</span><span>记录</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m off'>工具</span><span class='m off'>技能</span><span class='m on'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>生成参数</span></div>
+      <div class='f'>
+        <span class='lab'>采样方法</span>
+        <select><option>Euler Ancestral（默认）</option></select>
+      </div>
+      <div class='f'>
+        <span class='lab'>噪点表</span>
+        <select><option>Karras（默认）</option></select>
+      </div>
+      <div class='f'>
+        <span class='lab'>生成步数</span>
+        <input type='number' value='28'>
+        <p class='hint' style='margin-top:6px'>1–50；越高越慢越贵。</p>
+      </div>
+      <div class='f'>
+        <span class='lab'>尺寸</span>
+        <select><option>832x1216 · 竖 13:19（默认）</option></select>
+        <div class='dim' style='margin-top:10px'>
+          <input type='number' value='832'> <span class='x'>×</span> <input type='number' value='1216'>
+        </div>
+      </div>
+      <div class='f'>
+        <span class='lab'>种子</span>
+        <input type='number' value='0'>
+        <p class='hint' style='margin-top:6px'>0 = 每次随机；定住一个数就能复现。</p>
+      </div>
+      <div class='f'>
+        <span class='lab'>引导强度</span>
+        <input type='number' value='5'>
+        <p class='hint' style='margin-top:6px'>越大越贴提示词；v3 常用 11，v4 起常用 5。</p>
+      </div>
+      <div class='f'>
+        <span class='lab'>一次最多几张</span>
+        <input type='number' value='1'>
+        <p class='hint' style='margin-top:6px'>模型一次调用最多出几张（1–4）。按张收费，这是钱的上限。</p>
+      </div>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>为什么这样切</h3>
+  <ul>
+    <li><b>顺序 = 从常用到少见</b>：采样方法 / 噪点表 / 步数 / 尺寸 / 种子 / 引导强度 / 张数上限，一块到底，不分子块、不加折叠。</li>
+    <li><b>尺寸是预设 + 宽高联动</b>：选预设改宽高，手改宽高预设变「自定义」，同一件事不填两遍。</li>
+    <li><b>数值写清量纲与代价</b>：步数标 1–50 并说「越慢越贵」；张数上限说明「这是钱的上限」。</li>
+    <li>Guidance Rescale 这类只有新模型认的，并进「高级」按版本显示（下一屏）。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 5 · 插件页：高级（按版本）+ 恢复默认 ============ -->
+<div class='col' id='p5'><h2>屏 5 / 插件页 · 高级（按版本）+ 恢复默认</h2>
+<div class='phone'>
+  <div class='bar'><span class='ttl'>苍玄助手</span><span class='st'>● 已连接</span><span class='spacer'></span><button class='kebab'>⋯</button></div>
+  <div class='seg'><span>立绘</span><span>世界书</span><span>对话</span><span class='on'>能力</span><span>记录</span><span>设置</span></div>
+  <div class='body'>
+    <div class='blk' style='padding-top:10px;padding-bottom:12px'>
+      <div class='modebar'><span class='m off'>工具</span><span class='m off'>技能</span><span class='m on'>插件</span></div>
+    </div>
+    <div class='blk'>
+      <div class='blkh'><span class='t'>高级</span><span class='n'>跟模型版本走</span><span class='spacer'></span></div>
+      <div class='f'>
+        <span class='lab'>Guidance Rescale</span>
+        <input type='number' value='0'>
+        <p class='hint' style='margin-top:6px'>0–1，压一下高引导的过曝；v4 起才认。</p>
+      </div>
+      <div class='f'>
+        <div class='frow'><span class='swlab'>多样性（Variety+）</span><span class='sw on' data-sw></span></div>
+      </div>
+      <div class='f'>
+        <div class='frow'><span class='swlab'>透明背景</span><span class='sw' data-sw></span></div>
+        <p class='hint' style='margin-top:6px'>只有 v5 的模型认这个字段，别的版本不显示这一项。</p>
+      </div>
+      <p class='hint'>SMEA / SMEA DYN / 减少伪影 是 v3 的字段（v4 起官方请求不带），所以当前模型下不摆这几个开关。</p>
+    </div>
+    <div class='blk' style='padding-top:18px;padding-bottom:22px'>
+      <button class='fill dang'>恢复默认</button>
+      <p class='hint' style='margin-top:8px;text-align:center'>把这一页的设置全部清回内置默认值，<b>包括 API Key</b>。</p>
+    </div>
+  </div>
+</div>
+<div class='notes'>
+  <h3>这一屏的规矩</h3>
+  <ul>
+    <li><b>只摆当前模型真认的开关</b>：切 v3 才出现 SMEA / SMEA DYN / 减少伪影，切 v5 才出现透明背景。<b>不摆点不动的死控件</b>，不显示时补一句「为什么没有」。</li>
+    <li><b>危险动作</b>在最底、红描边、说清代价（含 API Key），并且要二次确认。</li>
+    <li>整页没有「三栏网格」：一行一件事，手机上一路滚下去。</li>
+  </ul>
+</div>
+</div>
+
+<!-- ============ 屏 6 · 版本差异 & 待你拍的问题 ============ -->
+<div class='col wide' id='p6'><h2>屏 6 / 版本差异 &amp; 要你拍的问题</h2>
+<div class='phone' style='height:auto;padding-bottom:16px'>
+  <div class='blk' style='border-top:0'>
+    <div class='blkh'><span class='t'>「高级」块跟着模型版本变</span></div>
+    <div class='card'>
+      <h4>v3（nai-diffusion-3）</h4>
+      <div class='frow' style='gap:8px;flex-wrap:wrap'>
+        <span class='tag ok'>SMEA</span><span class='tag ok'>SMEA DYN</span><span class='tag ok'>减少伪影</span><span class='tag ok'>多样性</span>
+      </div>
+    </div>
+    <div class='card'>
+      <h4>v4 / v4.5</h4>
+      <div class='frow' style='gap:8px;flex-wrap:wrap'><span class='tag ok'>Guidance Rescale</span><span class='tag ok'>多样性</span></div>
+      <p class='hint' style='margin-top:8px'>v4 起的请求不带 sm / sm_dyn / dynamic_thresholding，所以老三件不显示。</p>
+    </div>
+    <div class='card'>
+      <h4>v5</h4>
+      <div class='frow' style='gap:8px;flex-wrap:wrap'><span class='tag ok'>Guidance Rescale</span><span class='tag ok'>多样性</span><span class='tag ok'>透明背景</span></div>
+      <p class='hint' style='margin-top:8px'>透明背景只有 v5 认。</p>
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>这一版删掉了什么（按你的意见）</span></div>
+    <div class='hint'>
+      · 列表页的「分工说明 / 还没做 / 某个插件的工具清单」——全删<br>
+      · 插件页的「能力链路 / 它提供哪些工具」——全删（工具在工具段，能不能用由能力与预设决定）<br>
+      · 插件页的「试画 + 结果预览 / 一次几张以外的出图设置」——全删（出图在对话页显示）<br>
+      · 状态变体不再单独占屏；状态就是列表行上那一个标签 + 详情里的一个开关
+    </div>
+  </div>
+  <div class='blk'>
+    <div class='blkh'><span class='t'>要你拍的问题</span></div>
+    <div class='q'><b>1 列表行要不要快捷开关？</b><p>现在设计是「行尾开关 + 行点进详情（开关同一个值）」。也可以只留 &gt;，启停只在详情里做。</p></div>
+    <div class='q'><b>2 插件页的骨架认不认？</b><p>头部（返回 / 名字 / 来源版本 / 启用）+ 这个插件自己的设置块（生图＝接口 / 提示词 / 参数 / 高级）+ 底部恢复默认。</p></div>
+    <div class='q'><b>3 默认值</b><p>步数 28 / 832×1216 / Euler Ancestral / Guidance 5 / 一次最多 1 张。要不要照 st-chatu8（1024×1024 / k_euler / Guidance 10 / rescale 0.18）？</p></div>
+    <div class='q'><b>4 下一步先做哪块</b><p>氛围参考图 Vibe / 出图存进立绘库 / 提示词替换 / 云端排队 / 多套配置档案。</p></div>
+  </div>
+</div>
+</div>
+
+</div><!-- /stage -->
+
+<script>
+document.getElementById('themeBtn').addEventListener('click',function(){document.body.classList.toggle('light');});
+var sws=document.querySelectorAll('[data-sw]');
+for(var i=0;i<sws.length;i++){sws[i].addEventListener('click',function(e){e.stopPropagation();this.classList.toggle('on');});}
+var md=document.querySelectorAll('.modebar>span.m');
+for(var m=0;m<md.length;m++){md[m].addEventListener('click',function(){
+  var all=this.parentNode.children;
+  for(var n=0;n<all.length;n++){all[n].classList.remove('on');all[n].classList.add('off');}
+  this.classList.add('on');this.classList.remove('off');});}
+var only=location.hash.match(/^#only([1-6])$/);
+if(only){var keep='p'+only[1];var cols=document.querySelectorAll('.col');
+  for(var y=0;y<cols.length;y++){if(cols[y].id!==keep){cols[y].style.display='none';}}}
+</script>
+</body>
+</html>

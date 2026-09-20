@@ -1,0 +1,19 @@
+node_modules
+
+# 构建产物（pnpm build / build:dev 生成）
+dist/
+
+# 数据快照（设置页「导出全部」的 JSON、迁移前的备份）
+backups/
+
+.DS_Store
+Thumbs.db
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+auto-imports.d.ts
+components.d.ts
