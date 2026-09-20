@@ -330,6 +330,8 @@ let appliedIntentAt = 0;
 <script setup lang="ts">
 import { computed, nextTick, ref, toRef, watch } from 'vue';
 
+import { OUR_MACROS } from '../core/macros.ts';
+import { pluginMacros } from '../plugins/registry.ts';
 import type { ToolOverride } from '../core/ports.ts';
 import {
   isAgentPreset,
@@ -493,16 +495,27 @@ const PRESET_ACTIONS = [
  * ⚠️ `{{上下文}}` 已经摘掉（v4）：上下文只以**特殊层**形式存在，运行时原生展开。
  * core/macros.ts 里还留着它的渲染能力，只是兼容老预设 —— 新预设不许用。
  */
-const MSG_MACROS = [
-  '{{用户需求}}',
-  '{{世界书}}',
-  '{{已选条目}}',
-  '{{角色列表}}',
-  '{{角色名}}',
-  '{{图片元数据}}',
-  '{{截图}}',
-  '{{当前时间}}',
-];
+/**
+ * 插宏芯片 = 底座自己的宏 + **已启用插件**贡献的宏（阶段 3）。
+ *
+ * ⚠️ 这里踩过两个坑（验收 F-V2），别退回去：
+ *  1. 以前是一张写死的数组 —— 还把 角色列表 / 图片元数据 当底座宏，又漏掉 图片提示词；
+ *  2. 改用 `pluginMacroNames()` 也不行：那个名字清单**故意收全部插件**
+ *     （停用的插件名字也得在，渲染时才能把占位符换成空串而不是留裸露的 {{宏}}），
+ *     而且它不是 Vue 响应式 —— 开关变了界面不会重算。
+ *
+ * 正解：从 **store 现算**，用 `pluginMacros(data)`（只给已启用的插件）+ computed 的响应式依赖。
+ * 于是「关掉苍玄助手 → 它那三个宏从芯片里消失」成立，而底座宏照旧。
+ * `{{上下文}}` 不在列（v4 起已摘掉，只以特殊层形式存在）。
+ */
+const MSG_MACROS = computed(() => {
+  const names = [
+    ...OUR_MACROS.filter(name => name !== '上下文'),
+    ...pluginMacros(props.data).map(macro => macro.name),
+  ];
+  // 去重 + 保持「底座在前、插件在后」的顺序
+  return [...new Set(names)].map(name => '{{' + name + '}}');
+});
 
 /** 「＋ 添加特殊层」第一版给的两个（文案来自 core/types.ts） */
 const SPECIAL_KINDS: { value: SpecialKind; label: string; hint: string }[] = (

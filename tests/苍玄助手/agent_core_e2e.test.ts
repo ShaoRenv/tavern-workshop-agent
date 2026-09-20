@@ -90,6 +90,8 @@ test('端到端：文本通道 → 检索 → 草稿改条目 → submit → 落
 
   const transport = createTransport({ generateRawImpl });
   const ctx = {
+    // 阶段 3：世界书端口经 ctx 注入（ToolContext.wb 必填）
+    wb: port,
     worlds: ['天枢阁'],
     drafts,
     skills: [],

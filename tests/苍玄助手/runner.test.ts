@@ -91,6 +91,13 @@ test('runner.runPlain：渲染宏 → 文本通道 → 抠 JSON → 产物', asy
   };
   const runner = createRunner();
   const data = makeData();
+  // 阶段 3：{{角色列表}} 随苍玄助手插件走 —— 真运行时由面板启动时 wirePluginMacros 接线。
+  // 这里补上同一件事，否则这条用例测的是一个「插件根本没装」的场景。
+  const { registerPluginMacroNames, registerPluginMacroSource } = await import(root + 'core/macros.ts');
+  registerPluginMacroNames(['图片提示词', '角色列表', '图片元数据']);
+  registerPluginMacroSource((name: string, d: Record<string, unknown>) =>
+    name === '角色列表' ? String(d.characters ?? '') : name === '图片元数据' ? String(d.portrait_meta ?? '') : '',
+  );
   const preset = presetOf({
     id: 'p1',
     name: '世界书整理',
@@ -289,7 +296,8 @@ test('runner.runAgent：原生通道自己 fetch，带 tools，没 tool_calls �
   assert.equal(bodies[0].messages[0].content, '你是助手', '预设本体的 system 在最前面');
   assert.equal(bodies[1].messages.at(-1).role, 'tool', '工具结果要按标准转写塞回去');
   assert.deepEqual(box.turns.map(t => t.role), ['user', 'assistant', 'assistant']);
-  assert.match(result.turns[1].calls[0].brief, /^本次范围 1 本 · 列出 1 本 · 共 1 条（启用 1）$/);
+  // 阶段 3：wb_list 改成「列全部 + 标绑定范围」，brief 口径跟着变
+  assert.match(result.turns[1].calls[0].brief, /^世界书 1 本 · .*可读写 1 本$/);
   // 追加的三条系统段：顺序 = 本次可操作范围 → 轮数预算（这里没技能，所以没有技能段）
   assert.deepEqual(
     bodies[0].messages.slice(0, 3).map(m => m.role),
@@ -425,7 +433,8 @@ test('runner.runAgent：工具卡通过 session.turns 那条路更新（onToolUp
   const inStore = data.session.turns.find(turn => turn.role === 'assistant' && turn.calls.length);
   assert.ok(inStore, 'assistant 轮次要进了 session.turns');
   assert.equal(inStore.calls[0].ok, true);
-  assert.match(inStore.calls[0].brief, /^本次范围 1 本 · 列出 1 本 · 共 1 条（启用 1）$/);
+  // 阶段 3：wb_list 改成「列全部 + 标绑定范围」，brief 口径跟着变
+  assert.match(inStore.calls[0].brief, /^世界书 1 本 · .*可读写 1 本$/);
   const last = updates.filter(item => item.call.name === 'wb_list').at(-1);
   assert.equal(last.turnId, inStore.id);
   assert.equal(last.index, 0);

@@ -61,6 +61,8 @@ export function createDraftView(base: WorldbookPort, drafts: DraftStore): Worldb
   return {
     list: () => base.list(),
     current: () => base.current(),
+    // 草稿视图不改「一本书挂在哪」这件事，直接透传
+    scopes: () => base.scopes(),
     readAll: world => viewEntries(world),
     async readByUid(world: string, uids: string[]): Promise<WbEntry[]> {
       const wanted = new Set(uids.map(item => String(item)));

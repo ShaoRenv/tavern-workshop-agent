@@ -32,7 +32,7 @@ const {
 test('types: RootDataSchema.parse({}) 各块默认值齐全（老数据零字段也能跑）', () => {
   const data = RootDataSchema.parse({});
   assert.equal(data.version, DATA_VERSION);
-  assert.equal(data.active_tab, 'portraits');
+  assert.equal(data.active_tab, 'chat', '阶段 3：默认页从 portraits 改成 chat（立绘页撤了）');
   assert.deepEqual(data.api, {
     route: 'tavern',
     url: '',
@@ -75,7 +75,11 @@ test('types: 非法枚举 / 越界数字被拒', () => {
   // core/pages.ts + stores/app.ts 的 setTab，见 plugin_registry.test.ts）；
   // 非字符串仍然是坏数据。
   assert.equal(RootDataSchema.parse({ active_tab: 'nope' }).active_tab, 'nope', '未知字符串原样保留，schema 不清洗');
-  assert.equal(RootDataSchema.parse({ active_tab: 'portraits' }).active_tab, 'portraits', 'portraits 还是真页面');
+  assert.equal(
+    RootDataSchema.parse({ active_tab: 'portraits' }).active_tab,
+    'chat',
+    '阶段 3：portraits 不再是真页面，走 TAB_ID_ALIASES 兜到 chat',
+  );
   assert.equal(RootDataSchema.safeParse({ active_tab: 123 }).success, false, '非字符串仍被拒');
   assert.equal(RootDataSchema.safeParse({ active_tab: ['records'] }).success, false);
   assert.equal(RootDataSchema.safeParse({ active_tab: null }).success, false);
@@ -294,7 +298,7 @@ test('storage: 顶层不是对象时整体回退默认值 + 一条警告（不�
     const result = recoverRootData(bad);
     assert.equal(result.warnings.length, 1);
     assert.match(result.warnings[0], /不是对象/);
-    assert.equal(result.data.active_tab, 'portraits');
+    assert.equal(result.data.active_tab, 'chat');
   }
 });
 
@@ -312,7 +316,7 @@ test('storage: 坏块逐块恢复 —— 好数据保留、坏块换默认、数
     artifacts: null,
   });
 
-  assert.equal(result.data.active_tab, 'portraits');
+  assert.equal(result.data.active_tab, 'chat');
   assert.equal(result.data.api.route, 'tavern');
   assert.equal(result.data.api.timeout_sec, 60);
   assert.equal(result.data.gen.image_concurrency, 4);
@@ -345,14 +349,14 @@ test('storage: active_tab 未知字符串不再被清洗；老页名走 TAB_ID_A
   const recovered = recoverRootData({ active_tab: 'nope' });
   assert.deepEqual(recovered.warnings, []);
   assert.equal(recovered.data.active_tab, 'nope');
-  assert.equal(recoverRootData({ active_tab: 'portraits' }).data.active_tab, 'portraits');
+  assert.equal(recoverRootData({ active_tab: 'portraits' }).data.active_tab, 'chat', '老页名 portraits → chat');
   // 阶段 2 老页名兜底：记录 → 对话、能力 / 技能 → 设置（整份读入口也过 migrateTabId）
   assert.equal(recoverRootData({ active_tab: 'records' }).data.active_tab, 'chat');
   assert.equal(recoverRootData({ active_tab: 'capability' }).data.active_tab, 'settings');
   assert.equal(recoverRootData({ active_tab: 'skills' }).data.active_tab, 'settings');
   // 非字符串仍然按坏块换默认值
-  assert.equal(recoverRootData({ active_tab: 123 }).data.active_tab, 'portraits');
-  assert.equal(recoverRootData({ active_tab: ['records'] }).data.active_tab, 'portraits');
+  assert.equal(recoverRootData({ active_tab: 123 }).data.active_tab, 'chat');
+  assert.equal(recoverRootData({ active_tab: ['records'] }).data.active_tab, 'chat');
 });
 
 test('storage: 好数据原样读出（不改内容、不误报警告）', () => {
@@ -377,7 +381,7 @@ test('storage: recoverRootData 对奇形怪状输入不抛异常', () => {
     const result = recoverRootData(raw);
     assert.equal(typeof result.data, 'object');
     assert.ok(Array.isArray(result.warnings));
-    assert.equal(result.data.active_tab, 'portraits');
+    assert.equal(result.data.active_tab, 'chat');
   }
 });
 
@@ -401,7 +405,7 @@ test('storage: loadData 走宿主 getVariables（脚本作用域），缺接口�
     setHostBridge(null);
   }
   assert.equal(readStoredRootData(), null, '没宿主读不到 → null');
-  assert.equal(loadData().active_tab, 'portraits');
+  assert.equal(loadData().active_tab, 'chat');
 });
 
 /* ============================ storage：写 ============================ */
@@ -446,7 +450,7 @@ test('storage: 退化到 replaceVariables 时保留别人的变量，作用域�
     saveData(defaultRootData());
     assert.equal(replaced.length, 1);
     assert.deepEqual(replaced[0].next.someone_else, { a: 1 });
-    assert.equal(replaced[0].next[GLOBAL_KEY].active_tab, 'portraits');
+    assert.equal(replaced[0].next[GLOBAL_KEY].active_tab, 'chat');
     assert.deepEqual(replaced[0].options, { type: 'script' });
   } finally {
     setHostBridge(null);
@@ -481,7 +485,7 @@ test('storage: 写入前先校验修复坏块（坏值不会落盘）', () => {
       presets: [{ name: '缺 id' }, { id: 'ok', name: '好' }],
     });
     const stored = calls[0][GLOBAL_KEY];
-    assert.equal(stored.active_tab, 'portraits');
+    assert.equal(stored.active_tab, 'chat');
     assert.equal(stored.gen.image_concurrency, 4);
     assert.deepEqual(
       stored.presets.map(item => item.id),

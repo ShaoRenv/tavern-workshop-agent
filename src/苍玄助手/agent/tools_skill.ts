@@ -5,7 +5,8 @@
  * read_skill_file 读参考文件；create_skill 默认关，且描述里明写「仅当用户明确要求时使用」。
  */
 import type { ToolDef } from '../core/ports.ts';
-import { asText, clip, resultFail, resultOk, schemaArray, schemaObject, schemaString } from './tools_worldbook.ts';
+import { asText, clip, resultFail, resultOk, schemaArray, schemaObject, schemaString } from './toolkit.ts';
+import type { PluginStateHost } from '../plugins/types.ts';
 
 /* ============================ 技能相关类型（registry.ts 从这里再导出） ============================ */
 
@@ -30,6 +31,16 @@ export interface RegistryOptions {
   readSkillFile?: (skill: AgentSkillLike, fileName: string) => string | undefined;
   /** create_skill 生成的新技能交给谁保存；不传就只回结果给模型，由界面自己接 */
   createSkill?: (draft: SkillDraft) => void | Promise<void>;
+  /**
+   * 插件开关状态（**内层映射**，即 `plugin_state` 那一段，不是 RootData 外壳）。
+   *
+   * 阶段 3 起插件工具也并进这张注册表，而「哪些插件开着」得看这份状态：
+   * 不传 = 按 manifest 的 defaultEnabled 算（测试与独立预览用）。
+   *
+   * ⚠️ 类型故意取 `PluginStateHost['plugin_state']`（内层），而不是 `PluginStateHost`（外壳）：
+   * 调用方（runner / App.vue）手里拿的就是内层映射，传外壳会让「字段全可选」的壳把所有错误吃掉。
+   */
+  plugin_state?: PluginStateHost['plugin_state'];
 }
 
 const BODY_LIMIT = 20000;

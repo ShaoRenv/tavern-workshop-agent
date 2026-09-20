@@ -219,7 +219,7 @@ test('runner：tool_overrides 套进发给模型的 specs（原生通道）', as
     tool_overrides: {
       wb_list: {
         description: '被用户改过的工具说明',
-        param_descriptions: { current_only: '被用户改过的参数说明' },
+        param_descriptions: { in_scope_only: '被用户改过的参数说明' },
         timeout_ms: 1234,
       },
     },
@@ -243,7 +243,8 @@ test('runner：tool_overrides 套进发给模型的 specs（原生通道）', as
   const tool = bodies[0].tools[0];
   assert.equal(tool.function.name, 'wb_list');
   assert.equal(tool.function.description, '被用户改过的工具说明');
-  assert.equal(tool.function.parameters.properties.current_only.description, '被用户改过的参数说明');
+  // 阶段 3：wb_list 的参数从 current_only 改成 in_scope_only（列全部 + 标绑定范围）
+  assert.equal(tool.function.parameters.properties.in_scope_only.description, '被用户改过的参数说明');
 });
 
 test('catalog：给工具详情页的是 ToolDef 原样值（不套覆盖），覆盖只影响 specs', () => {
@@ -257,12 +258,12 @@ test('catalog：给工具详情页的是 ToolDef 原样值（不套覆盖），�
   assert.deepEqual(row.parameters, def.parameters);
   assert.equal(row.source, undefined);
   assert.equal(row.missing, false);
-  assert.equal(typeof row.parameters.properties.current_only.description, 'string');
+  assert.equal(typeof row.parameters.properties.in_scope_only.description, 'string');
 
-  const overrides = { wb_list: { description: '用户版', param_defaults: { current_only: true } } };
+  const overrides = { wb_list: { description: '用户版', param_defaults: { in_scope_only: true } } };
   const spec = registry.specs(['wb_list'], overrides)[0];
   assert.equal(spec.description, '用户版');
-  assert.equal(spec.parameters.properties.current_only.default, true);
+  assert.equal(spec.parameters.properties.in_scope_only.default, true);
   // 覆盖不改 def / catalog（「恢复默认」的基准不能被污染）
   assert.notEqual(registry.byName('wb_list').model_description, '用户版');
   assert.equal(registry.catalog().find(item => item.name === 'wb_list').model_description, def.model_description);

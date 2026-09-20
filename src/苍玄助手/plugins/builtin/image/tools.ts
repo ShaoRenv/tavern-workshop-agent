@@ -1,11 +1,15 @@
 /**
- * 生图工具：gen_image
+ * 生图插件的工具：gen_image
  *
  * 出的图放进 ToolResult.images：
  *  - UI 把图直接画进对话（设计稿：生图卡永远展开）
- *  - loop.ts 会把图作为图片消息回灌给模型，所以模型能「看过自己生的图再改」
+ *  - agent/loop.ts 会把图作为图片消息回灌给模型，所以模型能「看过自己生的图再改」
+ *
+ * 阶段 3：本文件从 `agent/tools_image.ts` 搬进插件目录。工具本身与世界书无关，
+ * 通用工具件（asText / clip / resultOk / resultFail / schema* ）在底座 `agent/toolkit.ts`，
+ * 本文件单向 import —— 依赖方向始终 plugins → core / agent。
  */
-import type { ToolDef } from '../core/ports.ts';
+import type { ToolDef } from '../../../core/ports.ts';
 import {
   asInt,
   asText,
@@ -15,7 +19,7 @@ import {
   schemaInteger,
   schemaObject,
   schemaString,
-} from './tools_worldbook.ts';
+} from '../../../agent/toolkit.ts';
 
 const MAX_IMAGES = 4;
 
@@ -26,7 +30,11 @@ export function createImageTools(): ToolDef[] {
     title: '生图',
     desc: '调生图 API，出图直接进对话',
     model_description:
-      '调生图接口画一张图，图会直接出现在对话里，也会回灌给你看。prompt 写具体画面（主体、环境、光线、风格、比例），要改图就把上一版 prompt 调一调再画，别整段重写。',
+      '调生图接口画一张图。图会直接出现在对话里，**也会当场回灌给你看** —— 下一轮你就能看到刚画出来的那张。\n' +
+      'prompt 写具体画面（主体、环境、光线、风格、比例）。\n' +
+      '**画完必须自己看一眼再决定收不收**：对照用户的描述和你的 prompt，检查主体对不对、构图/光线/风格有没有跑偏、' +
+      '有没有明显崩坏。不对就改 prompt 重画（在上一版基础上调，别整段重写），改了再画、看了再改，直到满意为止。\n' +
+      '用户说「不行 / 不像 / 再改改」时也一样：**先看一眼当前这张**再判断哪里不对，别盲目重画。',
     parameters: schemaObject(
       {
         prompt: schemaString('画面描述，越具体越好；建议带风格和比例'),

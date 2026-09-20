@@ -70,10 +70,37 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue';
 
-import { RootDataSchema, type RootData } from '../core/types.ts';
-import type { UiEntry, UiWorld } from '../components/ui_types.ts';
+import { RootDataSchema, type RootData } from '../../../core/types.ts';
 
-/** 世界书页：挑世界书 + 挑条目，然后把范围交给 Agent */
+/**
+ * 页面自己的视图模型（**故意不在插件里 import components/ui_types.ts**）。
+ *
+ * 硬规矩：插件目录的相对 import 只许落在 core / agent / plugins —— 页面是插件的一部分，
+ * 不能反向依赖面板外壳（components/）。而 UiWorld / UiEntry 本来就只有 name/current/uid/group
+ * 这么几个字段，宿主传进来的形状与这里逐字段兼容，所以在插件里声明一份本地类型即可，
+ * 既守住分层，也不引入任何运行时耦合。
+ */
+interface UiWorld {
+  name: string;
+  /** 酒馆当前启用（角色卡 + 全局） */
+  current?: boolean;
+}
+
+interface UiEntry {
+  uid: string;
+  name: string;
+  /** 分组名（设计稿里那些 ====角色设定==== 的组）；空串算「其它」 */
+  group?: string;
+}
+
+/**
+ * 世界书插件的内容页（阶段 3 从 views/WorldbookView.vue 搬进插件目录，改名 Page.vue）。
+ *
+ * 插件页**必须由宿主静态 import**（单文件酒馆脚本里 import() 拆出的 chunk 永远 404），
+ * 所以这里只导出组件本体，装配在 App.vue 的页面表里做。
+ *
+ * 世界书页：挑世界书 + 挑条目，然后把范围交给 Agent
+ */
 const props = withDefaults(defineProps<{ data?: RootData; worlds?: UiWorld[]; entries?: UiEntry[] }>(), {
   data: () => RootDataSchema.parse({}),
   worlds: () => [],

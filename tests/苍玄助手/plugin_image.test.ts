@@ -34,9 +34,9 @@ const {
   describeStatus,
   generateImages,
   NAI_OFFICIAL_ENDPOINT,
-} = await import(root + 'plugins/image/nai.ts');
-const { qualityWordsFor, naiVersion, supportsStraightAlpha } = await import(root + 'plugins/image/options.ts');
-const { pluginEnabled, pluginTools, pluginStatus } = await import(root + 'plugins/registry.ts');
+} = await import(root + 'plugins/builtin/image/nai.ts');
+const { qualityWordsFor, naiVersion, supportsStraightAlpha } = await import(root + 'plugins/builtin/image/options.ts');
+const { pluginEnabled, pluginTools, pluginAllTools, pluginStatus } = await import(root + 'plugins/registry.ts');
 
 /**
  * 造一份配置（默认全齐，随用例覆盖）。
@@ -120,8 +120,14 @@ test('插件状态与工具归属：开关在 plugin_state；关着就没有 gen
   // 关掉 = 底座根本不给这个工具（守卫不在 generateImages 里，见下面的源码级用例）
   assert.equal(pluginTools(switched(false)).includes('gen_image'), false);
   assert.equal(pluginTools({}).includes('gen_image'), false, '生图 manifest.defaultEnabled=false');
-  // 开着：gen_image 排在已启用插件工具的最后（声明顺序 = 世界书 → 生图）
-  assert.deepEqual(pluginTools(switched(true)).slice(-1), ['gen_image']);
+  // ⚠️ 阶段 3 的口径：「插件开着 = 它注册了」≠「它默认给模型」。
+  // gen_image 的 default_on 一直是 false（要发得在预设里显式勾），
+  // 所以它进 pluginAllTools（注册清单 / 界面），但**不进** pluginTools（默认进全局能力）。
+  assert.equal(pluginAllTools(switched(true)).includes('gen_image'), true, '开着 → 注册了');
+  assert.equal(pluginTools(switched(true)).includes('gen_image'), false, '但它 default_on:false，不进默认能力');
+  assert.equal(pluginAllTools(switched(false)).includes('gen_image'), false, '关掉 → 连注册清单都没有（关掉即消失）');
+  // 它是 image 插件唯一贡献的工具 → 开着时注册清单末尾就是它
+  assert.deepEqual(pluginAllTools(switched(true)).slice(-1), ['gen_image']);
 
   // 状态：未启用 > 插件自己说的（缺配置）> 已启用
   assert.equal(pluginStatus(switched(false), 'image', config()).label, '未启用');
@@ -344,7 +350,7 @@ test('generateImages：没填 Key 就报清楚的原因（开关不归它管）'
 test('源码级：关插件时没有 gen_image，也没有生图器 —— 守卫在来源处，不在 generateImages 里', () => {
   // 1) nai.ts 不再读任何 enabled：插件关着时由底座不提供 gen_image（pluginTools 不含它），
   //    模型压根调不到这个工具，所以这一层不需要再判一次。
-  const nai = readFileSync('src/苍玄助手/plugins/image/nai.ts', 'utf8');
+  const nai = readFileSync('src/苍玄助手/plugins/builtin/image/nai.ts', 'utf8');
   assert.equal(/\benabled\b/.test(nai), false, 'nai.ts 里不该再出现 enabled（配置是配置，开关是开关）');
 
   // 2) App.vue：插件工具清单来自注册表（关插件即消失），生图器注册受插件开关门控

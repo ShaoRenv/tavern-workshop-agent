@@ -51,7 +51,14 @@ test('bundle: content 里没有残留的构建占位符', () => {
   assert.ok(!bundle.content.includes('__FRAME_HTML_BASE64__'));
   assert.ok(!bundle.content.includes('__APP_JS_B64__'));
   assert.ok(!bundle.content.includes('__APP_CSS_B64__'));
-  assert.deepEqual([...new Set(bundle.content.match(/\{\{[^{}]{0,60}\}\}/g) ?? [])], [], '还有 {{宏}} 没渲染');
+  // 只扫**代码**里的宏占位符：注释里的 `{{宏名}}` 是说明文字（比如讲「插件贡献的宏」时举的例子），
+  // 不是没渲染的残留。用 codeOnly 剥掉注释再扫 —— 否则写一句注释就把这道闸弄红了（验收 F-V3 的误报）。
+  const code = bundle.content
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter(line => !/^\s*\/\//.test(line))
+    .join('\n');
+  assert.deepEqual([...new Set(code.match(/\{\{[^{}]{0,60}\}\}/g) ?? [])], [], '还有 {{宏}} 没渲染');
 });
 
 test('bundle: content 本身通过 node --check（导入酒馆前至少语法合法）', () => {

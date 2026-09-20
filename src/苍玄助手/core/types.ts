@@ -62,7 +62,7 @@ export type NaiSite = z.infer<typeof NaiSiteSchema>;
  * 这份配置是**插件自己的设置**，跟工具页的 tool_overrides 分开：
  *  - 工具页改的是「模型看到的说明 / 参数默认值 / 超时」
  *  - 这里改的是「这台机器怎么连生图接口、默认出什么画」
- * 工具 gen_image 每次调用都读这里的值组装请求（见 plugins/image/nai.ts）。
+ * 工具 gen_image 每次调用都读这里的值组装请求（见 plugins/builtin/image/nai.ts）。
  *
  * ⚠️ **开关不在这里**：插件开关是底座的 `plugin_state.image.enabled`（stores/app.ts 的 setPluginEnabled）。
  *    分开的理由：开关是底座的（谁在跑由底座定），设置是插件的（插件自己的 schema 里永远不用出现 enabled）。
@@ -107,14 +107,31 @@ export const GenImageConfigSchema = z.object({
 export type GenImageConfig = z.infer<typeof GenImageConfigSchema>;
 
 /**
+ * 苍玄助手插件自己的设置（阶段 3 起有真 schema）。
+ *
+ * ⚠️ 只存**路径字符串**，绝不存 base64 —— 立绘/素材走 ST 原生 /api/images/upload
+ * 上传成真文件，变量里只留 URL（见 reports/苍玄助手-真文件存储探针.md）。
+ * 这是「文件不好存」的正解：settings.json 已经 50MB，不能再往里塞图。
+ */
+export const CangxuanConfigSchema = z.object({
+  /** 图库来源：'chat' = 从当前角色的立绘里读 / 'manual' = 手动传的 */
+  gallery: z.string().default('chat'),
+  /** 元数据读取规则（怎么从立绘文本里抠出元数据） */
+  meta_rule: z.string().default(''),
+  /** 手动传的立绘元数据：只存 URL/文本，不存 base64（阶段 3 修「只存内存、刷新就丢」） */
+  manual_meta: z.array(z.string()).default([]),
+});
+export type CangxuanConfig = z.infer<typeof CangxuanConfigSchema>;
+
+/**
  * 插件自己的设置：插件 id → 设置。
  *
- * image 有真 schema（生图参数多）；cangxuan 先是个空袋子 —— 它第 3 阶段才有真设置
- * （图库来源 / 元数据读取规则 / 手动元数据），那时换成它自己的 schema。
+ * image / cangxuan 各有真 schema。加新插件时在这里加一段（阶段 6 外部插件的设置
+ * 走宽松袋子的兜底）。
  */
 export const PluginsSchema = z.object({
   image: GenImageConfigSchema.prefault({}),
-  cangxuan: z.record(z.string(), z.unknown()).prefault({}),
+  cangxuan: CangxuanConfigSchema.prefault({}),
 });
 export type Plugins = z.infer<typeof PluginsSchema>;
 
@@ -798,11 +815,12 @@ export type Selection = z.infer<typeof SelectionSchema>;
 // 这张表只干一件事：把**老数据里存过的页名**兜到现在的页，免得老用户一进来落到「第一个可用页」。
 //   skills / capability（老「能力」页）→ settings（能力现在是设置里的一格）
 //   records（老「记录」页）→ chat（记录现在是对话页 ⋯ 里的一张 Sheet）
-// 阶段 3 撤掉 portraits 页时再加 portraits → chat。
+//   portraits（老「立绘/苍玄助手」页）→ chat（阶段 3 起苍玄助手插件不带页面了）
 export const TAB_ID_ALIASES: Record<string, string> = {
   skills: 'settings',
   capability: 'settings',
   records: 'chat',
+  portraits: 'chat',
 };
 
 /** 把历史页签名兜底成现页签名；不是老名字就原样返回（交给 enum 去校验合法性） */
@@ -830,7 +848,7 @@ export const RootDataSchema = z.object({
    * 合法性不靠 enum 保证，靠 stores/app.ts 的 setTab / App.vue 的兜底（页面没了就落到第一个可用页）。
    * 老数据里 'skills' 由 migrateTabId 兜底成 'capability'（见 TAB_ID_ALIASES）。
    */
-  active_tab: z.preprocess(migrateTabId, z.string().default('portraits')),
+  active_tab: z.preprocess(migrateTabId, z.string().default('chat')),
   api: ApiSettingsSchema.prefault({}),
   gen: GenSettingsSchema.prefault({}),
   /** 插件页：插件自己的设置（生图插件是第一个 → `data.plugins.image`） */

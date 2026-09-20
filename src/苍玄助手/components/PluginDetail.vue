@@ -369,7 +369,7 @@ import {
   qualityWordsFor,
   sizePresetOf,
   supportsStraightAlpha,
-} from '../plugins/image/options.ts';
+} from '../plugins/builtin/image/options.ts';
 import type { PluginManifest, PluginStatus } from '../plugins/types.ts';
 import SegBar from './SegBar.vue';
 import Sw from './Sw.vue';

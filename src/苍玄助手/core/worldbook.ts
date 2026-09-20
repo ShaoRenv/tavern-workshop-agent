@@ -21,7 +21,7 @@
  *
  * 宿主接口全部走 storage.ts 的 hostFn，测试可以 setHostBridge 注入假实现。
  */
-import type { WbEntry, WbSearchHit, WorldbookPort } from './ports.ts';
+import type { WbEntry, WbSearchHit, WorldbookPort, WorldbookScope } from './ports.ts';
 import { hostFn, isPlainRecord } from './storage.ts';
 
 /* ============================ 取值小工具 ============================ */
@@ -420,6 +420,61 @@ export class TavernWorldbookPort implements WorldbookPort {
     }
 
     return result;
+  }
+
+  /**
+   * 每本世界书的绑定范围（全局 / 当前角色卡 / 当前聊天 / 未启用）。
+   *
+   * 三态判定顺序：全局 > 角色卡 > 聊天 > 未启用。同一本同时挂多处时按影响面最大的说，
+   * 免得模型以为「只是当前角色卡用的」而不敢改一本全局书。
+   * 任何一步拿不到就跳过 —— 宁可标「未启用」也不要抛（列表工具不该因为一个接口缺失就废掉）。
+   */
+  async scopes(): Promise<WorldbookScope[]> {
+    const globals = new Set<string>();
+    const characters = new Set<string>();
+    const chats = new Set<string>();
+
+    try {
+      const getGlobal = hostFn('getGlobalWorldbookNames');
+      const names = getGlobal ? getGlobal() : null;
+      if (Array.isArray(names)) names.forEach(value => {
+        const name = asString(value).trim();
+        if (name) globals.add(name);
+      });
+    } catch (error) {
+      console.warn('[苍玄助手] 读全局世界书失败', error);
+    }
+
+    try {
+      const getChar = hostFn('getCharWorldbookNames');
+      const bound = getChar ? getChar('current') : null;
+      if (isPlainRecord(bound)) {
+        const primary = asString(bound.primary).trim();
+        if (primary) characters.add(primary);
+        if (Array.isArray(bound.additional)) bound.additional.forEach(value => {
+          const name = asString(value).trim();
+          if (name) characters.add(name);
+        });
+      }
+    } catch (error) {
+      console.warn('[苍玄助手] 读角色卡世界书失败', error);
+    }
+
+    try {
+      const getChat = hostFn('getChatWorldbookName');
+      const name = asString(getChat ? getChat('current') : '').trim();
+      if (name) chats.add(name);
+    } catch (error) {
+      console.warn('[苍玄助手] 读聊天世界书失败', error);
+    }
+
+    const all = await this.list();
+    return all.map(name => {
+      if (globals.has(name)) return { name, kind: 'global' as const, label: '全局' };
+      if (characters.has(name)) return { name, kind: 'character' as const, label: '当前角色卡' };
+      if (chats.has(name)) return { name, kind: 'chat' as const, label: '当前聊天' };
+      return { name, kind: 'none' as const, label: '未启用' };
+    });
   }
 
   /** 读整本世界书，归一化成 WbEntry[] */

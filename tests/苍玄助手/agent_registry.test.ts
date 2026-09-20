@@ -1,13 +1,29 @@
 /**
- * 验收补充：agent/registry.ts —— 13 个工具的 JSON Schema 合法性（用 zod.fromJSONSchema 真校验）、
- * 默认开关、空参调用不炸，以及 entry_edit 的 old_string 语义。
+ * agent/registry.ts —— 工具注册表：清单 / 顺序 / 默认开关 / JSON Schema 合法性
+ * （用 zod.fromJSONSchema 真校验）、空参调用不炸，以及 entry_edit 的 old_string 语义。
+ *
+ * 阶段 3 的契约变化（reports/苍玄助手-底座化实施计划.md §17.3）：
+ *  - 工具从 **13 → 16**（世界书 7 + 苍玄助手 3 + 底座技能 3 + 生图 1 + 流程 2）；
+ *    世界书 / 生图 / 苍玄助手的工具都从**插件目录**来（plugins/builtin/<id>/tools.ts）；
+ *  - 注册表按 `TOOL_NAMES` 排序（不再随注册顺序漂移）；
+ *  - **默认装配 15 个**：`gen_image` 因为生图插件 `defaultEnabled:false` 不在里面；
+ *  - 所以 `audit().missing === ['gen_image']` 是**预期**，不是缺陷（image 插件开着就没这条）。
+ *
+ * ⚠️ 下面用到的 helper 都在文件顶部补齐（ctx.wb 必填 —— 世界书端口改成经 ctx 注入）。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
 
 const agent = '../../src/苍玄助手/agent/';
-const { createRegistry, TOOL_NAMES, DEFAULT_ON_TOOLS, TOOL_GROUP_LABELS } = await import(agent + 'registry.ts');
+const {
+  createRegistry,
+  ToolRegistry,
+  TOOL_NAMES,
+  DEFAULT_ON_TOOLS,
+  TOOL_GROUP_LABELS,
+} = await import(agent + 'registry.ts');
+const plugins = await import('../../src/苍玄助手/plugins/registry.ts');
 const { DraftStore } = await import(agent + 'draft.ts');
 
 const ALLOWED_SCHEMA_KEYS = new Set([
@@ -78,7 +94,8 @@ function ctxOf(port, over = {}) {
   const drafts = over.drafts ?? new DraftStore();
   return {
     drafts,
-    ctx: { worlds: over.worlds ?? ['天枢阁'], drafts, skills: over.skills ?? [] },
+    // 阶段 3：世界书端口经 ctx 注入（ToolContext.wb 必填）
+    ctx: { wb: port, worlds: over.worlds ?? ['天枢阁'], drafts, skills: over.skills ?? [] },
   };
 }
 
@@ -98,11 +115,27 @@ function sampleArgs(params) {
 
 /* ============================ 清单 / 默认开关 ============================ */
 
-test('registry: 13 个工具、顺序、分组、审计一致', () => {
+test('registry: 16 个全集 / 默认装配 15 个、顺序按 TOOL_NAMES、分组一致', () => {
   const registry = createRegistry(makePort());
-  assert.deepEqual(registry.names(), [...TOOL_NAMES]);
-  assert.equal(TOOL_NAMES.length, 13);
-  assert.deepEqual(registry.audit(), { ok: true, missing: [], extra: [] });
+  // 全部工具名（含默认关的 gen_image 等）—— 这是「底座眼里的全集」
+  assert.equal(TOOL_NAMES.length, 16);
+  assert.deepEqual(
+    [...TOOL_NAMES],
+    [
+      'wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete', 'entry_meta',
+      'portrait_list', 'portrait_meta', 'portrait_prompt',
+      'skill', 'read_skill_file', 'create_skill', 'gen_image', 'submit', 'ask_user',
+    ],
+    'TOOL_NAMES 就是阶段 3 的 16 个（顺序 = 设置页显示顺序）',
+  );
+  // 默认装配：image 插件默认关 → gen_image 不在
+  assert.equal(registry.names().length, 15);
+  assert.deepEqual(
+    registry.names(),
+    [...TOOL_NAMES].filter(name => name !== 'gen_image'),
+    '默认装配 = 全集去掉 gen_image（生图插件默认关）',
+  );
+  assert.deepEqual(registry.audit(), { ok: false, missing: ['gen_image'], extra: [] }, 'audit 报缺 gen_image 是预期的');
   // ports.ts 给 ToolDef['group'] 加了 'external'（工具页要显示外部工具），分组表必须齐
   assert.deepEqual(Object.keys(TOOL_GROUP_LABELS).sort(), ['external', 'flow', 'image', 'knowledge', 'skill', 'write']);
   for (const def of registry.defs) {
@@ -116,19 +149,123 @@ test('registry: 13 个工具、顺序、分组、审计一致', () => {
   assert.equal(registry.port().list instanceof Function, true);
 });
 
-test('registry: 默认开关与设计稿一致（entry_meta / ask_user / create_skill / gen_image 默认关）', () => {
+test('registry: 默认开关 —— DEFAULT_ON_TOOLS 11 个，装配里 default_on 也正好 11 个', () => {
   const registry = createRegistry(makePort());
+  // 阶段 3：DEFAULT_ON_TOOLS 从 9 → 11（+ portray_list / portrait_meta 两个只读工具）
+  assert.equal(DEFAULT_ON_TOOLS.length, 11);
+  assert.deepEqual([...DEFAULT_ON_TOOLS], [
+    'wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete',
+    'portrait_list', 'portrait_meta',
+    'skill', 'read_skill_file', 'submit',
+  ]);
+  assert.deepEqual(
+    registry.defs.filter(def => def.default_on).map(def => def.name),
+    [
+      // 世界书默认给的 6 个
+      'wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete',
+      // 阶段 3 新增：苍玄助手默认给的 2 个（portrait_prompt 是按需的）
+      'portrait_list', 'portrait_meta',
+      // 底座技能 3 + 流程 1
+      'skill', 'read_skill_file', 'submit',
+    ],
+    '装配里 default_on 的一共 11 个（顺序 = TOOL_NAMES）',
+  );
+
+  // 装配里 default_on 的那批必须与 DEFAULT_ON_TOOLS **逐个相等**（一个不多一个不少）
   assert.deepEqual(
     registry.defs.filter(def => def.default_on).map(def => def.name),
     [...DEFAULT_ON_TOOLS],
+    'DEFAULT_ON_TOOLS 就是装配默认给的这批',
   );
-  assert.equal(DEFAULT_ON_TOOLS.length, 9);
-  for (const name of ['entry_meta', 'ask_user', 'create_skill', 'gen_image']) {
+
+  // 默认关的 3 个（它们在装配里，只是不默认给）：entry_meta / portrait_prompt / create_skill
+  for (const name of ['entry_meta', 'portrait_prompt', 'create_skill']) {
     assert.equal(registry.byName(name).default_on, false, name + ' 应该默认关');
   }
+  // gen_image 的 default_on 也一直是 false（阶段 2 就是），但默认状态下它连 def 都没有 ——
+  // 生图插件 defaultEnabled:false，所以这里要去**插件开着**的注册表里查。
+  const withImage = createRegistry(makePort(), { plugin_state: { image: { enabled: true } } });
+  assert.equal(withImage.byName('gen_image').default_on, false, 'gen_image 默认关（要发得在预设里显式勾）');
   assert.equal(registry.byName('create_skill').user_initiated_only, true);
   assert.match(registry.byName('create_skill').model_description, /仅当用户明确要求时使用/);
-  assert.ok(registry.catalog().every(row => row.missing === false && row.title));
+
+  // 默认状态下 gen_image 整个**不在**注册表里（生图插件默认关）→ 它那行 missing
+  assert.equal(registry.has('gen_image'), false, '生图插件默认关 → gen_image 连 def 都没有');
+  assert.deepEqual(
+    registry.catalog().filter(row => row.missing).map(row => row.name),
+    ['gen_image'],
+    '界面清单仍列出 gen_image，并标 missing（来源已停用那条 UI）',
+  );
+  assert.ok(registry.catalog().every(row => row.title), '每行都要有标题');
+});
+
+test('registry（第一道闸）：插件开关直接决定装配 —— 关掉哪个插件，它的工具就不在注册表里', () => {
+  // 「关掉即消失」有三层：**注册表** → 全局能力 → runner 的 liveToolDefs。
+  // 这条钉最早的那层（比 runner 更早），阶段 2 验收的 F-A 就是漏了后面那层。
+  const port = makePort();
+
+  // 关世界书：wb 7 个全没，portrait 3 个还在
+  const wbOff = new ToolRegistry(port, { plugin_state: { worldbook: { enabled: false } } });
+  assert.deepEqual(
+    wbOff.names(),
+    ['portrait_list', 'portrait_meta', 'portrait_prompt', 'skill', 'read_skill_file', 'create_skill', 'submit', 'ask_user'],
+    '关世界书 → 只剩苍玄助手 3 + 底座 5 = 8',
+  );
+
+  // 关苍玄助手：portrait 3 个全没，wb 7 个还在
+  const cxOff = new ToolRegistry(port, { plugin_state: { cangxuan: { enabled: false } } });
+  assert.deepEqual(
+    cxOff.names(),
+    ['wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete', 'entry_meta', 'skill', 'read_skill_file', 'create_skill', 'submit', 'ask_user'],
+    '关苍玄助手 → 只剩世界书 7 + 底座 5 = 12',
+  );
+
+  // 只开生图：gen_image 才进得来
+  const imageOnly = new ToolRegistry(port, {
+    plugin_state: { cangxuan: { enabled: false }, worldbook: { enabled: false }, image: { enabled: true } },
+  });
+  assert.deepEqual(
+    imageOnly.names(),
+    ['skill', 'read_skill_file', 'create_skill', 'gen_image', 'submit', 'ask_user'],
+    '只开生图 → 底座技能 3 + gen_image + 流程 2 = 6',
+  );
+
+  // 三个插件全关：一个插件工具都不该剩下
+  const allOff = new ToolRegistry(port, {
+    plugin_state: { cangxuan: { enabled: false }, worldbook: { enabled: false }, image: { enabled: false } },
+  });
+  assert.deepEqual(
+    allOff.names(),
+    ['skill', 'read_skill_file', 'create_skill', 'submit', 'ask_user'],
+    '三个插件全关 → 只剩底座那 5 个',
+  );
+
+  // 全开：16 个一个不少
+  const allOn = new ToolRegistry(port, {
+    plugin_state: { cangxuan: { enabled: true }, worldbook: { enabled: true }, image: { enabled: true } },
+  });
+  assert.deepEqual(allOn.names(), [...TOOL_NAMES], '三个都开 → 恰好 16 个（= TOOL_NAMES 全集）');
+  assert.deepEqual(allOn.audit(), { ok: true, missing: [], extra: [] }, '全开时 audit 干净');
+
+  // 装配与**聚合函数**必须一致（两边都读同一份 plugin_state）
+  const { pluginToolDefs } = plugins;
+  for (const [label, st] of [
+    ['默认', {}],
+    ['关世界书', { plugin_state: { worldbook: { enabled: false } } }],
+    ['关苍玄助手', { plugin_state: { cangxuan: { enabled: false } } }],
+    ['全关', { plugin_state: { cangxuan: { enabled: false }, worldbook: { enabled: false }, image: { enabled: false } } }],
+  ]) {
+    const assembled = new ToolRegistry(port, st)
+      .names()
+      .filter(name => pluginToolDefs(st).some(def => def.name === name));
+    // 两边**成员**必须一致；**顺序**不必 —— 注册表按 TOOL_NAMES 排（设置页显示顺序），
+    // pluginToolDefs 按 manifest 声明顺序（cangxuan → worldbook → image）。
+    assert.deepEqual(
+      [...assembled].sort(),
+      pluginToolDefs(st).map(def => def.name).sort(),
+      label + '：注册表里的插件工具必须与 pluginToolDefs(state) 成员完全一致',
+    );
+  }
 });
 
 /* ============================ JSON Schema 合法性 ============================ */
@@ -138,7 +275,10 @@ test('registry: 每个工具的 parameters 都是合法且可序列化的 JSON S
   for (const def of registry.defs) {
     const params = def.parameters;
     assert.equal(params.type, 'object', def.name + ': 顶层 type 必须是 object');
-    assert.ok(Object.keys(params.properties ?? {}).length > 0, def.name + ': 至少要有一个参数');
+    // 阶段 3：portrait_list 是**无参**工具（列角色不需要参数）→ 允许 properties 为空
+    if (def.name !== 'portrait_list') {
+      assert.ok(Object.keys(params.properties ?? {}).length > 0, def.name + ': 至少要有一个参数');
+    }
     assert.equal(typeof params.additionalProperties, 'boolean', def.name + ': additionalProperties 要是布尔');
     for (const key of Object.keys(params))
       assert.ok(ALLOWED_SCHEMA_KEYS.has(key), def.name + ': 出现了不认识的 JSON Schema 关键字 ' + key);
@@ -238,10 +378,11 @@ test('registry: 嵌套对象参数都自带 description（keys_secondary / creat
 test('registry: specs() / pick() 只发勾上的工具且顺序固定', () => {
   const registry = createRegistry(makePort());
   const all = registry.specs();
-  assert.equal(all.length, 13);
+  assert.equal(all.length, 15, '默认装配 15 个（gen_image 因生图插件默认关缺席）');
   assert.deepEqual(
     all.map(spec => spec.name),
-    [...TOOL_NAMES],
+    [...TOOL_NAMES].filter(name => name !== 'gen_image'),
+    '顺序 = TOOL_NAMES；gen_image 因生图插件默认关不在装配里',
   );
   for (const spec of all) {
     assert.equal(typeof spec.description, 'string');
@@ -254,10 +395,10 @@ test('registry: specs() / pick() 只发勾上的工具且顺序固定', () => {
     '按注册表顺序而不是传入顺序',
   );
   assert.deepEqual(registry.pick(['不存在的工具']), []);
-  assert.equal(registry.pick([]).length, 13, '空数组 = 全给');
+  assert.equal(registry.pick([]).length, 15, '空数组 = 全给');
 });
 
-test('registry: 13 个工具拿空对象调用都不炸，且都给出人话 brief', async () => {
+test('registry: 默认装配的 15 个工具拿空对象调用都不炸，且都给出人话 brief', async () => {
   const port = makePort({ 天枢阁: [entry('1', 'A', 'a')] });
   const { ctx } = ctxOf(port, {
     worlds: ['天枢阁'],

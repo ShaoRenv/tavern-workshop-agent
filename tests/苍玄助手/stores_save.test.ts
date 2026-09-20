@@ -265,8 +265,13 @@ test('源码级: App.vue 不再有 deep 全局 watcher，页面的写点都接�
 
   // 会直接改 store.data 的页面：都 emit('change')，由 App.vue 接成 store.save()
   // （ChatView 的 mode 与 SkillsView 的开关走的是 store 动作，另有断言）
-  for (const view of ['WorldbookView', 'PortraitsView', 'SettingsView']) {
-    const src = codeOnly(readFileSync('src/苍玄助手/views/' + view + '.vue', 'utf8'));
+  // 阶段 3：世界书页搬进插件目录（Page.vue），立绘页随苍玄助手去页面而删除。
+  const pages = [
+    ['WorldbookView', 'src/苍玄助手/plugins/builtin/worldbook/Page.vue'],
+    ['SettingsView', 'src/苍玄助手/views/SettingsView.vue'],
+  ];
+  for (const [view, path] of pages) {
+    const src = codeOnly(readFileSync(path, 'utf8'));
     assert.ok(src.includes("emit('change')"), view + ' 的写点没有 emit(\'change\') 出口');
     const usage = new RegExp('<' + view + '[\\s\\S]*?/>').exec(app);
     assert.ok(usage, 'App.vue 里没找到 ' + view + ' 的用法');

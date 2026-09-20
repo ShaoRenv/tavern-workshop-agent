@@ -57,6 +57,12 @@ $(() => {
     'stopAllGeneration',
     'getModelList',
     'substitudeMacros',
+    // 阶段 3：插件声明 scope 含 'tavern' 的宏（如 cangxuan 的图片提示词宏）要注册进
+    // 酒馆宏引擎，角色卡里才写得出来。少了这两个，注册会静默跳过（面板内预设渲染照常）。
+    // 注意：这里别写宏的字面量花括号形式 —— panel.js 会被原样内联进产物，
+    // bundle 那道闸扫的就是产物里没渲染的宏占位符。
+    'registerMacroLike',
+    'unregisterMacroLike',
   ];
 
   const HOST_API = {};

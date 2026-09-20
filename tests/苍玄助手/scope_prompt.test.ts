@@ -5,7 +5,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const root = '../../src/苍玄助手/';
-const { buildScopePrompt, outOfScopeError, scopeEmptyNotice, scopeNames } = await import(root + 'agent/tools_worldbook.ts');
+// 阶段 3：这组「操作范围」件从 tools_worldbook.ts 抽到了 agent/toolkit.ts（它们是底座件，不属于世界书插件）
+const { buildScopePrompt, outOfScopeError, scopeEmptyNotice, scopeNames } = await import(root + 'agent/toolkit.ts');
 const { createRegistry } = await import(root + 'agent/registry.ts');
 const { setHostBridge } = await import(root + 'core/storage.ts');
 const { RootDataSchema, PresetSchema } = await import(root + 'core/types.ts');
@@ -39,6 +40,10 @@ function makePort(seed = {}) {
     async list() {
       return [...worlds.keys()];
     },
+    // 阶段 3：wb_list 要标「这本书从哪儿生效」。测试里默认都算未启用（没有宿主绑定信息）。
+    async scopes() {
+      return [...worlds.keys()].map(name => ({ name, kind: 'none', label: '未启用' }));
+    },
     async current() {
       return [...worlds.keys()];
     },
@@ -62,7 +67,8 @@ function makePort(seed = {}) {
 }
 
 function ctxOf(port, worlds, over = {}) {
-  return { worlds, drafts: { add() {}, count: () => 0 }, skills: [], ...over };
+  // 阶段 3：世界书端口跟 genImage 一样由 ctx 注入（插件工具是静态的，加载时拿不到宿主对象）
+  return { wb: port, worlds, drafts: { add() {}, count: () => 0 }, skills: [], ...over };
 }
 
 /* ============================ 范围提示词 ============================ */
@@ -103,24 +109,37 @@ test('scope: outOfScopeError / scopeNames / scopeEmptyNotice 文案', () => {
   assert.match(outOfScopeError(['甲本'], ''), /没写名字的那一本/);
 });
 
-test('scope: wb_list 只列范围内的世界书，范围外的不出现', async () => {
+test('scope: wb_list 标出每本从哪儿生效（全局 / 角色卡 / 未启用）+ 区分能不能读写', async () => {
+  // 阶段 3 起 wb_list 列**全部**世界书并标绑定范围 —— 用户原话：
+  // 「世界书list需标注世界书是全局，角色，未启用，如：苍玄界 当前角色卡。同人列表 全局。斗破苍穹 未启用」
   const port = makePort({ 甲本: [entry('1', 'A', 'a')], 别本: [entry('9', 'Z', 'z')] });
+  port.scopes = async () => [
+    { name: '甲本', kind: 'character', label: '当前角色卡' },
+    { name: '别本', kind: 'global', label: '全局' },
+  ];
   const registry = createRegistry(port);
 
+  // 只勾了甲本 → 两本都列出来，但只有甲本可读写
   const scoped = await registry.byName('wb_list').run({}, ctxOf(port, ['甲本']));
   assert.equal(scoped.ok, true);
-  assert.match(scoped.brief, /^本次范围 1 本 · 列出 1 本 · 共 1 条（启用 1）$/);
-  assert.match(scoped.detail, /甲本/);
-  assert.ok(!scoped.detail.includes('别本'), '范围外的名字一个字都不许出现：' + scoped.detail);
-  assert.ok(!scoped.brief.includes('别本'));
+  assert.match(scoped.detail, /甲本 —— 当前角色卡/);
+  assert.match(scoped.detail, /别本 —— 全局/);
+  assert.ok(scoped.detail.includes('别本'), '没勾的也要列出来（用户要知道它存在、是全局的）');
+  assert.match(scoped.detail, /别本 —— 全局　[^\n]*（不在本次范围，不可读写）/, '范围外必须标出不可读写');
+  assert.match(scoped.brief, /可读写 1 本/);
+  assert.match(scoped.brief, /当前角色卡 1 本/);
+  assert.match(scoped.brief, /全局 1 本/);
 
-  const both = await registry.byName('wb_list').run({}, ctxOf(port, ['甲本', '别本']));
-  assert.match(both.brief, /^本次范围 2 本 · 列出 2 本 · 共 2 条（启用 2）$/);
-  assert.ok(both.detail.includes('甲本') && both.detail.includes('别本'));
+  // in_scope_only=true 就只列勾选的（老行为留给想收窄的调用）
+  const onlyScoped = await registry.byName('wb_list').run({ in_scope_only: true }, ctxOf(port, ['甲本']));
+  assert.match(onlyScoped.detail, /甲本/);
+  assert.ok(!onlyScoped.detail.includes('别本'), 'in_scope_only=true 时范围外不出现');
 
+  // 范围空：仍能列出全部（让模型知道有哪些），但可读写是 0
   const none = await registry.byName('wb_list').run({}, ctxOf(port, []));
-  assert.equal(none.ok, false);
-  assert.equal(none.detail, SCOPE_EMPTY);
+  assert.equal(none.ok, true, '不勾也能列出来 —— 否则模型不知道世界书存在');
+  assert.match(none.brief, /可读写 0 本/);
+  assert.ok(!none.detail.includes('（不在本次范围') === false, '全部都应标不可读写');
 });
 
 test('scope: 读 / 搜 / 建 / 改 / 删 / meta 六个入口的越权文案一致', async () => {

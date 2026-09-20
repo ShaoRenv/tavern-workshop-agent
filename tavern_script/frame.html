@@ -57,7 +57,10 @@ var HOST_KEYS = [
   'stopAllGeneration',
   'getModelList',
   // 酒馆宏
-  'substitudeMacros'
+  'substitudeMacros',
+  // 注册插件宏进酒馆宏引擎（阶段 3：{{图片提示词}} 在角色卡里也要能用）
+  'registerMacroLike',
+  'unregisterMacroLike'
 ];
 
 function cxBase64ToText(base64) {

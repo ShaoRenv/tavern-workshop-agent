@@ -33,10 +33,11 @@ import { createDraftStore, describeChange, formatDiff } from '../agent/draft.ts'
 import { runAgentLoop, turnsToMessages, type AgentLoopResult, type LoopEvent } from '../agent/loop.ts';
 import { createRegistry, resolveToolDefs } from '../agent/registry.ts';
 import { skillCatalogText } from '../agent/tools_skill.ts';
-import { buildScopePrompt } from '../agent/tools_worldbook.ts';
+import { buildScopePrompt } from '../agent/toolkit.ts';
 import { createTransport } from '../agent/transport.ts';
 import { createDraftView } from '../agent/wb_view.ts';
 import type { LlmMessage, ToolOverrideMap, WorldbookPort } from '../core/ports.ts';
+import { rememberMacroValues } from '../plugins/host.ts';
 import { pluginAllTools, toolOwner } from '../plugins/registry.ts';
 import type { PluginStateHost } from '../plugins/types.ts';
 import { emptyMacroData, formatEntries, formatHistory, render, type MacroData } from '../core/macros.ts';
@@ -81,7 +82,7 @@ export interface RunArgs {
   /**
    * 生图：交给插件层注入（插件没开 / 没配好时这里是 undefined，
    * gen_image 会直接回一句「生图接口没接上」，不会瞎发请求）。
-   * 一次调用出一张，张数由 tools_image 那边循环 + 插件页的「一次最多几张」封顶。
+   * 一次调用出一张，张数由生图插件的工具那边循环 + 插件页的「一次最多几张」封顶。
    */
   genImage?: (prompt: string, negative: string) => Promise<string[]>;
 }
@@ -342,6 +343,8 @@ function buildItemMessages(args: RunArgs, macroData: MacroData, hasImage: boolea
     if (!triggerPass(item, args, hasImage, hasAssistant)) continue;
     if (!triggerWordsPass(item, args)) continue;
     if (item.content.includes('{{用户需求}}')) demandPlaced = true;
+    // 每轮把插件宏的值记一份，供酒馆宏引擎回填（角色卡里的 {{图片提示词}} 靠它拿到值）
+    rememberMacroValues(macroData);
     const content = render(item.content, macroData);
     if (!content.trim()) continue;
     // 本体里已经把这一轮的话写进去了（宏或原文），就不要再补一条 user
@@ -574,6 +577,9 @@ export function createRunner(): Runner {
           attachSkill(args.data, draft);
           syncDrafts(args.data);
         },
+        // 插件工具并进注册表；哪些插件开着由 plugin_state 决定（关掉即消失的第一道闸）。
+        // ⚠️ 传的是**内层映射**，不是整份 RootData —— 传错会让开关全部失效（曾因此漏掉一个真 bug）。
+        plugin_state: args.data.plugin_state,
       });
       // 守卫默认装上（observe + prune + repeat）；新用户消息 = 新一轮，先把计数和观察清零
       const guards = registry.guards();
@@ -712,6 +718,8 @@ export function createRunner(): Runner {
           user_images: loopUser === undefined ? undefined : args.images?.slice(),
           context: {
             worlds: args.data.selection.worldbook_names.slice(),
+            // 端口跟 genImage 一样走 ctx：插件 manifest 的工具是静态的，加载时拿不到宿主对象
+            wb: view,
             drafts,
             skills,
             observations: guards.observations,

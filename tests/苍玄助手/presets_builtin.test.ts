@@ -24,6 +24,16 @@ const { OUR_MACROS } = await import(root + 'core/macros.ts');
 const ST_MACROS = ['roll', 'user', 'char', 'time', 'date', 'input', 'persona', 'description', 'scenario', 'lastMessage'];
 
 /**
+ * 阶段 3 起宏的第三个来源：**插件贡献的宏**。
+ * 从插件 manifest 里现算（不写死名单），这样插件改了宏名这条闸也跟着走。
+ * 用「全部内置插件」而不是「已启用的」—— 预设是**入口**，导入后归用户，
+ * 关掉插件不回收用户已经用上的预设，所以预设里出现停用插件的宏是合法的。
+ */
+const PLUGIN_MACRO_NAMES = (await import(root + 'plugins/registry.ts')).PLUGIN_MANIFESTS.flatMap(
+  manifest => (manifest.contributes.macros ?? []).map(macro => macro.name),
+);
+
+/**
  * 「能力」页的全局默认快照：工具 = DEFAULT_ON_TOOLS（agent_registry 测试保证它与
  * ToolDef.default_on 一致），技能 = 内置技能全开。
  * 判「是不是 Agent」必须拿它一起解析 —— 跟随全局的预设自己 tools=[] 也是 Agent。
@@ -88,7 +98,9 @@ test('presets: 内置预设结构合法、id 唯一、items/output 齐全', () =
 });
 
 test('presets: 预设里的宏全部是我们认识的（或酒馆自带），没有拼错的宏', () => {
-  const known = new Set([...OUR_MACROS, ...ST_MACROS]);
+  // 阶段 3：宏有三个来源 —— 底座 OUR_MACROS / 酒馆自带 ST_MACROS / **插件贡献的宏**。
+  // 立绘预设用的 角色列表 / 图片元数据 现在归苍玄助手插件，所以要把插件宏一起算进「认识」。
+  const known = new Set([...OUR_MACROS, ...ST_MACROS, ...PLUGIN_MACRO_NAMES]);
   const seen = new Set();
   for (const preset of createBuiltinPresets()) {
     const texts = preset.items.map(item => (item.type === 'message' ? item.content : ''));

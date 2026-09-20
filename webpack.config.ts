@@ -498,26 +498,19 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
               },
             }),
       ],
-      splitChunks: {
-        chunks: 'async',
-        minSize: 20000,
-        minChunks: 1,
-        maxAsyncRequests: 30,
-        maxInitialRequests: 30,
-        cacheGroups: {
-          vendor: {
-            name: 'vendor',
-            test: /[\\/]node_modules[\\/]/,
-            priority: -10,
-          },
-          default: {
-            name: 'default',
-            minChunks: 2,
-            priority: -20,
-            reuseExistingChunk: true,
-          },
-        },
-      },
+      /**
+       * ⚠️ 一刀切关掉分包（阶段 3 的构建闸）。
+       *
+       * 一个脚本 = 一个文件：酒馆脚本是单个 .json 里的单段代码，
+       * `import()` 拆出来的 chunk 在酒馆里**永远 404**（没有静态服务器去伺服它）。
+       * 所以插件页面只能静态 import，构建也不许产出任何 chunk。
+       *
+       * 上面那个 LimitChunkCountPlugin({maxChunks:1}) 单独用不够稳：
+       * 它只在**超限时合并**，配合 splitChunks 的 cacheGroups 仍可能留着异步 chunk 的加载器。
+       * 直接把 splitChunks 关掉，从源头上不产生分包。
+       * 门禁：`Get-ChildItem dist -Recurse -Filter *.chunk.js` 必须为空。
+       */
+      splitChunks: false,
     },
     externals: ({ context, request }, callback) => {
       if (!context || !request) {

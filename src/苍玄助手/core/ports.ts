@@ -43,6 +43,15 @@ export interface WorldbookPort {
   list(): Promise<string[]>;
   /** 酒馆当前启用的（角色卡 + 全局） */
   current(): Promise<string[]>;
+  /**
+   * 每本世界书的**绑定范围**：它从哪儿被启用。
+   *
+   * 为什么单开一个方法：模型看 `wb_list` 时要能分清「这本是全局的」「这本绑在当前角色卡上」
+   * 「这本压根没启用」—— 只有名字它没法判断该不该动、动了会影响谁。
+   * 三态互斥，判定顺序：全局 > 角色卡 > 未启用（酒馆里同一本可能同时挂全局和角色卡，
+   * 这时按「全局」说，因为它的影响面更大）。
+   */
+  scopes(): Promise<WorldbookScope[]>;
   readAll(world: string): Promise<WbEntry[]>;
   readByUid(world: string, uids: string[]): Promise<WbEntry[]>;
   /** 关键词搜索，只返回摘要，不返回全文 */
@@ -51,6 +60,23 @@ export interface WorldbookPort {
   deleteWorldbook(name: string): Promise<void>;
   /** 全量写回某本世界书 */
   writeAll(world: string, entries: WbEntry[]): Promise<void>;
+}
+
+/**
+ * 一本世界书的绑定范围（给模型看的「它从哪儿生效」）。
+ *
+ *  - `global`   全局世界书：所有聊天都生效；
+ *  - `character` 绑在当前角色卡上；
+ *  - `chat`     绑在当前聊天上；
+ *  - `none`     没启用（用户没挂它，但条目还在，可以被加进范围）。
+ */
+export type WorldbookScopeKind = 'global' | 'character' | 'chat' | 'none';
+
+export interface WorldbookScope {
+  name: string;
+  kind: WorldbookScopeKind;
+  /** 人话标签：全局 / 当前角色卡 / 当前聊天 / 未启用 */
+  label: string;
 }
 
 /* ==================== LLM ==================== */
@@ -110,12 +136,28 @@ export interface LlmPort {
 export interface ToolContext {
   /** 本轮允许动的世界书 */
   worlds: string[];
+  /**
+   * 世界书读写端口。
+   *
+   * 阶段 3 从「构造工具时注入」改成「跑一轮时注入」：
+   * 插件 manifest 的 `contributes.tools` 是**静态** ToolDef[]，模块加载时拿不到宿主端口，
+   * 所以端口跟 genImage / askUser 一样走 ctx —— 这也是未来外部插件唯一可行的形态
+   * （外部插件更不可能在加载时拿到宿主对象）。
+   */
+  wb: WorldbookPort;
   drafts: DraftSink;
   skills: { id: string; name: string; summary: string; body: string }[];
   /** 生图用 */
   genImage?: (prompt: string, negative: string) => Promise<string[]>;
   /** 问用户；返回用户的回答，空串表示没答 */
   askUser?: (question: string) => Promise<string>;
+  /**
+   * 插件自己的设置（`plugins.<plugin_id>`），按插件 id 索引。
+   *
+   * 插件工具是**静态**的，加载时读不到「用户当前怎么配的」；跟 wb / genImage 一样，
+   * 每轮由组装方塞进 ctx。插件从 `ctx.plugin_config?.['自己的id']` 取，取不到就按默认值走。
+   */
+  plugin_config?: Record<string, unknown>;
   /** 观察记录：哪些条目被读过、读到的是哪一版（observe-guard 用） */
   observations?: ObservationLog;
   /** 工具页的覆盖项：组装 specs 时套上去 */

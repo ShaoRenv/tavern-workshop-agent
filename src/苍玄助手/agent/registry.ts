@@ -1,39 +1,43 @@
 /**
  * 工具注册表：内置工具清单 + 流程工具（submit / ask_user）。
  *
- * 工具清单照设计稿「设置页 · 工具」那张表：
- *   knowledge: wb_list / wb_search / wb_read
- *   write:     entry_create / entry_edit / entry_delete / entry_meta
- *   skill:     skill / read_skill_file / create_skill
- *   image:     gen_image
- *   flow:      submit / ask_user
+ * 工具清单照设计稿「设置页 · 工具」那张表（阶段 3 起含插件贡献的）：
+ *   knowledge: wb_list / wb_search / wb_read · portrait_list / portrait_meta（插件）
+ *   write:     entry_create / entry_edit / entry_delete / entry_meta（插件）
+ *   skill:     skill / read_skill_file / create_skill（底座）
+ *   image:     gen_image · portrait_prompt（插件）
+ *   flow:      submit / ask_user（底座）
  *
  * 每个 ToolDef 都有完整 JSON Schema 参数（parameters），可以直接喂给原生 tools 通道。
  * 写操作一律只落草稿（ctx.drafts），真正的 WorldbookPort.writeAll 由 draft.ts 的 apply() 做。
  *
- * 依赖方向（eslint no-cycle 管得严，故意做成一条链）：
- *   draft.ts（叶子）→ tools_worldbook.ts（工具层公共底座）→ tools_skill / tools_image → registry.ts
- * 所以：公共辅助函数在 tools_worldbook.ts，草稿接口在 draft.ts，本文件只做组装。
+ * 依赖方向（阶段 3 起）：
+ *   agent/toolkit.ts（叶子）→ agent/tools_skill.ts → 本文件
+ *   世界书 / 生图那两组工具已搬进 plugins/builtin/<id>/，由 pluginToolDefs(state) 组装进来；
+ *   本文件只做「底座工具 + 插件工具」的合并与查询，**不 import 任何插件目录**。
+ *
+ * 为什么要传 state：插件工具是不是可用取决于插件开关（关掉即消失），
+ * 而「哪些插件开着」只有 getVariables 里的 plugin_state 知道。
  */
 import type { ToolDef, ToolOverride, ToolOverrideMap, ToolSpec, WorldbookPort } from '../core/ports.ts';
-import {
-  asText,
-  clip,
-  createWorldbookTools,
-  resultFail,
-  resultOk,
-  schemaObject,
-  schemaString,
-} from './tools_worldbook.ts';
+import { asText, clip, resultFail, resultOk, schemaObject, schemaString } from './toolkit.ts';
 import { createSkillTools, type AgentSkillLike, type RegistryOptions, type SkillDraft } from './tools_skill.ts';
-import { createImageTools } from './tools_image.ts';
 import { createToolGuards, type ToolGuardSet } from './guards.ts';
+import { pluginToolDefs } from '../plugins/registry.ts';
+import type { PluginStateHost } from '../plugins/types.ts';
 
 export type { AgentSkillLike, RegistryOptions, SkillDraft };
 
 /* ============================ 清单常量 ============================ */
 
-/** 内置工具，顺序 = 设置页显示顺序 */
+/**
+ * 全部工具名，顺序 = 设置页显示顺序。
+ *
+ * 阶段 3：世界书 7 + 生图 1 已搬进插件，加上苍玄助手插件的 3 个（portrait_list /
+ * portrait_meta / portrait_prompt），共 16 个。
+ * ⚠️ 这份清单是**底座眼里的全集**，跟「插件开不开」无关：
+ * 关掉插件时工具定义不进注册表，但界面仍要靠这份清单标出「来源已停用」（见 App.vue）。
+ */
 export const TOOL_NAMES = [
   'wb_list',
   'wb_search',
@@ -42,6 +46,9 @@ export const TOOL_NAMES = [
   'entry_edit',
   'entry_delete',
   'entry_meta',
+  'portrait_list',
+  'portrait_meta',
+  'portrait_prompt',
   'skill',
   'read_skill_file',
   'create_skill',
@@ -73,6 +80,9 @@ export const DEFAULT_ON_TOOLS: string[] = [
   'entry_create',
   'entry_edit',
   'entry_delete',
+  // 阶段 3：苍玄助手插件默认开的那两个只读工具（portrait_prompt 会产出正文，按需）
+  'portrait_list',
+  'portrait_meta',
   'skill',
   'read_skill_file',
   'submit',
@@ -146,12 +156,29 @@ export class ToolRegistry {
 
   constructor(wb: WorldbookPort, options: RegistryOptions = {}) {
     this.wb = wb;
-    this.defs = [
-      ...createWorldbookTools(wb),
-      ...createSkillTools(options),
-      ...createImageTools(),
-      ...createFlowTools(),
-    ];
+    // 阶段 3：世界书 / 生图工具从**插件注册表**来（plugins/builtin/<id>/tools.ts），
+    // 底座只保留技能与流程工具。插件关着时 pluginToolDefs 就不给它的工具 ——
+    // 「关掉即消失」在**注册表这一层**就成立，runner 的 liveToolDefs 是第二道闸。
+    // ⚠️ 注意：pluginToolDefs 收的是 **PluginStateHost**（`{ plugin_state }` 外壳），
+    // 不是内层的 `plugin_state` 映射。传错的话它会读不到 plugin_state 而回落到
+    // manifest.defaultEnabled —— 表面「插件开着」，实际**所有开关都失效**（关掉的插件照样给工具）。
+    const state: PluginStateHost = options.plugin_state ? { plugin_state: options.plugin_state } : {};
+    const assembled = [...createSkillTools(options), ...pluginToolDefs(state), ...createFlowTools()];
+    // 顺序一律按 TOOL_NAMES（设置页显示顺序，与设计稿一致）：
+    // 插件工具是后并进来的，不排序的话界面顺序会随「谁先注册」漂移。
+    // 不在 TOOL_NAMES 里的（阶段 5 的 MCP 运行时工具等）排到最后，保持插入顺序。
+    const rank = new Map<string, number>(TOOL_NAMES.map((name, index) => [name, index]));
+    this.defs = assembled
+      .map((def, index) => ({ def, index }))
+      .sort((a, b) => {
+        const ra = rank.get(a.def.name);
+        const rb = rank.get(b.def.name);
+        if (ra === undefined && rb === undefined) return a.index - b.index;
+        if (ra === undefined) return 1;
+        if (rb === undefined) return -1;
+        return ra - rb;
+      })
+      .map(item => item.def);
     for (const def of this.defs) this.index.set(def.name, def);
   }
 

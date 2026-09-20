@@ -13,7 +13,7 @@
  *  - `n_samples` 恒为 1、`use_coords` 恒为 false（它那个 use_coords 表达式恒为 false，别抄）
  *  - v5 的 straight_alpha / tag_hint_* 真的会发出去（它那边被后面整体重建 body 冲掉了）
  */
-import type { GenImageConfig } from '../../core/types.ts';
+import type { GenImageConfig } from '../../../core/types.ts';
 import { isV4Plus, naiVersion, qualityWordsFor, supportsStraightAlpha, NAI_UC_PRESETS } from './options.ts';
 
 /** 官网接口；反代/镜像填在 config.site_url 里 */

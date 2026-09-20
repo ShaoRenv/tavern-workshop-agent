@@ -1,17 +1,15 @@
 <template>
   <AppShell :pages="pages" :tab="tab" :status="status" @update:tab="store.setTab($event)">
-    <PortraitsView
-      v-if="tab === 'portraits'"
-      :data="store.data"
-      :roles="roles"
-      :generating="busy"
-      :global-caps="globalCaps"
-      @generate="onGenerate"
-      @open-settings="goto('settings')"
-      @pick-portrait="onPickPortrait"
-      @save-artifact="onSaveArtifact"
-      @change="store.save()"
-    />
+    <!-- 阶段 3：苍玄助手插件不再带页面（顶栏收成 3 格：对话 / 世界书 / 设置）。
+         它的宏与工具照常由插件贡献，运行时门禁见 run/runner.ts 的 liveToolDefs。 -->
+    <!-- 页面级错误边界：某个插件内容页抛错时，只把这一页换成提示，面板整体照常可用 -->
+    <div v-if="pageError" class="cx-body">
+      <div class="cx-blk">
+        <div class="cx-blkh"><span class="cx-t">这个页面出错了</span></div>
+        <p class="cx-hint">「{{ tab }}」渲染时抛了异常，其他页面不受影响。可以切走再切回来，或看控制台了解详情。</p>
+        <pre class="cx-code">{{ pageError }}</pre>
+      </div>
+    </div>
     <WorldbookView
       v-else-if="tab === 'worldbook'"
       :data="store.data"
@@ -66,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { DEFAULT_ON_TOOLS, createRegistry } from './agent/registry.ts';
 import AppShell from './components/AppShell.vue';
@@ -85,14 +83,16 @@ import {
   type Turn,
 } from './core/types.ts';
 import { createWorldbookPort } from './core/worldbook.ts';
-import { generateImages } from './plugins/image/nai.ts';
+import { generateImages } from './plugins/builtin/image/nai.ts';
+import { wirePluginMacros } from './plugins/host.ts';
 import { allPages, availablePages, pluginAllTools, pluginTools as pluginToolsOf, toolOwner, toolOwnerLabel } from './plugins/registry.ts';
 import { createRunner } from './run/runner.ts';
 import { useAppStore } from './stores/app.ts';
 import ChatView from './views/ChatView.vue';
-import PortraitsView from './views/PortraitsView.vue';
 import SettingsView from './views/SettingsView.vue';
-import WorldbookView from './views/WorldbookView.vue';
+// 阶段 3：插件页面从**插件目录**静态 import（单文件酒馆脚本里 import() 的 chunk 永远 404，
+// 所以插件页只能静态引入；见 webpack.config.ts 的 limitChunkCount）。
+import WorldbookView from './plugins/builtin/worldbook/Page.vue';
 
 const ASSISTANT_NAME = '苍玄';
 
@@ -125,13 +125,15 @@ watch(
   tab,
   value => {
     if (value !== store.data.active_tab) store.setTab(value);
+    // 换页就把上一页的错误清掉：错误是「这一页」的状态，不该跟着用户走
+    pageError.value = '';
   },
   { immediate: true },
 );
 
 const status = computed(() => (store.ready ? '● 已连接' : '○ 载入中'));
 
-/** 生图插件开着吗：关着就不给 agent 注入生图器（tools_image.ts 会回一句「生图插件没启用」） */
+/** 生图插件开着吗：关着就不给 agent 注入生图器（生图插件的工具会回一句「生图插件没启用」） */
 const imageOn = computed(() => store.pluginEnabled('image'));
 
 /**
@@ -153,6 +155,20 @@ const globalCaps = computed<GlobalCaps>(() => {
 
 const busy = ref(false);
 const notice = ref('');
+/**
+ * 页面级错误边界：某个插件内容页渲染时抛错，只把这一页换成提示。
+ *
+ * 为什么必须有：插件是**别人的代码**（阶段 6 起还能外部装载），
+ * 一个页面抛错不能让整个面板白屏 —— 用户的会话数据都还在这个面板里。
+ */
+const pageError = ref('');
+onErrorCaptured(error => {
+  const message = error instanceof Error ? error.message : String(error);
+  pageError.value = message;
+  console.warn('[苍玄助手] 页面渲染出错（已隔离，面板继续可用）', error);
+  // 返回 false：异常不再往上冒，面板壳与其它页面照常
+  return false;
+});
 const roles = ref<UiRole[]>([]);
 const worlds = ref<UiWorld[]>([]);
 const entries = ref<UiEntry[]>([]);
@@ -273,6 +289,10 @@ function loadTools(): void {
 }
 
 onMounted(() => {
+  // 插件宏接线：core 不认识插件，由底座在启动时把「插件贡献的宏」注册进去。
+  // 名字清单取全部插件（停用的名字也要认，否则 {{图片提示词}} 会留成裸露占位符），
+  // renderer 只认已启用的插件 —— 关掉即退回空串。
+  wirePluginMacros(store.data);
   void refreshAll();
   document.addEventListener('visibilitychange', onVisibilityChange);
 });
@@ -494,7 +514,7 @@ async function onPickPortrait(roleId: string): Promise<void> {
 function onSaveArtifact(artifactId: string): void {
   const art = store.data.artifacts.find((a) => a.id === artifactId);
   if (!art) return;
-  // 产物弹窗里可能刚改过文件名（PortraitsView 直接改的 data），这里补一次落盘
+  // 产物弹窗里可能刚改过文件名（立绘页直接改的 data），这里补一次落盘
   store.save();
   download(art.name || '苍玄助手-产物.json', art.data);
   notify('已保存 ' + (art.name || '产物'));
@@ -565,6 +585,9 @@ function onToolReset(name: string): void {
  */
 function onPluginToggle(id: string, enabled: boolean): void {
   store.setPluginEnabled(id, enabled);
+  // 开关变了，活的宏也变了：重新接线（renderer 只认已启用的插件）。
+  // 不同步这一步的话，关掉插件后 {{图片提示词}} 还会用旧 renderer 渲染出内容。
+  wirePluginMacros(store.data);
 }
 
 /** 插件自己的设置：只 emit，写路径唯一在这里（store.setPluginConfig；enabled 由 store 忽略） */

@@ -87,6 +87,8 @@ function makeCtx(port, over = {}) {
   return {
     drafts,
     ctx: {
+      // 阶段 3：世界书端口改由**跑一轮时经 ctx 注入**（工具不再闭包持有 wb）
+      wb: port,
       worlds: over.worlds ?? ['天枢阁'],
       drafts,
       skills: over.skills ?? [],
@@ -174,21 +176,34 @@ test('draft: create / delete / meta 一起落地', async () => {
 
 /* ---------------- registry ---------------- */
 
-test('registry: 13 个工具齐全、顺序对、Schema 完整', () => {
+test('registry: 阶段 3 的 16 全集 / 默认装配 15 个、顺序对、Schema 完整', () => {
   const port = makePort({ 天枢阁: [] });
   const registry = createRegistry(port);
-  const audit = registry.audit();
-  assert.deepEqual(audit.missing, []);
-  assert.deepEqual(audit.extra, []);
-  assert.deepEqual(registry.names(), [...TOOL_NAMES]);
-  assert.equal(registry.defs.length, 13);
+  assert.equal(TOOL_NAMES.length, 16, '全集 16（世界书 7 + 苍玄助手 3 + 底座技能 3 + 生图 1 + 流程 2）');
+  assert.equal(registry.defs.length, 15, '默认装配 15：gen_image 因生图插件默认关缺席');
+  assert.deepEqual(
+    registry.names(),
+    [...TOOL_NAMES].filter(name => name !== 'gen_image'),
+    '顺序 = TOOL_NAMES（去掉默认关插件的那个）',
+  );
+  // 全开时 audit 干净；默认缺 gen_image 是**预期**（生图插件 defaultEnabled:false）
+  assert.deepEqual(registry.audit(), { ok: false, missing: ['gen_image'], extra: [] });
+  const allOn = createRegistry(port, {
+    plugin_state: { cangxuan: { enabled: true }, worldbook: { enabled: true }, image: { enabled: true } },
+  });
+  assert.deepEqual(allOn.audit(), { ok: true, missing: [], extra: [] }, '全开时 audit 干净');
+  assert.deepEqual(allOn.names(), [...TOOL_NAMES]);
+
   for (const def of registry.defs) {
     assert.ok(def.title && def.desc, def.name + ' 缺 title/desc');
     assert.ok(def.model_description.length > 10, def.name + ' model_description 太短');
     assert.equal(def.parameters.type, 'object', def.name + ' parameters 不是 object');
-    assert.ok(def.parameters.properties && Object.keys(def.parameters.properties).length > 0, def.name + ' 没参数');
+    // portrait_list 是**无参**工具（列角色不需要参数）
+    if (def.name !== 'portrait_list') {
+      assert.ok(def.parameters.properties && Object.keys(def.parameters.properties).length > 0, def.name + ' 没参数');
+    }
     assert.equal(typeof def.run, 'function');
-    assert.ok(['knowledge', 'write', 'skill', 'image', 'flow'].includes(def.group));
+    assert.ok(['knowledge', 'write', 'skill', 'image', 'flow', 'external'].includes(def.group), def.name + ' 分组不认识');
   }
 });
 
@@ -200,12 +215,26 @@ test('registry: create_skill 是 user_initiated_only + 默认关 + 描述写明�
   assert.match(def.model_description, /仅当用户明确要求时使用/);
 });
 
-test('registry: entry_meta / ask_user 默认关，写工具默认开', () => {
+test('registry: entry_meta / portrait_prompt / ask_user 默认关，写工具默认开', () => {
   const registry = createRegistry(makePort({ 天枢阁: [] }));
-  assert.equal(registry.byName('entry_meta').default_on, false);
-  assert.equal(registry.byName('ask_user').default_on, false);
-  assert.equal(registry.byName('gen_image').default_on, false, 'gen_image 默认关（生图 API 没接）');
-  for (const name of ['wb_search', 'wb_read', 'entry_edit', 'entry_create', 'entry_delete', 'submit']) {
+  for (const name of ['entry_meta', 'portrait_prompt', 'ask_user']) {
+    assert.equal(registry.byName(name).default_on, false, name + ' 应该默认关');
+  }
+  // gen_image 的 default_on 也是 false，但默认状态下它连 def 都没有（生图插件关着）→
+  // 要查它的 default_on 得把 image 插件打开。
+  const withImage = createRegistry(makePort({ 天枢阁: [] }), { plugin_state: { image: { enabled: true } } });
+  assert.equal(withImage.byName('gen_image').default_on, false, 'gen_image 默认关（生图 API 没接）');
+
+  for (const name of [
+    'wb_search',
+    'wb_read',
+    'entry_edit',
+    'entry_create',
+    'entry_delete',
+    'portrait_list',
+    'portrait_meta',
+    'submit',
+  ]) {
     assert.equal(registry.byName(name).default_on, true, name + ' 应该默认开');
   }
 });
@@ -336,11 +365,16 @@ test('registry: skill / read_skill_file / create_skill', async () => {
 test('registry: gen_image / ask_user / submit', async () => {
   const port = makePort({ 天枢阁: [] });
   const { ctx } = makeCtx(port, { genImage: async () => ['data:image/png;base64,AAA'], askUser: async q => '要' });
-  const registry = createRegistry(port);
+  // 阶段 3：gen_image 归生图插件，插件**默认关** → 默认注册表里没有它。
+  // 要跑到它的 run 必须把插件打开（这也是「关掉即消失」的正面证据）。
+  const imageOn = { plugin_state: { image: { enabled: true } } };
+  const registry = createRegistry(port, imageOn);
+  assert.equal(registry.has('gen_image'), true, '生图插件开着才有 gen_image');
+  assert.equal(createRegistry(port).has('gen_image'), false, '默认关着 → 连 def 都没有');
   const image = await registry.byName('gen_image').run({ prompt: '苍梧山巅', count: 1 }, ctx);
   assert.equal(image.ok, true);
   assert.deepEqual(image.images, ['data:image/png;base64,AAA']);
-  const noImage = await createRegistry(port).byName('gen_image').run({ prompt: 'x' }, makeCtx(port).ctx);
+  const noImage = await createRegistry(port, imageOn).byName('gen_image').run({ prompt: 'x' }, makeCtx(port).ctx);
   assert.equal(noImage.ok, false, '没接生图接口要报错');
   const asked = await registry.byName('ask_user').run({ question: '删吗？' }, ctx);
   assert.equal(asked.ok, true);
@@ -650,7 +684,8 @@ test('loop: 接口报错 → reason=error 且带消息', async () => {
 test('loop: max_rounds 兜底；工具产出的图回灌成图片消息', async () => {
   const port = makePort({ 天枢阁: [] });
   const { ctx } = makeCtx(port, { genImage: async () => ['data:image/png;base64,AAA'] });
-  const registry = createRegistry(port);
+  // 阶段 3：gen_image 归生图插件，默认关 → 要跑它就先把插件打开
+  const registry = createRegistry(port, { plugin_state: { image: { enabled: true } } });
   const transport = scriptedTransport([
     { text: '', tool_calls: [{ id: 'c1', name: 'gen_image', args: { prompt: '山' } }], via: 'native' },
   ]);
@@ -687,5 +722,5 @@ test('loop: turnsToMessages / toToolSpecs 正常工作', () => {
   assert.equal(onlyAssistant[2].tool_call_id, 'c1');
   const specs = toToolSpecs(createRegistry(makePort({ 天枢阁: [] })).defs, ['wb_read']);
   assert.deepEqual(specs.map(s => s.name), ['wb_read']);
-  assert.equal(toToolSpecs(createRegistry(makePort({ 天枢阁: [] })).defs).length, 13);
+  assert.equal(toToolSpecs(createRegistry(makePort({ 天枢阁: [] })).defs).length, 15, '阶段 3 默认装配 15 个');
 });

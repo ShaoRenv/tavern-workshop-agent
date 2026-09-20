@@ -1,175 +1,39 @@
 /**
- * 世界书工具：wb_list / wb_search / wb_read / entry_create / entry_edit / entry_delete / entry_meta
+ * 世界书插件的 7 个工具：wb_list / wb_search / wb_read / entry_create / entry_edit / entry_delete / entry_meta
  *
  * 两条铁律：
  *  1) entry_edit 只做 old_string → new_string 的精确替换，绝不整条重写；
- *  2) 所有写操作只落草稿，不碰真数据（真写入由 draft.ts 的 apply() 调 WorldbookPort.writeAll）。
+ *  2) 所有写操作只落草稿，不碰真数据（真写入由 agent/draft.ts 的 apply() 调 WorldbookPort.writeAll）。
  *
- * 本文件同时是 agent 工具层的公共底座：工具模块之间不许循环依赖（eslint no-cycle），
- * 所以参数归一化 / 结果包装 / JSON Schema 小工厂 / 世界书范围判定 / 条目渲染 都放在这里，
- * 由 tools_skill / tools_image / registry 单向 import。
+ * 阶段 3：本文件从 `agent/tools_worldbook.ts` 搬进插件目录。搬的时候**只搬世界书专属**的部分 ——
+ * 参数归一化 / 结果包装 / JSON Schema 小工厂 / 操作范围话术都是与世界书无关的通用件，留在底座
+ * `agent/toolkit.ts`，由本文件单向 import。这样依赖方向始终是 plugins → core / agent。
+ *
+ * 端口注入口径（阶段 3 契约）：`contributes.tools` 是**静态** ToolDef[]，模块加载时拿不到宿主对象，
+ * 所以 `createWorldbookTools()` 是**零参**的，7 个工具一律从 `ctx.wb` 取世界书端口
+ * （跟 ctx.genImage / ctx.askUser 同一个路子）。
  */
-import type { ToolContext, ToolDef, ToolErrorCode, ToolResult, WbEntry, WorldbookPort } from '../core/ports.ts';
-import { uid, type DraftChange, type DraftKind } from '../core/types.ts';
-import { changedLines, diffStat, encodeMetaFields, formatDiff, formatStat, lineDiff } from './draft.ts';
-
-/* ============================ 参数读取（模型给的东西一律脏，全部归一化） ============================ */
-
-export function asText(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return '';
-}
-
-export function asInt(value: unknown, fallback: number, min?: number, max?: number): number {
-  const raw = typeof value === 'number' ? value : typeof value === 'string' ? Number(value.trim()) : NaN;
-  let out = Number.isFinite(raw) ? Math.trunc(raw) : fallback;
-  if (typeof min === 'number') out = Math.max(min, out);
-  if (typeof max === 'number') out = Math.min(max, out);
-  return out;
-}
-
-export function asBool(value: unknown, fallback: boolean): boolean {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  if (typeof value === 'string') {
-    const text = value.trim().toLowerCase();
-    if (text === 'true' || text === '1' || text === 'yes') return true;
-    if (text === 'false' || text === '0' || text === 'no') return false;
-  }
-  return fallback;
-}
-
-export function asTextArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(item => asText(item).trim()).filter(Boolean);
-  const text = asText(value).trim();
-  if (!text) return [];
-  return text
-    .split(/[,，\n]/)
-    .map(item => item.trim())
-    .filter(Boolean);
-}
-
-/* ============================ 结果包装 ============================ */
-
-export function resultOk(brief: string, detail: string, images?: string[]): ToolResult {
-  return images && images.length ? { ok: true, brief, detail, images } : { ok: true, brief, detail };
-}
-
-export function resultFail(brief: string, detail?: string, code?: ToolErrorCode): ToolResult {
-  // 带上错误码：界面能按类型分流显示，守卫也能认出「越界 / 参数错 / 找不到」
-  return code ? { ok: false, brief, detail: detail ?? brief, code } : { ok: false, brief, detail: detail ?? brief };
-}
-
-/** 截断长文本，尾巴上留一句话说明被砍过 */
-export function clip(text: string, max: number, tail = '\n…（内容过长已截断）'): string {
-  const value = String(text ?? '');
-  if (max <= 0 || value.length <= max) return value;
-  return value.slice(0, max) + tail;
-}
-
-/* ============================ JSON Schema 小工厂 ============================ */
-
-/**
- * 对象 schema。
- * description 是给**嵌套对象**用的：原生 tools 通道下模型只看得到这里写的东西，
- * 所以 keys_secondary 这种子对象必须带上说明，不能只给子属性写。
- */
-export function schemaObject(
-  properties: Record<string, unknown>,
-  required: string[] = [],
-  description = '',
-): Record<string, unknown> {
-  const schema: Record<string, unknown> = { type: 'object', properties, required, additionalProperties: false };
-  if (description) schema.description = description;
-  return schema;
-}
-
-export function schemaString(description: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return { type: 'string', description, ...extra };
-}
-
-export function schemaInteger(description: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return { type: 'integer', description, ...extra };
-}
-
-export function schemaBoolean(description: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return { type: 'boolean', description, ...extra };
-}
-
-export function schemaArray(
-  description: string,
-  items: Record<string, unknown>,
-  extra: Record<string, unknown> = {},
-): Record<string, unknown> {
-  return { type: 'array', description, items, ...extra };
-}
-
-/* ============================ 世界书范围 ============================ */
-
-/** 本次允许读改的世界书（空数组 = 用户一本都没勾） */
-export function allowedWorlds(ctx: ToolContext): string[] {
-  return (ctx?.worlds ?? []).map(name => asText(name).trim()).filter(Boolean);
-}
-
-/** 一本都没勾时的专门文案（系统提示词、越权报错共用） */
-export function scopeEmptyNotice(): string {
-  return '当前没有勾选任何世界书，读写都会失败，请先让用户去「世界书」页勾选。';
-}
-
-/** 范围内的世界书名，逗号顿号串起来；空数组返回空串 */
-export function scopeNames(worlds: string[]): string {
-  return worlds
-    .map(name => asText(name).trim())
-    .filter(Boolean)
-    .join('、');
-}
-
-/**
- * 越权文案（读、写、搜共用同一份话术）：
- * 《X》不在本次可操作范围内。本次只能用：A、B。如果需要《X》，请让用户去「世界书」页勾上。
- */
-export function outOfScopeError(worlds: string[], target: string): string {
-  const allowed = worlds.map(name => asText(name).trim()).filter(Boolean);
-  const name = asText(target).trim();
-  if (!allowed.length) return scopeEmptyNotice() + (name ? '你想动的是《' + name + '》。' : '');
-  const quoted = name ? '《' + name + '》' : '没写名字的那一本';
-  return (
-    quoted +
-    '不在本次可操作范围内。本次只能用：' +
-    allowed.join('、') +
-    '。如果需要' +
-    quoted +
-    '，请让用户去「世界书」页勾上。'
-  );
-}
-
-/**
- * 系统提示词里的「本次可操作范围」段落。
- * **只出现范围内的世界书名**（范围外的一个字都不写，省 token 也免得它惦记），
- * 每本带上实际条目数 / 启用数；拿不到统计就不写括号那部分；一本都没勾走专门文案。
- */
-export async function buildScopePrompt(wb: WorldbookPort, worlds: string[]): Promise<string> {
-  const allowed = worlds.map(name => asText(name).trim()).filter(Boolean);
-  if (!allowed.length) return scopeEmptyNotice();
-  const lines = ['本次你可以读改这些世界书：'];
-  for (const name of allowed) {
-    let stat = '';
-    try {
-      const entries = await wb.readAll(name);
-      const enabled = entries.filter(entry => entry.enabled).length;
-      stat =
-        enabled === entries.length
-          ? '（' + entries.length + ' 条）'
-          : '（' + entries.length + ' 条，启用 ' + enabled + '）';
-    } catch {
-      stat = '';
-    }
-    lines.push('- ' + name + stat);
-  }
-  lines.push('范围外的世界书一律不可读写，也不要问它们的内容。若确实需要别的，请让用户去「世界书」页勾上。');
-  return lines.join('\n');
-}
+import type { ToolContext, ToolDef, ToolErrorCode, WbEntry } from '../../../core/ports.ts';
+import { uid, type DraftChange, type DraftKind } from '../../../core/types.ts';
+import { changedLines, diffStat, encodeMetaFields, formatDiff, formatStat, lineDiff } from '../../../agent/draft.ts';
+import {
+  allowedWorlds,
+  asBool,
+  asInt,
+  asText,
+  asTextArray,
+  clip,
+  outOfScopeError,
+  resultFail,
+  resultOk,
+  schemaArray,
+  schemaBoolean,
+  schemaInteger,
+  schemaObject,
+  schemaString,
+  scopeEmptyNotice,
+  scopeNames,
+} from '../../../agent/toolkit.ts';
 
 export interface WorldPick {
   world?: string;
@@ -354,68 +218,84 @@ function pageTrailer(total: number, offset: number, limit: number): string {
   );
 }
 
-export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
+export function createWorldbookTools(): ToolDef[] {
   const wbList: ToolDef = {
     name: 'wb_list',
     group: 'knowledge',
     title: '列世界书',
-    desc: '列出本次范围内的世界书和条目数',
+    desc: '列出世界书 + 它从哪儿生效（全局 / 角色卡 / 未启用）',
     model_description:
-      '列出本次可操作范围内的世界书，带条目数 / 启用数，并标出其中当前启用的。范围是用户在「世界书」页勾的：范围外的世界书不存在，不要问、不要试，更不要出现在给用户的回复里；确实需要别的就告诉用户去「世界书」页勾上。参数 current_only=true 只列范围内当前启用的。',
+      '列出世界书，并标出每本的绑定范围：全局（所有聊天都生效）/ 当前角色卡 / 当前聊天 / 未启用，' +
+      '外加条目数与启用数。为什么要看范围：同样一次改动，动全局书会影响所有聊天，动角色卡书只影响当前角色，' +
+      '而「未启用」的书本来就还没生效——用户说「改一下世界书」时，先用这个工具确认他指的是哪本、影响面多大，' +
+      '别猜。参数 in_scope_only=true 只列本次勾选范围内的（可读写的那几本）。',
     parameters: schemaObject({
-      current_only: schemaBoolean('只列范围内当前启用的世界书，默认 false 列范围内全部'),
+      in_scope_only: schemaBoolean('只列本次勾选范围内的世界书，默认 false 列全部（含未勾选的）'),
     }),
     default_on: true,
     run: async (args, ctx) => {
       const allowed = allowedWorlds(ctx);
-      if (!allowed.length) return resultFail('没有可操作的世界书', scopeEmptyNotice(), 'SCOPE_DENIED');
-      let current: string[] = [];
+      const allowedSet = new Set(allowed);
+
+      // 全部世界书 + 各自的绑定范围（拿不到 scopes 就退回「只有名字」，别让工具整个废掉）
+      let scopes: Array<{ name: string; label: string }> = [];
       try {
-        current = await wb.current();
-      } catch {
-        current = [];
+        scopes = (await ctx.wb.scopes()).map(item => ({ name: item.name, label: item.label }));
+      } catch (error) {
+        console.warn('[苍玄助手] 读世界书范围失败，退回只列名字', error);
       }
-      const currentSet = new Set(current);
-      const onlyCurrent = asBool(args.current_only, false);
-      const shown = onlyCurrent ? allowed.filter(name => currentSet.has(name)) : allowed;
-      const rows: string[] = [];
-      let totalAll = 0;
-      let enabledAll = 0;
-      for (const name of shown) {
-        let stat = '：（条目数读不到）';
+      if (!scopes.length) {
         try {
-          const entries = await wb.readAll(name);
-          const enabled = entries.filter(entry => entry.enabled).length;
-          totalAll += entries.length;
-          enabledAll += enabled;
-          stat = '：' + entries.length + ' 条，启用 ' + enabled;
+          scopes = (await ctx.wb.list()).map(name => ({ name, label: '未知' }));
         } catch {
-          stat = '：（条目数读不到）';
+          scopes = [];
         }
-        rows.push('- ' + name + (currentSet.has(name) ? '（当前启用）' : '') + stat);
       }
+
+      const inScopeOnly = asBool(args.in_scope_only, false);
+      // 默认列**全部**：用户说「改一下世界书」时，模型得先知道有哪些、哪本没启用
+      const shown = inScopeOnly ? scopes.filter(item => allowedSet.has(item.name)) : scopes;
+      const rows: string[] = [];
+      const byScope: Record<string, string[]> = { 全局: [], 当前角色卡: [], 当前聊天: [], 未启用: [], 未知: [] };
+      for (const item of shown) {
+        let stat = '（条目数读不到）';
+        try {
+          const entries = await ctx.wb.readAll(item.name);
+          const enabled = entries.filter(entry => entry.enabled).length;
+          stat = entries.length + ' 条，启用 ' + enabled;
+        } catch {
+          stat = '（条目数读不到）';
+        }
+        // 不在本次范围的顺手标出来，模型就知道哪些能直接用、哪些要先让用户勾
+        const writable = allowedSet.has(item.name) ? '' : '（不在本次范围，不可读写）';
+        rows.push('- ' + item.name + ' —— ' + item.label + '　' + stat + writable);
+        (byScope[item.label] ?? byScope['未知']).push(item.name);
+      }
+
       if (!rows.length) {
         return resultOk(
-          '范围内没有当前启用的世界书',
-          '本次范围内的世界书（' + scopeNames(allowed) + '）都没有处于启用状态。',
+          inScopeOnly ? '本次范围内没有世界书' : '酒馆里没有任何世界书',
+          inScopeOnly
+            ? '本次勾选范围内没有世界书。' + scopeEmptyNotice()
+            : '酒馆里读不到任何世界书。可能世界书功能没开，可以让用户确认一下。',
         );
       }
+
+      const summary = ['全局', '当前角色卡', '当前聊天', '未启用']
+        .filter(kind => byScope[kind].length)
+        .map(kind => kind + ' ' + byScope[kind].length + ' 本')
+        .join(' · ');
+
       const detail = [
-        '本次能读改的世界书（' + allowed.length + ' 本）：',
+        '世界书共 ' + rows.length + ' 本（' + summary + '）：',
         ...rows,
         '',
-        '范围外的世界书一律不可读写，也不要问它们的内容。若确实需要别的，请让用户去「世界书」页勾上。',
+        '说明：全局的改动会影响所有聊天；当前角色卡只影响这个角色；未启用表示它现在没生效（要用得去「世界书」页勾上）。',
+        '本次可读写的是：' + (allowed.length ? scopeNames(allowed) : '（一本都没勾，先用 scopeEmptyNotice 那条口径告诉用户）') + '。',
       ].join('\n');
+
       return resultOk(
-        '本次范围 ' +
-          allowed.length +
-          ' 本 · 列出 ' +
-          rows.length +
-          ' 本 · 共 ' +
-          totalAll +
-          ' 条（启用 ' +
-          enabledAll +
-          '）',
+        '世界书 ' + rows.length + ' 本 · ' + summary + ' · 可读写 ' + allowed.length + ' 本',
         detail,
       );
     },
@@ -449,7 +329,7 @@ export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
         if (outside.length) return resultFail('超出范围', outOfScopeError(allowed, outside[0]), 'SCOPE_DENIED');
       }
       if (!worlds.length) worlds = allowed;
-      const hits = await wb.search(worlds, keyword, limit);
+      const hits = await ctx.wb.search(worlds, keyword, limit);
       if (!hits.length)
         return resultOk('没命中', '关键词「' + keyword + '」在 ' + worlds.join('、') + ' 里没有命中任何条目。');
       const lines = hits.map(
@@ -508,7 +388,7 @@ export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
       let limit: number;
       let paged = false;
       if (uids.length) {
-        entries = await wb.readByUid(world, uids);
+        entries = await ctx.wb.readByUid(world, uids);
         total = entries.length;
         limit = entries.length || uids.length;
         if (!entries.length) {
@@ -523,7 +403,7 @@ export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
         }
       } else {
         paged = true;
-        const all = await wb.readAll(world);
+        const all = await ctx.wb.readAll(world);
         total = all.length;
         offset = asInt(args.offset, 0, 0);
         limit = asInt(args.limit, PAGE_LIMIT_DEFAULT, 1, PAGE_LIMIT_MAX);
@@ -535,7 +415,7 @@ export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
       const parts = [headLine(world, total, offset, entries.length), '', body];
       if (paged) parts.push('', pageTrailer(total, offset, limit));
       if (asBool(args.with_index, false)) {
-        const all = paged ? await wb.readAll(world) : null;
+        const all = paged ? await ctx.wb.readAll(world) : null;
         const indexLines = (all ?? []).map((entry, i) => i + 1 + '. ' + entry.uid + ' · ' + (entry.name || '(无标题)'));
         if (indexLines.length) parts.push('', 'uid 索引（共 ' + indexLines.length + ' 条）：' + indexLines.join(' | '));
       }
@@ -668,7 +548,7 @@ export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
       const newString = asText(args.new_string);
       if (!oldString)
         return resultFail('old_string 不能为空', 'entry_edit 必须给出要被替换的原文（old_string），不能整条重写。', 'INVALID_ARGS');
-      const found = await wb.readByUid(pick.world, [entryUid]);
+      const found = await ctx.wb.readByUid(pick.world, [entryUid]);
       if (!found.length)
         return resultFail(
           '没找到 uid ' + entryUid,
@@ -764,7 +644,7 @@ export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
       if (pick.error || !pick.world) return resultFail('不能删', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
       const entryUid = asText(args.uid).trim();
       if (!entryUid) return resultFail('没给 uid', 'entry_delete 需要 uid。', 'INVALID_ARGS');
-      const found = await wb.readByUid(pick.world, [entryUid]);
+      const found = await ctx.wb.readByUid(pick.world, [entryUid]);
       if (!found.length)
         return resultFail('没找到 uid ' + entryUid, '世界书「' + pick.world + '」里没有 uid ' + entryUid + '。', 'NOT_FOUND');
       const entry = found[0];
@@ -837,7 +717,7 @@ export function createWorldbookTools(wb: WorldbookPort): ToolDef[] {
       if (pick.error || !pick.world) return resultFail('不能改', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
       const entryUid = asText(args.uid).trim();
       if (!entryUid) return resultFail('没给 uid', 'entry_meta 需要 uid。', 'INVALID_ARGS');
-      const found = await wb.readByUid(pick.world, [entryUid]);
+      const found = await ctx.wb.readByUid(pick.world, [entryUid]);
       if (!found.length)
         return resultFail('没找到 uid ' + entryUid, '世界书「' + pick.world + '」里没有 uid ' + entryUid + '。', 'NOT_FOUND');
       const entry = found[0];

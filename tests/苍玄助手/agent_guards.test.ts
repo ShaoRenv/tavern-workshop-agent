@@ -73,8 +73,9 @@ function makePort(seed) {
   };
 }
 
-function ctxOf(worlds = ['甲本'], observations) {
-  return { worlds, drafts: createDraftStore(), skills: [], ...(observations ? { observations } : {}) };
+function ctxOf(worlds = ['甲本'], observations, wb) {
+  // 阶段 3：ToolContext.wb 是必填的（世界书端口经 ctx 注入）
+  return { wb, worlds, drafts: createDraftStore(), skills: [], ...(observations ? { observations } : {}) };
 }
 
 /* ---------------- observe ---------------- */
@@ -85,7 +86,7 @@ test('observe-guard：没读过就改 → NOT_OBSERVED（DSH 文案）', async (
   });
   const observations = createObservationLog();
   const guard = createObserveGuard(port, observations);
-  const ctx = ctxOf();
+  const ctx = ctxOf(['甲本'], undefined, port);
 
   // meta / delete 同样要先读过（uid 2 没读过）
   assert.equal(
@@ -117,7 +118,7 @@ test('observe-guard：没读过就改 → NOT_OBSERVED（DSH 文案）', async (
   assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '不存在' }, ctx, round: 1 }), null);
   // 唯一一本时不用写 world
   assert.equal(
-    await guard.before({ name: 'entry_edit', args: { uid: '1' }, ctx: ctxOf(['甲本']), round: 1 }),
+    await guard.before({ name: 'entry_edit', args: { uid: '1' }, ctx: ctxOf(['甲本'], undefined, port), round: 1 }),
     null,
     '本轮只勾一本时按那本解析',
   );
@@ -127,7 +128,7 @@ test('observe-guard：读过之后条目变了 → STALE', async () => {
   const port = makePort({ 甲本: [entry('1', '甲条目', '旧正文')] });
   const observations = createObservationLog();
   const guard = createObserveGuard(port, observations);
-  const ctx = ctxOf();
+  const ctx = ctxOf(['甲本'], undefined, port);
 
   await guard.after(
     { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 1 },
@@ -155,7 +156,7 @@ test('observe-guard：记录的是草稿视图的版本（草稿改过也算「�
   const drafts = createDraftStore();
   const view = createDraftView(base, drafts);
   const guard = createObserveGuard(view, createObservationLog());
-  const ctx = ctxOf();
+  const ctx = ctxOf(['甲本'], undefined, view);
 
   await guard.after(
     { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 1 },
@@ -184,7 +185,7 @@ test('observe-guard：分页读只记读到的那一页；wb_search 也记观察
   );
   const port = makePort({ 甲本: entries });
   const guard = createObserveGuard(port, createObservationLog());
-  const ctx = ctxOf();
+  const ctx = ctxOf(['甲本'], undefined, port);
 
   await guard.after(
     { name: 'wb_read', args: { world: '甲本', offset: 3, limit: 2 }, ctx, round: 1 },
@@ -197,7 +198,7 @@ test('observe-guard：分页读只记读到的那一页；wb_search 也记观察
   assert.equal(notObserved?.code, 'NOT_OBSERVED');
 
   const guard2 = createObserveGuard(port, createObservationLog());
-  const ctx2 = ctxOf();
+  const ctx2 = ctxOf(['甲本'], undefined, port);
   await guard2.after(
     { name: 'wb_search', args: { world: '甲本', keyword: '内容 7' }, ctx: ctx2, round: 1 },
     { ok: true, brief: '', detail: '' },
@@ -216,7 +217,7 @@ test('observe-guard：分页读只记读到的那一页；wb_search 也记观察
 
 test('prune-guard：8192 不动、8193 标记 pruned，detail 本体一字不改', async () => {
   const guard = createPruneGuard();
-  const input = { name: 'wb_read', args: {}, ctx: ctxOf(), round: 1 };
+  const input = { name: 'wb_read', args: {}, ctx: ctxOf(['甲本'], undefined, makePort({})), round: 1 };
 
   const atLimit = 'x'.repeat(PRUNE_LIMIT);
   const kept = await guard.after(input, { ok: true, brief: 'b', detail: atLimit });
@@ -242,7 +243,7 @@ test('prune-guard：8192 不动、8193 标记 pruned，detail 本体一字不改
 
 test('repeat-guard：第 3/5/8 次才建议、绝不阻断、参数规范化', async () => {
   const guard = createRepeatGuard();
-  const ctx = ctxOf();
+  const ctx = ctxOf(['甲本'], undefined, makePort({}));
   const input = { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 1 };
   const counts = [];
   let result = { ok: true, brief: 'b', detail: 'd' };
@@ -292,7 +293,7 @@ test('createToolGuards：带端口 → observe+prune+repeat；不带 → prune+r
   // reset 同时清观察记录和重复计数
   set.observe.record('甲本', entry('1', '甲', '正文'));
   assert.ok(set.observations.seen('甲本', '1'));
-  await set.repeat.after({ name: 'x', args: {}, ctx: ctxOf(), round: 1 }, { ok: true, brief: '', detail: '' });
+  await set.repeat.after({ name: 'x', args: {}, ctx: ctxOf(['甲本'], undefined, port), round: 1 }, { ok: true, brief: '', detail: '' });
   assert.equal(set.repeat.countOf('x', {}), 1);
   set.reset();
   assert.equal(set.observations.seen('甲本', '1'), undefined);
