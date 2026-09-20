@@ -193,6 +193,11 @@ test('io: importAll 合法往返 ok:true；坏输入一律 ok:false 带 error �
   assert.deepEqual(back.data.presets[0].id, 'p1');
   assert.equal(RootDataSchema.safeParse(back.data).success, true, '导入结果必须能过 RootDataSchema');
 
+  // 未知字符串 id：导入照样 ok，schema 不清洗（画不画得出来由 availablePages + store.setTab 兜底）
+  const oddTab = importAll('{"active_tab":"nope"}');
+  assert.equal(oddTab.ok, true, oddTab.error);
+  assert.equal(oddTab.data.active_tab, 'nope');
+
   const cases = [
     ['', /为空/],
     ['   ', /为空/],
@@ -201,7 +206,10 @@ test('io: importAll 合法往返 ok:true；坏输入一律 ok:false 带 error �
     ['[]', /数据结构不对/],
     ['"字符串"', /数据结构不对/],
     ['{"api":{"timeout_sec":-1}}', /数据结构不对/],
-    ['{"active_tab":"nope"}', /数据结构不对/],
+    // active_tab 放宽成 string 之后，未知字符串不再是坏数据（页面兜底在 store）；
+    // 非字符串仍然是坏数据
+    ['{"active_tab":123}', /数据结构不对/],
+    ['{"active_tab":["records"]}', /数据结构不对/],
     ['{"drafts":[{"kind":"nope"}]}', /数据结构不对/],
   ];
   for (const [input, pattern] of cases) {

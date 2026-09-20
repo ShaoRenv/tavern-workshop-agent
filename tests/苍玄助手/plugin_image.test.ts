@@ -12,6 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
+import { readFileSync } from 'node:fs';
 import { createPinia, setActivePinia } from 'pinia';
 
 const root = '../../src/苍玄助手/';
@@ -35,11 +36,20 @@ const {
   NAI_OFFICIAL_ENDPOINT,
 } = await import(root + 'plugins/image/nai.ts');
 const { qualityWordsFor, naiVersion, supportsStraightAlpha } = await import(root + 'plugins/image/options.ts');
-const { imagePluginStatus, imagePluginTools } = await import(root + 'plugins/registry.ts');
+const { pluginEnabled, pluginTools, pluginStatus } = await import(root + 'plugins/registry.ts');
 
-/** 造一份配置（默认全齐，随用例覆盖） */
+/**
+ * 造一份配置（默认全齐，随用例覆盖）。
+ * ⚠️ 插件开关**不在这份配置里**（v5 起是底座的 plugin_state.image.enabled）——
+ * 以前那个 enabled 字段已经被 GenImageConfigSchema 删掉，写进来也会被 zod 剥掉。
+ */
 function config(over = {}) {
-  return GenImageConfigSchema.parse({ enabled: true, api_key: 'pst-test', ...over });
+  return GenImageConfigSchema.parse({ api_key: 'pst-test', ...over });
+}
+
+/** 插件开关状态（注册表函数只依赖 plugin_state 那一小块） */
+function switched(enabled) {
+  return { plugin_state: { image: { enabled } } };
 }
 
 /** 手搓一个最小的 ZIP（单条目），用来喂解压逻辑 */
@@ -81,10 +91,12 @@ function responseOf(body, type) {
 
 /* ==================== 数据模型 ==================== */
 
-test('插件配置：RootDataSchema.parse({}) 补齐默认值，缺字段不炸', () => {
+test('插件配置：RootDataSchema.parse({}) 补齐默认值，缺字段不炸；开关不在插件设置里', () => {
   const data = RootDataSchema.parse({});
   const cfg = data.plugins.image;
-  assert.equal(cfg.enabled, false, '默认不启用（不配 Key 就别开会乱发请求）');
+  assert.equal('enabled' in cfg, false, 'v5：开关搬去 plugin_state，插件设置里不该再有 enabled');
+  assert.deepEqual(data.plugin_state, {}, '缺省空表 → 按 manifest.defaultEnabled 现算');
+  assert.equal(pluginEnabled(data, 'image'), false, '默认不启用（不配 Key 就别开会乱发请求）');
   assert.equal(cfg.source, 'novelai');
   assert.equal(cfg.model, 'nai-diffusion-4-5-full');
   assert.equal(cfg.sampler, 'k_euler_ancestral');
@@ -104,13 +116,18 @@ test('插件配置：坏值被 schema 挡住（步数 0 / 张数 9 / 未知负�
   assert.equal(GenImageConfigSchema.safeParse({ guidance_rescale: 2 }).success, false);
 });
 
-test('插件状态与工具归属：开着才有工具，缺 Key 算没配好', () => {
-  assert.deepEqual(imagePluginTools(config({ enabled: false })), []);
-  assert.deepEqual(imagePluginTools(config()), ['gen_image']);
-  assert.equal(imagePluginStatus(config({ enabled: false })).label, '未启用');
-  assert.equal(imagePluginStatus(config({ api_key: '  ' })).label, '缺 API Key');
-  assert.equal(imagePluginStatus(config({ site: 'proxy', site_url: ' ' })).label, '缺反代地址');
-  assert.equal(imagePluginStatus(config()).label, '已启用');
+test('插件状态与工具归属：开关在 plugin_state；关着就没有 gen_image，开着缺 Key 算没配好', () => {
+  // 关掉 = 底座根本不给这个工具（守卫不在 generateImages 里，见下面的源码级用例）
+  assert.equal(pluginTools(switched(false)).includes('gen_image'), false);
+  assert.equal(pluginTools({}).includes('gen_image'), false, '生图 manifest.defaultEnabled=false');
+  // 开着：gen_image 排在已启用插件工具的最后（声明顺序 = 世界书 → 生图）
+  assert.deepEqual(pluginTools(switched(true)).slice(-1), ['gen_image']);
+
+  // 状态：未启用 > 插件自己说的（缺配置）> 已启用
+  assert.equal(pluginStatus(switched(false), 'image', config()).label, '未启用');
+  assert.equal(pluginStatus(switched(true), 'image', config({ api_key: '  ' })).label, '缺 API Key');
+  assert.equal(pluginStatus(switched(true), 'image', config({ site: 'proxy', site_url: ' ' })).label, '缺反代地址');
+  assert.equal(pluginStatus(switched(true), 'image', config()).label, '已启用');
 });
 
 /* ==================== 版本判定与选项 ==================== */
@@ -319,9 +336,29 @@ test('generateImages：成功时把 ZIP 变成 dataURL 数组，带上正确的�
   assert.equal(sent.parameters.negative_prompt, 'bad hands');
 });
 
-test('generateImages：插件没启用 / 没填 Key 就报清楚的原因', async () => {
-  await assert.rejects(() => generateImages(config({ enabled: false }), 'a', ''), /没启用/);
+test('generateImages：没填 Key 就报清楚的原因（开关不归它管）', async () => {
   await assert.rejects(() => generateImages(config({ api_key: '' }), 'a', ''), /API Key/);
+  await assert.rejects(() => generateImages(config({ api_key: '   ' }), 'a', ''), /API Key/);
+});
+
+test('源码级：关插件时没有 gen_image，也没有生图器 —— 守卫在来源处，不在 generateImages 里', () => {
+  // 1) nai.ts 不再读任何 enabled：插件关着时由底座不提供 gen_image（pluginTools 不含它），
+  //    模型压根调不到这个工具，所以这一层不需要再判一次。
+  const nai = readFileSync('src/苍玄助手/plugins/image/nai.ts', 'utf8');
+  assert.equal(/\benabled\b/.test(nai), false, 'nai.ts 里不该再出现 enabled（配置是配置，开关是开关）');
+
+  // 2) App.vue：插件工具清单来自注册表（关插件即消失），生图器注册受插件开关门控
+  const app = readFileSync('src/苍玄助手/App.vue', 'utf8');
+  assert.equal(app.includes('imagePluginTools'), false, '旧的无条件接线必须删掉');
+  assert.equal(app.includes('plugins.image.enabled'), false, '开关不许从插件设置里读（在 plugin_state）');
+  assert.match(app, /pluginToolsOf\(store\.data\)/, '全局能力里的插件工具来自注册表');
+  assert.match(app, /pluginEnabled\('image'\)/, '生图器要受插件开关门控');
+  const genImageLines = app.split('\n').filter(line => /genImage\s*:/.test(line));
+  assert.ok(genImageLines.length >= 1, 'runAgent 要注入生图器');
+  for (const line of genImageLines) {
+    assert.match(line, /imageOn|pluginEnabled\('image'\)/, '生图器必须按插件开关注册：' + line.trim());
+  }
+  assert.equal(/genImage:\s*makeImageGen\(\),/.test(app), false, '不许无条件注册生图器');
 });
 
 test('generateImages：401 与 CORS（TypeError）分别给出可操作的提示', async () => {
@@ -357,11 +394,11 @@ function freshStore() {
 
 test('store.setPluginConfig：合并进已有配置并落盘（不是整块替换）', () => {
   const { store, writes } = freshStore();
-  store.setPluginConfig({ enabled: true, api_key: 'pst-abc' });
-  store.setPluginConfig({ steps: 33 });
+  store.setPluginConfig('image', { api_key: 'pst-abc' });
+  store.setPluginConfig('image', { steps: 33 });
   const cfg = store.data.plugins.image;
-  assert.equal(cfg.enabled, true, '前一次写的字段还在');
-  assert.equal(cfg.api_key, 'pst-abc');
+  assert.equal('enabled' in cfg, false, '插件设置里不出现 enabled（开关在 plugin_state）');
+  assert.equal(cfg.api_key, 'pst-abc', '前一次写的字段还在');
   assert.equal(cfg.steps, 33);
   // 保存是 2.5 秒防抖的：这里显式冲一次，验证写进去的就是上面那份
   store.save(true);
@@ -370,19 +407,26 @@ test('store.setPluginConfig：合并进已有配置并落盘（不是整块替�
   assert.equal(writes[writes.length - 1][GLOBAL_KEY].plugins.image.api_key, 'pst-abc');
 });
 
-test('store.setPluginConfig：显式 undefined 的字段不写进去', () => {
+test('store.setPluginConfig：显式 undefined 的字段不写进去，enabled 键被忽略', () => {
   const { store } = freshStore();
-  store.setPluginConfig({ api_key: 'pst-abc' });
-  store.setPluginConfig({ api_key: undefined });
+  store.setPluginConfig('image', { api_key: 'pst-abc' });
+  store.setPluginConfig('image', { api_key: undefined });
   assert.equal(store.data.plugins.image.api_key, 'pst-abc');
+  // 开关只有一个写点：setPluginEnabled（这里是开着，塞 enabled:false 也不许改）
+  store.setPluginEnabled('image', true);
+  store.setPluginConfig('image', { enabled: false });
+  assert.equal(store.pluginEnabled('image'), true, 'setPluginConfig 不许改开关');
+  assert.equal('enabled' in store.data.plugins.image, false);
 });
 
-test('store.resetPluginConfig：整块回内置默认（含 Key 与开关）', () => {
+test('store.resetPluginConfig：整块回内置默认（只清设置，开关留给 setPluginEnabled）', () => {
   const { store } = freshStore();
-  store.setPluginConfig({ enabled: true, api_key: 'pst-abc', steps: 40 });
-  store.resetPluginConfig();
+  store.setPluginEnabled('image', true);
+  store.setPluginConfig('image', { api_key: 'pst-abc', steps: 40 });
+  store.resetPluginConfig('image');
   const cfg = store.data.plugins.image;
-  assert.equal(cfg.enabled, false);
+  assert.equal(store.pluginEnabled('image'), true, 'resetPluginConfig 不动开关');
+  assert.equal('enabled' in cfg, false);
   assert.equal(cfg.api_key, '');
   assert.equal(cfg.steps, 28);
 });

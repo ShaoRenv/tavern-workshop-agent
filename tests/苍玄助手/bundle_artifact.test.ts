@@ -127,6 +127,10 @@ test('bundle: 「能力」页与工具错误码都在产物里', () => {
   for (const marker of ['capability', '能力', 'cx-multi', 'goto-capability', 'SCOPE_DENIED']) {
     assert.ok(all.includes(marker), '产物里找不到 ' + marker);
   }
-  assert.ok(!/TAB_IDS\s*=\s*\[[^\]]*'skills'/.test(all), 'TAB_IDS 里不该还有 skills');
+  // A9：页面 id 与标题来自页面注册表（core/pages.ts 的核心页 + 插件 manifest 的 contributes.pages），
+  // 不再是写死的页签名单。标识符会被压缩掉，所以这里断言**字符串字面量**真的进了产物。
+  for (const marker of ['portraits', 'worldbook', '立绘', '世界书', '记录']) {
+    assert.ok(all.includes(marker), '页面注册表里的 ' + marker + ' 应该出现在产物里');
+  }
 });
 

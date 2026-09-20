@@ -197,9 +197,13 @@ const params = computed(() => toolParamList(props.tool.parameters));
 const groupLabel = computed(() => toolGroupLabel(props.tool));
 const isImage = computed(() => props.tool.group === 'image' || /image|生图/i.test(props.tool.name));
 const isExternal = computed(() => props.tool.source === 'external');
+/**
+ * 来源标签：'底座' 或插件名（App.vue 用 plugins/registry.ts 的 toolOwnerLabel 打在 UiTool.owner 上）。
+ * 界面不自己写死插件名 —— 工具归谁只有一个真相源。
+ */
 const sourceLabel = computed(() => {
   if (props.tool.source === 'external') return props.tool.origin ? 'URL' : '粘贴';
-  return '内置';
+  return props.tool.owner || '底座';
 });
 
 /* ---------- 播种：props → 草稿 ---------- */

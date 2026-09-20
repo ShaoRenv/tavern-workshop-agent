@@ -395,6 +395,6 @@ test('entry_edit: new_string 里的 $& / $ 反引号 / 单引号美元 / $$ / $1
   const { ctx, drafts } = ctxOf(port);
   await createRegistry(port)
     .byName('entry_edit')
-    .run({ world: '天枢阁', uid: '1', old_string: '(y)', new_string: '$&$1[\$]' }, ctx);
-  assert.equal(drafts.list()[0].after, 'x$&$1[\$]z');
+    .run({ world: '天枢阁', uid: '1', old_string: '(y)', new_string: '$&$1[$]' }, ctx);
+  assert.equal(drafts.list()[0].after, 'x$&$1[$]z');
 });

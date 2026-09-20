@@ -12,7 +12,12 @@
       </div>
     </div>
     <div class="cx-seg">
-      <span v-for="id in TAB_IDS" :key="id" :class="{ on: id === tab }" @click="emit('update:tab', id)">{{ TAB_LABELS[id] }}</span>
+      <span
+        v-for="page in pages"
+        :key="page.id"
+        :class="{ on: page.id === tab }"
+        @click="emit('update:tab', page.id)"
+      >{{ page.title }}</span>
     </div>
     <slot></slot>
   </div>
@@ -21,20 +26,31 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue';
 
-import { TAB_IDS, type TabId } from '../core/types.ts';
-import { TAB_LABELS } from './ui_types.ts';
-
 /**
- * 界面骨架：顶栏（标题 + 状态 + ⋯）+ 五个页签的药丸分段器 + 当前页。
+ * 界面骨架：顶栏（标题 + 状态 + ⋯）+ 页签药丸分段器 + 当前页。
  *
- * 约定：五个视图各自负责「内容区 (.cx-body)」和「底部按钮 (.cx-foot / .cx-composer)」，
+ * **页签从页面注册表来**（core/pages.ts + 各插件 manifest 的 contributes.pages，
+ * 聚合在 plugins/registry.ts 的 availablePages）：本组件只画传进来的数组，
+ * 不 import TAB_IDS / TAB_LABELS —— 那份写死的名单已经删掉（设计自查 A9）。
+ *
+ * 约定：各视图各自负责「内容区 (.cx-body)」和「底部按钮 (.cx-foot / .cx-composer)」，
  * 所以 <slot/> 里的视图必须是本组件的直接内容（不要在这外面再套一层滚动容器）。
  */
-withDefaults(defineProps<{ tab: TabId; title?: string; status?: string }>(), {
-  title: '苍玄助手',
-  status: '● 已连接',
-});
-const emit = defineEmits<{ 'update:tab': [tab: TabId] }>();
+withDefaults(
+  defineProps<{
+    /** 能上顶栏的页面（已按 order 排好） */
+    pages: { id: string; title: string }[];
+    /** 当前页 id（active_tab） */
+    tab: string;
+    title?: string;
+    status?: string;
+  }>(),
+  {
+    title: '苍玄助手',
+    status: '● 已连接',
+  },
+);
+const emit = defineEmits<{ 'update:tab': [tab: string] }>();
 
 const menuOpen = ref(false);
 

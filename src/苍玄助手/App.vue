@@ -1,5 +1,5 @@
 <template>
-  <AppShell :tab="tab" :status="status" @update:tab="store.setTab($event)">
+  <AppShell :pages="pages" :tab="tab" :status="status" @update:tab="store.setTab($event)">
     <PortraitsView
       v-if="tab === 'portraits'"
       :data="store.data"
@@ -46,8 +46,10 @@
       @duplicate="onTouched"
       @export="onSkillExport"
       @skill-toggle="onSkillToggle"
+      @plugin-toggle="onPluginToggle"
       @plugin-patch="onPluginPatch"
       @plugin-reset="onPluginReset"
+      @goto="goto"
       @change="store.save()"
     />
     <RecordsView
@@ -75,28 +77,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { DEFAULT_ON_TOOLS, createRegistry } from './agent/registry.ts';
 import AppShell from './components/AppShell.vue';
 import type { UiEntry, UiRole, UiTool, UiWorld } from './components/ui_types.ts';
 import { fetchModels, loadEntries, loadRoles, loadWorlds, parsePortraitFile, toUiTools } from './core/adapters.ts';
+import type { PageEntry } from './core/pages.ts';
 import type { ToolOverride } from './core/ports.ts';
 import { exportAll, importAll } from './core/storage.ts';
 import {
   isAgentPreset,
   uid,
   type Artifact,
-  type GenImageConfig,
   type GlobalCaps,
   type Preset,
   type Skill,
-  type TabId,
   type Turn,
 } from './core/types.ts';
 import { createWorldbookPort } from './core/worldbook.ts';
 import { generateImages } from './plugins/image/nai.ts';
-import { imagePluginTools } from './plugins/registry.ts';
+import { allPages, availablePages, pluginAllTools, pluginTools as pluginToolsOf, toolOwner, toolOwnerLabel } from './plugins/registry.ts';
 import { createRunner } from './run/runner.ts';
 import { useAppStore } from './stores/app.ts';
 import CapabilityView from './views/CapabilityView.vue';
@@ -112,18 +113,51 @@ const store = useAppStore();
 store.load();
 
 const runner = createRunner();
-const tab = computed<TabId>(() => store.data.active_tab);
+
+/**
+ * 页面注册表：核心页 + **已启用**插件贡献的页面（已按 order 排好）。
+ * 顶栏画的就是它 —— 界面不再有第二份页签名单（阶段 1 拼出来仍是老 6 格、老顺序）。
+ */
+const pages = computed<PageEntry[]>(() => availablePages(store.data));
+
+/**
+ * 当前页 id：active_tab 指向的页面**存在**就用它，否则落到第一个可用页（老数据 / 插件被关掉）。
+ * 存在性看 allPages（含 inTabbar:false 的页面），顶栏画的是 availablePages —— 两者别混（H1）。
+ */
+const tab = computed<string>(() => {
+  const id = store.data.active_tab;
+  const exists = allPages(store.data).some(page => page.id === id);
+  return exists ? id : (pages.value[0]?.id ?? 'chat');
+});
+
+/**
+ * 兜底结果存回 active_tab（store.setTab 自带存在性校验与回落），不许指向画不出来的页。
+ * immediate：老数据里 active_tab 指向已关插件的页面时，一进面板就把它落回可用页。
+ */
+watch(
+  tab,
+  value => {
+    if (value !== store.data.active_tab) store.setTab(value);
+  },
+  { immediate: true },
+);
+
 const status = computed(() => (store.ready ? '● 已连接' : '○ 载入中'));
+
+/** 生图插件开着吗：关着就不给 agent 注入生图器（tools_image.ts 会回一句「生图插件没启用」） */
+const imageOn = computed(() => store.pluginEnabled('image'));
 
 /**
  * 全局能力快照（「能力」页那一份），运行决定与界面显示共用同一个口径。
  * 工具直接取 DEFAULT_ON_TOOLS（能力页默认启用的那 9 个；agent_registry 测试保证它与
  * ToolDef.default_on 一致）：不依赖异步拉到的界面清单，点一下就一定判断得对。
+ * 插件开着 = 它提供的工具进全局能力；关掉的插件一条都不给（口径写在 plugins/registry.ts）。
  */
 const globalCaps = computed<GlobalCaps>(() => {
-  // 插件开着 = 它提供的工具进全局能力（口径写在 plugins/registry.ts，插件页那边用同一个函数）
-  const pluginTools = imagePluginTools(store.data.plugins.image);
-  const names = [...DEFAULT_ON_TOOLS, ...pluginTools];
+  const fromPlugins = pluginToolsOf(store.data);
+  const live = new Set(fromPlugins);
+  // 底座的默认开工具照旧；插件贡献的必须插件开着才给（关掉即消失，见 plugins/types.ts 契约）
+  const names = [...DEFAULT_ON_TOOLS.filter(name => toolOwner(name) === 'base' || live.has(name)), ...fromPlugins];
   return {
     tools: names.filter((name, index) => names.indexOf(name) === index).map(name => ({ name, default_on: true })),
     skills: store.data.skills,
@@ -135,7 +169,24 @@ const notice = ref('');
 const roles = ref<UiRole[]>([]);
 const worlds = ref<UiWorld[]>([]);
 const entries = ref<UiEntry[]>([]);
-const tools = ref<UiTool[]>([]);
+/** 内核给的完整清单（一次性取；界面要的那一份是下面的 tools 计算属性） */
+const catalog = ref<UiTool[]>([]);
+
+/**
+ * 工具清单 = 内核清单里「底座贡献 + 已启用插件贡献」的那些，每行带来源标签。
+ * 关掉插件，它的工具行立刻消失（界面不缓存第二份）。
+ *
+ * ⚠️ 这里用 **pluginAllTools**（插件注册的全部工具），不用 pluginTools（只含默认给的）：
+ * 界面是「改提示词 / 改参数说明」的唯一入口，按需工具（世界书的 entry_meta）也必须列得出来 ——
+ * 全局能力那份是 pluginTools，两件事别混（验收 F4）。
+ */
+const tools = computed<UiTool[]>(() => {
+  const fromPlugins = new Set(pluginAllTools(store.data));
+  return catalog.value
+    .filter(tool => toolOwner(tool.name) === 'base' || fromPlugins.has(tool.name))
+    .map(tool => ({ ...tool, owner: toolOwnerLabel(tool.name) }));
+});
+
 const models = ref<string[]>([]);
 const attachments = ref<string[]>([]);
 const manualMeta = ref<Record<string, string>>({});
@@ -165,7 +216,7 @@ function notify(text: string): void {
   noticeTimer = setTimeout(() => { notice.value = ''; }, 3200);
 }
 
-function goto(id: TabId): void {
+function goto(id: string): void {
   store.setTab(id);
 }
 
@@ -195,10 +246,10 @@ async function refreshEntries(): Promise<void> {
 function loadTools(): void {
   try {
     const reg = createRegistry(createWorldbookPort());
-    tools.value = toUiTools(reg.catalog());
+    catalog.value = toUiTools(reg.catalog());
   } catch (err) {
     console.warn('[苍玄助手] 工具清单读取失败', err);
-    tools.value = [];
+    catalog.value = [];
   }
 }
 
@@ -241,8 +292,9 @@ async function runOnce(input: string): Promise<void> {
     const result = isAgentPreset(preset, globalCaps.value)
       ? await runner.runAgent({
           data: store.data, input, preset, history, images: attachments.value,
-          // 生图：插件没开就 inject 一个会自己解释原因的生成器（tools_image 会把它当失败回给模型）
-          genImage: makeImageGen(),
+          // 生图：插件没开就**不注入**——tools_image.ts 已经有「没注入就回一句失败」的分支，
+          // 比塞一个必然抛错的生成器更省事（每轮新建，出图张数按轮清零）
+          genImage: imageOn.value ? makeImageGen() : undefined,
           signal: controller.signal,
           onTurn: onTurnArrived,
           onDelta: store.patchTurnText,
@@ -486,16 +538,24 @@ function onToolReset(name: string): void {
   notify('已恢复内置默认');
 }
 
-/* -------------------- 插件页（生图插件） -------------------- */
+/* -------------------- 插件段（设置 · 能力 · 插件） -------------------- */
 
-/** 插件设置：只 emit，写路径唯一在这里（store.setPluginConfig） */
-function onPluginPatch(patch: Partial<GenImageConfig>): void {
-  store.setPluginConfig(patch);
+/**
+ * 插件开关：状态存在 plugin_state（底座拥有），写路径唯一在 store.setPluginEnabled。
+ * 关掉插件 = 它贡献的页面与工具立刻消失（页面回落在上面那个 watch，工具在 tools 计算属性）。
+ */
+function onPluginToggle(id: string, enabled: boolean): void {
+  store.setPluginEnabled(id, enabled);
 }
 
-function onPluginReset(): void {
-  store.resetPluginConfig();
-  notify('生图插件已恢复默认');
+/** 插件自己的设置：只 emit，写路径唯一在这里（store.setPluginConfig；enabled 由 store 忽略） */
+function onPluginPatch(id: string, patch: Record<string, unknown>): void {
+  store.setPluginConfig(id, patch);
+}
+
+function onPluginReset(id: string): void {
+  store.resetPluginConfig(id);
+  notify('已恢复内置默认');
 }
 
 /**
@@ -505,7 +565,7 @@ function onPluginReset(): void {
 function makeImageGen(): (prompt: string, negative: string) => Promise<string[]> {
   let used = 0;
   return async (prompt: string, negative: string) => {
-    const config = store.data.plugins.image;
+    const config = store.imageConfig();
     const cap = Math.max(1, Math.round(Number(config.max_count) || 1));
     if (used >= cap) throw new Error('这次最多出 ' + cap + ' 张（插件页「一次最多几张」）');
     used += 1;

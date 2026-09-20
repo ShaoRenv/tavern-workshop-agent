@@ -20,6 +20,8 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
 import { loadData, migrateRootData, saveData } from '../core/storage.ts';
+import { allPages, pluginManifest } from '../plugins/registry.ts';
+import type { PluginId } from '../plugins/types.ts';
 import { applyBuiltins } from '../presets/builtin.ts';
 // 工具覆盖项的唯一契约在 ports.ts（types.ts 只借类型做持久化校验）
 import type { ToolOverride, ToolOverrideMap } from '../core/ports.ts';
@@ -48,7 +50,6 @@ import {
   type SessionEventType,
   type SessionMeta,
   type Skill,
-  type TabId,
   type Turn,
 } from '../core/types.ts';
 
@@ -180,6 +181,9 @@ export const useAppStore = defineStore('cx-assistant', () => {
     }
     data.value = next;
     bindLegacyAlias();
+    // F3：active_tab 是自由字符串，载入时就归位（老数据 / 插件关掉导致页面不存在），
+    // 别等界面第一次切页 —— 否则第一帧会停在一个画不出来的页上
+    if (!tabExists()) setTab(data.value.active_tab);
     ready.value = true;
     dirty.value = false;
   }
@@ -311,9 +315,23 @@ export const useAppStore = defineStore('cx-assistant', () => {
     save(true);
   }
 
-  function setTab(id: TabId): void {
-    data.value.active_tab = id;
+  /**
+   * 切页。页面集合是运行时算的（核心页 + 已启用插件页），所以这里**必须校验**：
+   * 页面不存在（老数据里的 records / portraits，或插件被关掉）就落到第一个可用页 ——
+   * 不许把 active_tab 写成一个界面画不出来的 id（否则整个面板会空）。
+   */
+  function setTab(id: string): void {
+    // 合法性看**全部页面**（allPages）：inTabbar:false 的页面（例如以后的 MCP 内容页）也得能打开，
+    // 顶栏只画 availablePages —— 两件事别混成一个判断，否则那些页面永远进不去（H1）。
+    const pages = allPages(data.value);
+    const hit = pages.find(page => page.id === id) ?? pages[0];
+    data.value.active_tab = hit ? hit.id : 'chat';
     save();
+  }
+
+  /** 当前 active_tab 指向的页面还存在吗（页面被插件开关撤掉时用） */
+  function tabExists(): boolean {
+    return allPages(data.value).some(page => page.id === data.value.active_tab);
   }
 
   /* -------------------- 预设 -------------------- */
@@ -669,26 +687,64 @@ export const useAppStore = defineStore('cx-assistant', () => {
     save();
   }
 
-  /* -------------------- 插件设置 -------------------- */
+  /* -------------------- 插件：开关 + 设置 -------------------- */
 
   /**
-   * 改生图插件的设置（插件页）。合并进已有配置并落盘。
-   *
-   * 跟 setToolOverride 一个口径：patch 里显式给 undefined 的字段不当成「改成 undefined」。
-   * 想回内置默认用 resetPluginConfig。写路径只有 App.vue 一处。
+   * 插件开着吗：plugin_state 里有就听它的，没有就用 manifest.defaultEnabled。
+   * 读开关只有这一处（界面别去翻 plugin_state 的原始形状）。
    */
-  function setPluginConfig(patch: Partial<GenImageConfig>): void {
-    const clean: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(patch)) {
-      if (value !== undefined) clean[key] = value;
-    }
-    data.value.plugins.image = { ...data.value.plugins.image, ...clean } as GenImageConfig;
+  function pluginEnabled(id: PluginId): boolean {
+    const hit = data.value.plugin_state[id];
+    if (hit && typeof hit.enabled === 'boolean') return hit.enabled;
+    return pluginManifest(id).defaultEnabled;
+  }
+
+  /**
+   * 改插件开关。关掉插件时，如果当前页正是它贡献的页面，自动回落到第一个可用页 ——
+   * 否则界面会停在一个已经画不出来的页上（「关掉即消失」最容易漏的就是这个边角）。
+   */
+  function setPluginEnabled(id: PluginId, enabled: boolean): void {
+    data.value.plugin_state[id] = { enabled };
+    if (!tabExists()) setTab(data.value.active_tab);
     save();
   }
 
-  /** 生图插件恢复内置默认（含 API Key） */
-  function resetPluginConfig(): void {
-    data.value.plugins.image = GenImageConfigSchema.parse({});
+  /** 读插件自己的设置（没设置过就是空对象） */
+  function pluginConfig(id: PluginId): Record<string, unknown> {
+    const bag = data.value.plugins as unknown as Record<string, Record<string, unknown> | undefined>;
+    return bag[id] ?? {};
+  }
+
+  /** 生图插件的设置（它有真 schema，界面表单直接拿这个类型用） */
+  function imageConfig(): GenImageConfig {
+    return data.value.plugins.image;
+  }
+
+  /**
+   * 改插件设置（插件管理页）。合并进已有配置并落盘。
+   *
+   * 跟 setToolOverride 一个口径：patch 里显式给 undefined 的字段不当成「改成 undefined」。
+   * **enabled 一律忽略**：开关只在 setPluginEnabled 那条路上改，两个写点必然分叉。
+   * 想回内置默认用 resetPluginConfig。
+   */
+  function setPluginConfig(id: PluginId, patch: Record<string, unknown>): void {
+    const clean: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(patch)) {
+      if (value !== undefined && key !== 'enabled') clean[key] = value;
+    }
+    const bag = data.value.plugins as unknown as Record<string, Record<string, unknown>>;
+    bag[id] = { ...(bag[id] ?? {}), ...clean };
+    save();
+  }
+
+  /** 插件设置恢复内置默认（**只清设置，不动开关**） */
+  function resetPluginConfig(id: PluginId): void {
+    if (id === 'image') {
+      data.value.plugins.image = GenImageConfigSchema.parse({});
+    } else {
+      const bag = data.value.plugins as unknown as Record<string, Record<string, unknown>>;
+      bag[id] = {};
+    }
     save();
   }
 
@@ -792,7 +848,7 @@ export const useAppStore = defineStore('cx-assistant', () => {
     currentSessionEvents, eventsOf, appendEvent, appendEvents, logEvent,
     exportSession, exportSessions, exportSessionEvents,
     toolOverrides, toolOverrideOf, setToolOverride, resetToolOverride,
-    setPluginConfig, resetPluginConfig,
+    pluginEnabled, setPluginEnabled, pluginConfig, imageConfig, setPluginConfig, resetPluginConfig,
     currentDrafts, draftsOf, draftCount, addDraft, clearDraftsFor, clearDrafts,
     addArtifact, clearArtifacts,
   };

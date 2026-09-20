@@ -1,6 +1,6 @@
 <template>
   <div ref="rootEl" class="cx-toolpage">
-    <!-- 1 头部：名字 / 来源 / 版本 / 状态（插件详情页骨架的第 1 块，跟工具详情一致） -->
+    <!-- 1 头部：名字 / 来源 / 版本 / 状态 + 启用开关（每个插件都一样） -->
     <div class="cx-blk">
       <div class="cx-blkh">
         <button class="cx-back" type="button" @click="emit('back')">← 返回</button>
@@ -9,20 +9,52 @@
       </div>
       <div class="cx-tpname">
         <span class="cx-tn2">{{ def.name }}</span>
-        <span class="cx-tag">{{ sourceLabel }}</span>
+        <span class="cx-tag">{{ def.builtin ? '内置' : '外部' }}</span>
         <span class="cx-tag">v{{ def.version }}</span>
       </div>
       <p class="cx-hint cx-mt6">{{ def.desc }}</p>
       <div class="cx-f cx-mt12">
         <div class="cx-frow">
           <span class="cx-sw-lab">启用</span>
-          <Sw :model-value="config.enabled" @update:model-value="onEnabled" />
+          <Sw :model-value="enabled" @update:model-value="emit('toggle', $event)" />
         </div>
-        <p class="cx-hint cx-mt6">关掉就完全不用它：它的工具不进能力，模型看不到。</p>
+        <p class="cx-hint cx-mt6">关掉就完全不用它：它的页面与工具一起消失，模型也看不到。</p>
       </div>
     </div>
 
-    <!-- 2 接口：怎么连生图服务 -->
+    <!-- 2 它加了什么：只放可点的跳转行（页面 / 工具），不写解释段落 -->
+    <div class="cx-blk">
+      <div class="cx-blkh">
+        <span class="cx-t">它加了什么</span>
+        <span class="cx-spacer"></span>
+        <span class="cx-hint">点一行跳过去</span>
+      </div>
+      <div class="cx-list">
+        <div v-for="page in pages" :key="page.id" class="cx-toolrow" @click="emit('goto', page.id)">
+          <div class="cx-toolrow-main">
+            <div class="cx-toolrow-name">
+              <span class="cx-tn2">页面：{{ page.title }}</span>
+              <span v-if="page.inTabbar === false" class="cx-tag">不上顶栏</span>
+            </div>
+          </div>
+          <span class="cx-toolrow-go">›</span>
+        </div>
+        <div v-if="tools.length" class="cx-toolrow" @click="emit('goto', 'capability')">
+          <div class="cx-toolrow-main">
+            <div class="cx-toolrow-name">
+              <span class="cx-tn2">工具：{{ tools.join(' / ') }}</span>
+              <span class="cx-tag">{{ tools.length }} 个</span>
+            </div>
+          </div>
+          <span class="cx-toolrow-go">›</span>
+        </div>
+      </div>
+      <p v-if="pages.length === 0 && tools.length === 0" class="cx-hint">这个插件现在没往注册表里贡献东西。</p>
+    </div>
+
+    <!-- 3 它自己的设置：每个插件内容随它 —— 生图是一整页表单，别的插件现在没有自己的字段 -->
+    <template v-if="isImage">
+    <!-- 接口：怎么连生图服务 -->
     <div class="cx-blk">
       <div class="cx-blkh">
         <span class="cx-t">接口</span>
@@ -90,7 +122,7 @@
       </div>
     </div>
 
-    <!-- 3 提示词：固定词，跟模型每次给的 prompt 拼在一起 -->
+    <!-- 提示词：固定词，跟模型每次给的 prompt 拼在一起 -->
     <div class="cx-blk">
       <div class="cx-blkh">
         <span class="cx-t">固定提示词</span>
@@ -157,7 +189,7 @@
       </div>
     </div>
 
-    <!-- 4 生成参数 -->
+    <!-- 生成参数 -->
     <div class="cx-blk">
       <div class="cx-blkh">
         <span class="cx-t">生成参数</span>
@@ -228,7 +260,7 @@
       </div>
     </div>
 
-    <!-- 5 高级开关（只摆当前模型真的认的：v4 起的请求不带 sm / sm_dyn / dynamic_thresholding） -->
+    <!-- 高级开关（只摆当前模型真的认的：v4 起的请求不带 sm / sm_dyn / dynamic_thresholding） -->
     <div class="cx-blk">
       <div class="cx-blkh">
         <span class="cx-t">高级</span>
@@ -282,7 +314,7 @@
       </p>
     </div>
 
-    <!-- 6 出图：只有「一次最多几张」——这是插件的设置；出图结果在对话页里显示，插件页不做预览 -->
+    <!-- 出图：只有「一次最多几张」——这是插件的设置；出图结果在对话页里显示，插件页不做预览 -->
     <div class="cx-blk">
       <div class="cx-blkh">
         <span class="cx-t">出图</span>
@@ -303,10 +335,20 @@
       </div>
     </div>
 
-    <!-- 底部：恢复默认 -->
+    <!-- 底部：恢复默认（只清这个插件的设置，不动开关） -->
     <div class="cx-foot">
       <button class="cx-fill dang" type="button" :disabled="!edited" @click="reset">恢复默认</button>
       <p class="cx-hint cx-mt8">恢复默认会把这一页的设置（含 API Key）全部清回内置默认值。</p>
+    </div>
+    </template>
+
+    <!-- 非生图插件：这一版还没有自己的设置字段（阶段 4 起由插件声明、宿主渲染） -->
+    <div v-else class="cx-blk">
+      <div class="cx-blkh">
+        <span class="cx-t">它自己的设置</span>
+        <span class="cx-spacer"></span>
+      </div>
+      <div class="cx-placeholder">{{ def.name }} 现在没有自己的设置：它的活都在上面那些页面与工具里。</div>
     </div>
   </div>
 </template>
@@ -328,20 +370,16 @@ import {
   sizePresetOf,
   supportsStraightAlpha,
 } from '../plugins/image/options.ts';
-import { imagePluginStatus, type PluginDef } from '../plugins/registry.ts';
+import type { PluginManifest, PluginStatus } from '../plugins/types.ts';
 import SegBar from './SegBar.vue';
 import Sw from './Sw.vue';
 import type { SegItem } from './ui_types.ts';
 
 /**
- * 插件详情页：骨架**跟工具详情一样**（reports/苍玄助手-UI整理.md 的归位原则），
- * 只是内容换成「这个插件怎么连、出什么画」：
- *   1 头部（名字 / 来源 / 状态 + 启用开关）
- *   2 接口（Key / 站点 / 模型）
- *   3 固定提示词（正面 / 后置正面 / 负面 / 质量预设）
- *   4 生成参数（采样器 / 噪点表 / 步数 / 尺寸 / 种子 / Guidance）
- *   5 高级开关（SMEA 等）
- *   6 出图（只有「一次最多几张」）
+ * 插件管理页（设置 · 能力 · 插件 → ›）。**每个插件都是这三块**（设计稿屏 6）：
+ *   1 头部（名字 / 来源 / 版本 / 状态 + 启用开关）
+ *   2 它加了什么（页面 / 工具，点一行跳过去）—— 不写解释段落
+ *   3 它自己的设置（生图是一整页表单；别的插件现在还没有自己的字段）
  *
  * **这一页只管这个插件自己的设置**，不放别的东西：
  *  - 它提供哪些工具 → 工具段（那是工具的库）
@@ -349,18 +387,36 @@ import type { SegItem } from './ui_types.ts';
  *  - 试画 / 结果预览 → 不在这里，出图在对话页里自然显示
  *  - 「还没做」的清单 → 不摆进界面（设计稿里列着就够了）
  *
- * 编辑一律走本地草稿 + emit('patch')：写路径唯一（App.vue → store.setPluginConfig），
- * 界面不直接改 store。跟 ToolDetail 同一个理由：打字不会被回写冲掉。
+ * 开关与设置是两条路（设计自查 A6 / §2.2）：enabled 存在 plugin_state 由底座拥有，
+ * 这里只 emit('toggle')，不写进插件自己的设置；设置走本地草稿 + emit('patch')。
+ * 写路径唯一（App.vue → store.setPluginEnabled / setPluginConfig / resetPluginConfig）。
+ * 用本地草稿而不是 props 双向绑定，是因为打字不会被回写冲掉。
  */
 const props = defineProps<{
-  def: PluginDef;
+  def: PluginManifest;
+  /** 插件自己那段设置（只有生图有真 schema；别的插件现在不画表单） */
   config: GenImageConfig;
+  /** 开关在 plugin_state 里（底座拥有），不从 config 里读 */
+  enabled: boolean;
+  /** 状态标签由插件自己算（plugins/registry.ts 的 pluginStatus），界面只画 */
+  status: PluginStatus;
 }>();
 const emit = defineEmits<{
   back: [];
-  patch: [patch: Partial<GenImageConfig>];
+  /** 启用开关（写路径：App.vue → store.setPluginEnabled） */
+  toggle: [enabled: boolean];
+  patch: [patch: Record<string, unknown>];
   reset: [];
+  /** 「它加了什么」点一行跳过去（页面 id / 'capability'） */
+  goto: [id: string];
 }>();
+
+/** 只有生图插件现在有自己的一整页设置；别的插件只画「头部 + 它加了什么」 */
+const isImage = computed(() => props.def.id === 'image');
+
+/** 它加了什么：页面行 + 工具行（都来自 manifest 的 contributes） */
+const pages = computed(() => props.def.contributes.pages ?? []);
+const tools = computed(() => props.def.contributes.tools ?? []);
 
 type NumKey = 'steps' | 'width' | 'height' | 'seed' | 'guidance' | 'guidance_rescale' | 'max_count';
 type BoolKey = 'quality' | 'smea' | 'smea_dyn' | 'variety' | 'decrisp' | 'straight_alpha';
@@ -402,7 +458,7 @@ watch(
 /* ---------- 提交 ---------- */
 
 function commit<K extends keyof GenImageConfig>(key: K): void {
-  emit('patch', { [key]: form[key] } as Partial<GenImageConfig>);
+  emit('patch', { [key]: form[key] } as Record<string, unknown>);
 }
 
 function setBool(key: BoolKey, value: boolean): void {
@@ -422,11 +478,6 @@ function commitNumber(key: NumKey): void {
   value = Math.min(range[1], Math.max(range[0], value));
   form[key] = value;
   commit(key);
-}
-
-function onEnabled(value: boolean): void {
-  form.enabled = value;
-  emit('patch', { enabled: value });
 }
 
 function reset(): void {
@@ -457,9 +508,6 @@ const straightAlphaOk = computed(() => supportsStraightAlpha(version.value));
 const sourceLabel = computed(() => IMAGE_SOURCE_LABELS[form.source] ?? form.source);
 
 const fixedChars = computed(() => form.prompt.length + form.prompt_end.length + form.negative.length);
-
-/** 状态口径跟列表行共用一份（plugins/registry.ts） */
-const status = computed(() => imagePluginStatus(props.config));
 
 const edited = computed(() => JSON.stringify(form) !== JSON.stringify(props.config));
 

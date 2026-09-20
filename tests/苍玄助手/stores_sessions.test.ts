@@ -189,9 +189,9 @@ test('store: exportSession json 可往返、md 有结构且不出现 dataURL；e
     assert.match(md, /^## 用户$/m);
     assert.match(md, /^## 苍玄$/m);
     assert.match(md, /^用户说的话$/m, '正文不缩进');
-    assert.match(md, /^  - 工具 wb_read → 读了 1 条$/m);
-    assert.match(md, /^  - 工具 entry_edit → 找不到 uid（失败）$/m);
-    assert.match(md, /^  - 图片 1 张（导出不含图片数据）$/m);
+    assert.match(md, /^ {2}- 工具 wb_read → 读了 1 条$/m);
+    assert.match(md, /^ {2}- 工具 entry_edit → 找不到 uid（失败）$/m);
+    assert.match(md, /^ {2}- 图片 1 张（导出不含图片数据）$/m);
     assert.ok(!md.includes('data:image'), 'md 里绝不能出现 dataURL');
     assert.ok(!md.includes('base64'), 'md 里绝不能出现 base64');
 
@@ -227,7 +227,7 @@ test('store: sessionToMarkdown / formatTime 纯函数边界', () => {
   });
   const md = sessionToMarkdown(session);
   assert.match(md, /^## 工具$/m);
-  assert.match(md, /^  - 工具 submit → 完成$/m, 'ok 且没摘要时显示「完成」');
+  assert.match(md, /^ {2}- 工具 submit → 完成$/m, 'ok 且没摘要时显示「完成」');
   assert.ok(md.endsWith('\n'));
   assert.ok(!md.includes('undefined'));
 

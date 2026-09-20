@@ -324,7 +324,6 @@ export async function generateImages(
   negative: string,
   options: GenerateOptions = {},
 ): Promise<string[]> {
-  if (!config.enabled) throw new Error('生图插件没启用（能力 · 插件页打开开关）');
   const plan = planNaiRequest(config, prompt, negative);
   const doFetch = options.fetchImpl ?? (globalThis.fetch as typeof fetch);
   if (typeof doFetch !== 'function') throw new Error('这个环境里没有 fetch，发不了请求');

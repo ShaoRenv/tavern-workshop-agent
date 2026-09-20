@@ -32,6 +32,8 @@
             <div class="cx-toolrow-main">
               <div class="cx-toolrow-name">
                 <span class="cx-tn2">{{ tool.title || tool.name }}</span>
+                <!-- 来源标签（插件化之后最重要的一条可读性）：底座 / 世界书 / 生图 / … -->
+                <span class="cx-tag">{{ tool.owner || '底座' }}</span>
                 <span v-if="tool.user_initiated_only" class="cx-tag warn">仅明确要求时用</span>
                 <span v-if="tool.missing" class="cx-tag dang">内核里没有</span>
                 <span class="cx-tag" :class="toolEdited(tool.name) ? 'ok' : ''">{{ toolEdited(tool.name) ? '已改过' : '默认' }}</span>
@@ -53,8 +55,10 @@
       <PluginsView
         v-else-if="seg === 'plugins'"
         :data="data"
-        @patch="emit('plugin-patch', $event)"
-        @reset="emit('plugin-reset')"
+        @toggle="onPluginToggle"
+        @patch="onPluginPatch"
+        @reset="onPluginReset"
+        @goto="emit('goto', $event)"
       />
 
       <!-- 技能段：技能库 + 编辑弹窗 + 参考文件弹窗（原技能页整体纳入） -->
@@ -86,12 +90,13 @@
 import { computed, ref, toRef, watch } from 'vue';
 
 import type { ToolOverride } from '../core/ports.ts';
-import { RootDataSchema, type GenImageConfig, type RootData, type Skill } from '../core/types.ts';
+import { RootDataSchema, type RootData, type Skill } from '../core/types.ts';
 import SegBar from '../components/SegBar.vue';
 import ToolDetail from '../components/ToolDetail.vue';
 import ToolPromptSheet from '../components/ToolPromptSheet.vue';
 import type { SegItem, UiTool } from '../components/ui_types.ts';
 import { overrideEdited, readToolOverride } from '../components/ui_types.ts';
+import { toolOwnerLabel } from '../plugins/registry.ts';
 import PluginsView from './PluginsView.vue';
 import SkillsView from './SkillsView.vue';
 
@@ -127,9 +132,13 @@ const emit = defineEmits<{
   'skill-toggle': [skill: Skill];
   /** 页面里直接改过 props.data（例如「在当前预设里启用」开关）之后发一次，App.vue 接成 store.save() */
   change: [];
-  /** 插件设置改了（写路径唯一：App.vue → store.setPluginConfig） */
-  'plugin-patch': [patch: Partial<GenImageConfig>];
-  'plugin-reset': [];
+  /** 插件开关（写路径唯一：App.vue → store.setPluginEnabled，状态在 plugin_state） */
+  'plugin-toggle': [id: string, enabled: boolean];
+  /** 插件设置改了（写路径唯一：App.vue → store.setPluginConfig(id, patch)） */
+  'plugin-patch': [id: string, patch: Record<string, unknown>];
+  'plugin-reset': [id: string];
+  /** 插件详情「它加了什么」点一行跳过去（页面 id / 'capability'） */
+  goto: [id: string];
 }>();
 
 /** 用 ref 句柄拿 data：store 重新 load 时会整个替换 data.value，缓存普通对象引用会读到旧数据 */
@@ -163,7 +172,8 @@ const toolRows = computed<UiTool[]>(() => {
   for (const name of preset.value?.tools ?? []) {
     if (!seen.has(name)) {
       seen.add(name);
-      out.push({ name });
+      // 内核清单里没有（例如插件被关掉）：仍然给出来源标签，别让它看着像底座的工具
+      out.push({ name, owner: toolOwnerLabel(name) });
     }
   }
   return out;
@@ -235,6 +245,20 @@ function onToolReset() {
   const name = openToolName.value;
   if (!name) return;
   emit('tool-reset', name);
+}
+
+/* ---------- 插件段：只转发事件，写路径在 App.vue → store ---------- */
+
+function onPluginToggle(id: string, enabled: boolean) {
+  emit('plugin-toggle', id, enabled);
+}
+
+function onPluginPatch(id: string, patch: Record<string, unknown>) {
+  emit('plugin-patch', id, patch);
+}
+
+function onPluginReset(id: string) {
+  emit('plugin-reset', id);
 }
 
 /* ---------- 换段：把工具详情 / 快捷弹窗收回去，免得切回来还停在详情 ---------- */

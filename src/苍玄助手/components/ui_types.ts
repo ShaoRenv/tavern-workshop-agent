@@ -7,7 +7,7 @@
  * 会话（记录）相关取数用 core/types.ts 的官方实现：pickActiveSession / toSessionMeta / sessionTitle。
  */
 import type { ToolOverride, ToolOverrideMap } from '../core/ports.ts';
-import type { RootData, TabId, Turn } from '../core/types.ts';
+import type { RootData, Turn } from '../core/types.ts';
 
 /** 立绘页的角色行 */
 export interface UiRole {
@@ -62,6 +62,11 @@ export interface UiTool {
   readonly?: boolean;
   source?: 'builtin' | 'external';
   origin?: string;
+  /**
+   * 来源标签：'底座' 或插件名（由 App.vue 用 plugins/registry.ts 的 toolOwnerLabel 填）。
+   * 页签名字不再由界面手写（TAB_LABELS 已删），页面标题来自页面注册表。
+   */
+  owner?: string;
 }
 
 /** 详情页要渲染的一个参数 */
@@ -95,16 +100,6 @@ export interface SegItem {
   value: string;
   label: string;
 }
-
-/** 页签显示名；顺序由 core/types.ts 的 TAB_IDS 决定（立绘 / 世界书 / 对话 / 能力 / 记录 / 设置） */
-export const TAB_LABELS: Record<TabId, string> = {
-  portraits: '立绘',
-  worldbook: '世界书',
-  chat: '对话',
-  capability: '能力',
-  records: '记录',
-  settings: '设置',
-};
 
 /** 分组显示名：内核给什么用什么（不再自己兜底，免得跟内核不同步） */
 export function toolGroupLabel(tool: UiTool): string {

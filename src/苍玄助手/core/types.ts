@@ -63,10 +63,11 @@ export type NaiSite = z.infer<typeof NaiSiteSchema>;
  *  - 工具页改的是「模型看到的说明 / 参数默认值 / 超时」
  *  - 这里改的是「这台机器怎么连生图接口、默认出什么画」
  * 工具 gen_image 每次调用都读这里的值组装请求（见 plugins/image/nai.ts）。
+ *
+ * ⚠️ **开关不在这里**：插件开关是底座的 `plugin_state.image.enabled`（stores/app.ts 的 setPluginEnabled）。
+ *    分开的理由：开关是底座的（谁在跑由底座定），设置是插件的（插件自己的 schema 里永远不用出现 enabled）。
  */
 export const GenImageConfigSchema = z.object({
-  /** 插件总开关：关着 = gen_image 直接报「插件没启用」，一个请求都不发 */
-  enabled: z.boolean().default(false),
   source: ImageSourceSchema.default('novelai'),
   /** API Key（NovelAI 用 pst- 开头那种永久 token） */
   api_key: z.string().default(''),
@@ -105,11 +106,75 @@ export const GenImageConfigSchema = z.object({
 });
 export type GenImageConfig = z.infer<typeof GenImageConfigSchema>;
 
-/** 插件配置表：插件 id → 配置。现在只有生图一个（image）。 */
+/**
+ * 插件自己的设置：插件 id → 设置。
+ *
+ * image 有真 schema（生图参数多）；cangxuan 先是个空袋子 —— 它第 3 阶段才有真设置
+ * （图库来源 / 元数据读取规则 / 手动元数据），那时换成它自己的 schema。
+ */
 export const PluginsSchema = z.object({
   image: GenImageConfigSchema.prefault({}),
+  cangxuan: z.record(z.string(), z.unknown()).prefault({}),
 });
 export type Plugins = z.infer<typeof PluginsSchema>;
+
+/**
+ * 插件开关（v5）：插件 id → { enabled }。
+ *
+ * 跟 plugins.<id> 分开是**故意的**：
+ *  - 这里是**底座拥有**的状态（谁在跑由底座定），缺省值取 manifest.defaultEnabled；
+ *  - plugins.<id> 是**插件拥有**的设置，插件自己的 schema 里永远不用出现 enabled。
+ */
+export const PluginStateSchema = z.object({
+  enabled: z.boolean().default(false),
+});
+
+export const PluginStateMapSchema = z
+  .record(z.string(), PluginStateSchema.optional())
+  .prefault({}) as unknown as z.ZodType<Record<string, { enabled?: boolean } | undefined>>;
+
+export type PluginStateMap = z.infer<typeof PluginStateMapSchema>;
+
+/**
+ * v4 → v5 的搬家：把老的 `plugins.image.enabled` 抬到 `plugin_state.image.enabled`。
+ *
+ * ⚠️ **必须在 parse 之前做**：v5 的 GenImageConfigSchema 已经没有 enabled 字段，
+ *    zod 对象默认会把不认识的键**丢掉** —— 一旦先 parse，老用户的开关就没了
+ *    （生图 defaultEnabled=false，等于静默把人家开着的插件关掉）。
+ *
+ * 纯函数、幂等：没有老字段就原样返回；已经搬过的不再动。
+ */
+/**
+ * v4 → v5 的搬家：把老的 `plugins.<id>.enabled` 抬到 `plugin_state.<id>.enabled`。
+ *
+ * 对**每个插件 id** 都抬（不是只认 image）：今天只有 image 存过开关，但写死 id 的话，
+ * 以后任何插件想加历史开关都得回来改这里。
+ *
+ * ⚠️ **必须在 parse 之前做**：v5 的插件设置 schema 里已经没有 enabled，zod 对象默认会把
+ *    不认识的键**丢掉** —— 一旦先 parse，老用户的开关就没了
+ *    （生图 defaultEnabled=false，等于静默把人家开着的插件关掉）。
+ *
+ * 纯函数、幂等：没有老字段就原样返回；已经搬过的不再动（plugin_state 里已有的值优先）。
+ */
+export function migratePluginSwitch(raw: unknown): unknown {
+  if (!isRecord(raw)) return raw;
+  const plugins = raw.plugins;
+  if (!isRecord(plugins)) return raw;
+
+  const state = isRecord(raw.plugin_state) ? { ...raw.plugin_state } : {};
+  const nextPlugins: Record<string, unknown> = { ...plugins };
+  let touched = false;
+  for (const [id, config] of Object.entries(plugins)) {
+    if (!isRecord(config) || !('enabled' in config)) continue;
+    if (!isRecord(state[id])) state[id] = { enabled: config.enabled === true };
+    const nextConfig = { ...config };
+    delete nextConfig.enabled;
+    nextPlugins[id] = nextConfig;
+    touched = true;
+  }
+  if (!touched) return raw;
+  return { ...raw, plugins: nextPlugins, plugin_state: state };
+}
 
 /* ============================ 预设 ============================ */
 
@@ -722,13 +787,6 @@ export type Selection = z.infer<typeof SelectionSchema>;
 /* ============================ 根 ============================ */
 
 /**
- * 页签 id（顺序 = 顶栏顺序）。
- * UI 去重归位后：原「技能」页扩容成「能力」页（工具库 + 技能库），id 由 skills 改名 capability。
- */
-export const TAB_IDS = ['portraits', 'worldbook', 'chat', 'capability', 'records', 'settings'] as const;
-export type TabId = (typeof TAB_IDS)[number];
-
-/**
  * 历史页签名 → 现页签名。
  *
  * 老数据里存过的 `active_tab: 'skills'` 读出来要自动落到 `'capability'`：
@@ -736,7 +794,10 @@ export type TabId = (typeof TAB_IDS)[number];
  * loadData / recoverRootData 的逐块恢复 / importAll 的整份 parse。
  * 不改 DATA_VERSION：只是页签名变了，数据结构没变。
  */
-export const TAB_ID_ALIASES: Record<string, TabId> = { skills: 'capability' };
+// 页面 id 的**唯一来源**是 core/pages.ts 的 CORE_PAGES + 各插件 manifest（这里不再有名单）。
+// 第 2 / 3 阶段把 records、portraits 两个页面撤掉时，往这张表里加 records → chat / portraits → chat，
+// 老数据就直接落到对话页，而不是靠「第一个可用页」兜底。
+export const TAB_ID_ALIASES: Record<string, string> = { skills: 'capability' };
 
 /** 把历史页签名兜底成现页签名；不是老名字就原样返回（交给 enum 去校验合法性） */
 export function migrateTabId(value: unknown): unknown {
@@ -752,17 +813,24 @@ export function migrateTabId(value: unknown): unknown {
  *  2 = 多会话（sessions + active_session_id）
  *  3 = 多会话 + 工具覆盖项（tool_overrides）+ 会话事件日志（Session.events）
  *  4 = 预设合并：去 kind，messages/system → items（消息 + 特殊层）+ use_global_caps
+ *  5 = 插件化（阶段 1）：插件开关搬到 plugin_state（plugins.<id>.enabled → plugin_state.<id>.enabled）
  */
-export const DATA_VERSION = 4;
+export const DATA_VERSION = 5;
 
 export const RootDataSchema = z.object({
   version: z.number().int().default(DATA_VERSION),
-  /** 老数据的 'skills' 由 migrateTabId 兜底成 'capability'（见 TAB_ID_ALIASES） */
-  active_tab: z.preprocess(migrateTabId, z.enum(TAB_IDS).default('portraits')),
+  /**
+   * 当前页面。页面集合是**运行时算的**（core/pages.ts + 各插件 manifest），所以这里只存 id：
+   * 合法性不靠 enum 保证，靠 stores/app.ts 的 setTab / App.vue 的兜底（页面没了就落到第一个可用页）。
+   * 老数据里 'skills' 由 migrateTabId 兜底成 'capability'（见 TAB_ID_ALIASES）。
+   */
+  active_tab: z.preprocess(migrateTabId, z.string().default('portraits')),
   api: ApiSettingsSchema.prefault({}),
   gen: GenSettingsSchema.prefault({}),
   /** 插件页：插件自己的设置（生图插件是第一个 → `data.plugins.image`） */
   plugins: PluginsSchema.prefault({}),
+  /** 插件开关（v5）：底座拥有；缺省取 manifest.defaultEnabled */
+  plugin_state: PluginStateMapSchema,
   presets: z.array(PresetSchema).default([]),
   skills: z.array(SkillSchema).default([]),
   active_preset_id: z.string().default(''),

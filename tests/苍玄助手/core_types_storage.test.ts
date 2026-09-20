@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const core = '../../src/苍玄助手/core/';
-const { RootDataSchema, PresetSchema, ApiSettingsSchema, DATA_VERSION, TAB_IDS, GLOBAL_KEY, uid, roleLabel, migratePresetItems } =
+const { RootDataSchema, PresetSchema, ApiSettingsSchema, DATA_VERSION, GLOBAL_KEY, uid, roleLabel, migratePresetItems } =
   await import(core + 'types.ts');
 const {
   recoverRootData,
@@ -43,9 +43,11 @@ test('types: RootDataSchema.parse({}) 各块默认值齐全（老数据零字段
     timeout_sec: 60,
   });
   assert.deepEqual(data.gen, { image_concurrency: 4, retry: 2, max_rounds: 12 });
-  // v4 = v3 + 预设合并（去 kind；system / messages → items + use_global_caps）
-  assert.equal(DATA_VERSION, 4, 'v4 = 多会话 + 工具覆盖 + 事件日志 + 预设合并');
-  assert.ok(TAB_IDS.includes('records'), 'v2 多了「记录」页签');
+  // v5 = v4 + 插件化：插件开关从 plugins.<id>.enabled 搬到 plugin_state
+  assert.equal(DATA_VERSION, 5, 'v5 = 多会话 + 工具覆盖 + 事件日志 + 预设合并 + 插件开关');
+  // 页面集合不再由 core/types.ts 的 TAB_IDS 说了算（页面注册表在 core/pages.ts + 插件 manifest）；
+  // 这里是「插件开关」那份新数据：缺省空表，开关状态按 manifest.defaultEnabled 现算。
+  assert.deepEqual(data.plugin_state, {}, '缺 plugin_state 补 {}');
   // v2：会话在 sessions + active_session_id；schema 层不自动造会话（迁移/归一化才补）
   assert.deepEqual(data.sessions, []);
   assert.equal(data.active_session_id, '');
@@ -69,7 +71,14 @@ test('types: RootDataSchema.parse({}) 各块默认值齐全（老数据零字段
 });
 
 test('types: 非法枚举 / 越界数字被拒', () => {
-  assert.equal(RootDataSchema.safeParse({ active_tab: 'nope' }).success, false);
+  // active_tab 已放宽成 z.string()：**未知字符串不再是坏数据**（页面可能不存在，兜底在
+  // core/pages.ts + stores/app.ts 的 setTab，见 plugin_registry.test.ts）；
+  // 非字符串仍然是坏数据。
+  assert.equal(RootDataSchema.parse({ active_tab: 'nope' }).active_tab, 'nope', '未知字符串原样保留，schema 不清洗');
+  assert.equal(RootDataSchema.parse({ active_tab: 'records' }).active_tab, 'records');
+  assert.equal(RootDataSchema.safeParse({ active_tab: 123 }).success, false, '非字符串仍被拒');
+  assert.equal(RootDataSchema.safeParse({ active_tab: ['records'] }).success, false);
+  assert.equal(RootDataSchema.safeParse({ active_tab: null }).success, false);
   // 页签改名（skills → capability）：老名字兜底成新名字，不算非法值（DATA_VERSION 不动）
   assert.equal(RootDataSchema.parse({ active_tab: 'skills' }).active_tab, 'capability');
   assert.equal(RootDataSchema.parse({ active_tab: 'capability' }).active_tab, 'capability');
@@ -291,7 +300,9 @@ test('storage: 顶层不是对象时整体回退默认值 + 一条警告（不�
 test('storage: 坏块逐块恢复 —— 好数据保留、坏块换默认、数组逐条丢坏留好', () => {
   const result = recoverRootData({
     version: 99,
-    active_tab: 'nope',
+    // 坏值的口径变了：active_tab 放宽成 string 之后，未知字符串不算坏数据，
+    // 只有非字符串才进不了 schema（未知字符串的兜底见 plugin_registry.test.ts）
+    active_tab: 123,
     api: { route: 'nope' },
     gen: { image_concurrency: -1 },
     presets: [{ id: 'p1', name: '好的' }, { name: '缺 id' }, '坏条目'],
@@ -318,13 +329,28 @@ test('storage: 坏块逐块恢复 —— 好数据保留、坏块换默认、数
   assert.match(text, /存储块 skills 校验失败/);
   assert.match(text, /存储块 drafts 有 1 条数据不合法/);
   assert.match(text, /存储块 artifacts 校验失败/);
-  assert.match(text, /数据版本 99 与当前版本 4 不一致/);
+  assert.match(text, /数据版本 99 与当前版本 5 不一致/);
   // 只有「比当前版本新」才会报这一条（storage.ts 里老数据交给迁移警告），
   // 文案 v3 起统一成「与当前版本 N 不一致，已按当前版本读取」，上面已经断言过了
   assert.match(text, /已按当前版本读取/);
+  // active_tab(123) / api / gen / presets / skills / drafts / artifacts + 版本号 = 8 条
   assert.equal(result.warnings.length, 8);
   assert.equal(result.data.sessions.length, 1, '没会话就补一条');
   assert.equal(result.data.active_session_id, 'sess-default');
+});
+
+test('storage: active_tab 未知字符串不再被清洗（schema 只认「是不是字符串」，页面兜底在 store）', () => {
+  // 老数据里合法、但页面可能不存在 / 已改名的 id：读进来原样保留，绝不是坏块
+  const recovered = recoverRootData({ active_tab: 'nope' });
+  assert.deepEqual(recovered.warnings, []);
+  assert.equal(recovered.data.active_tab, 'nope');
+  assert.equal(recoverRootData({ active_tab: 'records' }).data.active_tab, 'records');
+  assert.equal(recoverRootData({ active_tab: 'portraits' }).data.active_tab, 'portraits');
+  // 老页签名 skills → capability 的兜底还在
+  assert.equal(recoverRootData({ active_tab: 'skills' }).data.active_tab, 'capability');
+  // 非字符串仍然按坏块换默认值
+  assert.equal(recoverRootData({ active_tab: 123 }).data.active_tab, 'portraits');
+  assert.equal(recoverRootData({ active_tab: ['records'] }).data.active_tab, 'portraits');
 });
 
 test('storage: 好数据原样读出（不改内容、不误报警告）', () => {
@@ -447,7 +473,8 @@ test('storage: 写入前先校验修复坏块（坏值不会落盘）', () => {
   try {
     setHostBridge({ insertOrAssignVariables: payload => calls.push(payload) });
     saveData({
-      active_tab: 'nope',
+      // 非字符串才是坏块；未知字符串是合法 id（页面存不存在由 store 兜底）
+      active_tab: 123,
       gen: { image_concurrency: -3 },
       presets: [{ name: '缺 id' }, { id: 'ok', name: '好' }],
     });

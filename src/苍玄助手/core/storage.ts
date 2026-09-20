@@ -38,6 +38,7 @@ import {
   GLOBAL_KEY,
   RootDataSchema,
   makeSession,
+  migratePluginSwitch,
   migratePresetItems,
   sessionTitle,
   type RootData,
@@ -195,6 +196,9 @@ function legacyShell(): Session {
  *     老 plain → use_global_caps=true + tools=[]（不跟随全局，自己一条工具都没有）。
  *     形状归一化在 schema 层（PresetSchema 的 z.preprocess → migratePresetItems），
  *     这里按版本再兜一遍：所有读入口都过它，老预设一条都不丢，且幂等。
+ * v4 → v5（插件化，本次）：
+ *  9) 插件开关搬家：plugins.<id>.enabled → plugin_state.<id>.enabled（老值照搬，缺省 false）。
+ *     之后插件自己的设置里不再有 enabled（开关是底座的）。幂等：v5 数据再跑一遍不动它。
  * 通用：
  *  7) 每条会话补齐 id / 标题 / 时间；sessions 为空补一条「新对话」；active 指不上修到第一条
  *  8) version 提到 DATA_VERSION；单数 session 写成空壳（真数据只在 sessions 里）
@@ -258,7 +262,32 @@ export function migrateRootData(data: RootData): MigrateResult {
     preset => migratePresetItems(preset) as typeof preset,
   );
 
+  // ---- v4 → v5：插件开关搬家（plugins.<id>.enabled → plugin_state.<id>.enabled） ----
+  // 老数据里只有生图一个插件；别的插件没有历史开关，缺省交给 manifest.defaultEnabled。
+  const pluginState: Record<string, { enabled?: boolean } | undefined> = isPlainRecord(
+    (data as unknown as Record<string, unknown>).plugin_state,
+  )
+    ? { ...((data as unknown as Record<string, unknown>).plugin_state as Record<string, { enabled?: boolean }>) }
+    : {};
+  const oldImageConfig = isPlainRecord(data.plugins?.image) ? (data.plugins.image as unknown as Record<string, unknown>) : null;
+  if (oldImageConfig && 'enabled' in oldImageConfig) {
+    if (!isPlainRecord(pluginState.image)) {
+      pluginState.image = { enabled: oldImageConfig.enabled === true };
+    }
+    migrated = true;
+  }
+
   if (data.version < DATA_VERSION) migrated = true;
+
+  // 老插件设置里残留的 enabled 去掉（开关已经搬到 plugin_state）
+  const plugins = isPlainRecord(data.plugins)
+    ? { ...(data.plugins as unknown as Record<string, unknown>) }
+    : {};
+  if (isPlainRecord(plugins.image) && 'enabled' in (plugins.image as Record<string, unknown>)) {
+    const next = { ...(plugins.image as Record<string, unknown>) };
+    delete next.enabled;
+    plugins.image = next;
+  }
 
   return {
     data: {
@@ -270,6 +299,8 @@ export function migrateRootData(data: RootData): MigrateResult {
       tool_overrides: toolOverrides,
       drafts,
       presets,
+      plugins: plugins as typeof data.plugins,
+      plugin_state: pluginState,
     },
     warnings,
     migrated,
@@ -285,6 +316,7 @@ const BLOCK_KEYS = [
   'api',
   'gen',
   'plugins',
+  'plugin_state',
   'presets',
   'skills',
   'active_preset_id',
@@ -415,7 +447,9 @@ export function recoverRootData(raw: unknown): RecoverResult {
 
   if (raw === null || raw === undefined) return finalizeRecovered(fallback, warnings);
 
-  if (!isPlainRecord(raw)) {
+  // v4 → v5 的插件开关搬家必须在 parse 之前（schema 会把老字段当未知键丢掉）
+  const lifted = migratePluginSwitch(raw) as Record<string, unknown>;
+  if (!isPlainRecord(lifted)) {
     const message = `脚本变量 ${GLOBAL_KEY} 不是对象，已整体回退为默认值`;
     warnings.push(message);
     console.warn('[苍玄助手] ' + message);
@@ -424,7 +458,7 @@ export function recoverRootData(raw: unknown): RecoverResult {
 
   const out: Record<string, unknown> = {};
   for (const key of BLOCK_KEYS) {
-    out[key] = recoverBlock(key, raw[key], warnings);
+    out[key] = recoverBlock(key, lifted[key], warnings);
   }
 
   return finalizeRecovered(out as RootData, warnings);
@@ -638,7 +672,8 @@ export function importAll(text: string): { ok: boolean; data?: RootData; error?:
       return { ok: false, error: '不是合法的 JSON：' + errorText(error) };
     }
 
-    const result = RootDataSchema.safeParse(parsed);
+    // 老导出文件（v4）也要先搬家再 parse，不然开关同样会被 schema 吃掉
+    const result = RootDataSchema.safeParse(migratePluginSwitch(parsed));
     if (!result.success) {
       return { ok: false, error: '数据结构不对：' + firstIssueMessage(result.error) };
     }

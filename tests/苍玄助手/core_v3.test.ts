@@ -26,9 +26,10 @@ function turnOfVersion2() {
 }
 
 test('v3: RootDataSchema.parse({}) 的 tool_overrides / events 默认值', () => {
-  assert.equal(DATA_VERSION, 4, 'v4 = v3 + 预设合并');
+  assert.equal(DATA_VERSION, 5, 'v5 = v4 + 插件开关搬到 plugin_state');
   const data = RootDataSchema.parse({});
   assert.deepEqual(data.tool_overrides, {}, '缺 tool_overrides 补 {}');
+  assert.deepEqual(data.plugin_state, {}, 'v5：缺 plugin_state 补 {}（开关缺省取 manifest.defaultEnabled）');
   assert.deepEqual(ToolOverrideMapSchema.parse(undefined), {});
   assert.deepEqual(data.sessions, []);
   assert.equal('events' in data.session, false, '单数 session 是 v1/v2 老形状，不带 v3 的 events');
@@ -62,8 +63,9 @@ test('v3 迁移: v2 老数据补覆盖项 / 事件 / 草稿归属，且不报警
   });
 
   const data = result.data;
-  assert.equal(data.version, 4);
+  assert.equal(data.version, 5);
   assert.deepEqual(data.tool_overrides, {}, '缺 tool_overrides 补 {}');
+  assert.deepEqual(data.plugin_state, {}, 'v2 老数据没有插件开关：留空，按 manifest 缺省现算');
   assert.deepEqual(data.sessions[0].events, [], '老会话补空事件数组');
   assert.equal(data.drafts[0].session_id, 's1', '老草稿回填到当前会话');
   assert.deepEqual(result.warnings, [], 'v2 → v3 是正常升级，不该刷警告');
@@ -115,7 +117,7 @@ test('v3 迁移: v1 → v3 一次到位（会话、事件、草稿归属一起�
   );
   assert.equal(result.migrated, true);
   assert.match(result.warnings.join('\n'), /检测到 v1 单会话数据/);
-  assert.equal(result.data.version, 4);
+  assert.equal(result.data.version, 5);
   assert.equal(result.data.sessions.length, 1);
   assert.equal(result.data.sessions[0].id, 'sess-legacy');
   assert.deepEqual(result.data.sessions[0].events, []);
