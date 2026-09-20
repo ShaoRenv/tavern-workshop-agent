@@ -35,6 +35,7 @@
                 <!-- 来源标签（插件化之后最重要的一条可读性）：底座 / 世界书 / 生图 / … -->
                 <span class="cx-tag">{{ tool.owner || '底座' }}</span>
                 <span v-if="tool.user_initiated_only" class="cx-tag warn">仅明确要求时用</span>
+                <span v-if="tool.owner_disabled" class="cx-tag warn">来源已停用</span>
                 <span v-if="tool.missing" class="cx-tag dang">内核里没有</span>
                 <span class="cx-tag" :class="toolEdited(tool.name) ? 'ok' : ''">{{ toolEdited(tool.name) ? '已改过' : '默认' }}</span>
               </div>
@@ -47,7 +48,7 @@
         <p v-if="toolRows.length === 0" class="cx-hint">工具清单还没就绪：agent 内核注册好工具后会自动出现在这里。</p>
         <p class="cx-hint cx-mt10">
           点一行进详情：改提示词、参数说明、参数默认值、单次超时。
-          用不用某个工具由两级决定：「能力」页是全局默认（这里管）；预设里打开「单独启用预设能力」后，才由「设置 · 预设」那份勾选管。
+          用不用某个工具由两级决定：「能力 · 工具」段是全局默认（这里管）；预设里打开「单独启用预设能力」后，才由「预设」那份勾选管。
         </p>
       </div>
 
@@ -58,7 +59,7 @@
         @toggle="onPluginToggle"
         @patch="onPluginPatch"
         @reset="onPluginReset"
-        @goto="emit('goto', $event)"
+        @goto="onGoto"
       />
 
       <!-- 技能段：技能库 + 编辑弹窗 + 参考文件弹窗（原技能页整体纳入） -->
@@ -94,19 +95,23 @@ import { RootDataSchema, type RootData, type Skill } from '../core/types.ts';
 import SegBar from '../components/SegBar.vue';
 import ToolDetail from '../components/ToolDetail.vue';
 import ToolPromptSheet from '../components/ToolPromptSheet.vue';
-import type { SegItem, UiTool } from '../components/ui_types.ts';
+import type { GotoSeg, SegItem, UiTool } from '../components/ui_types.ts';
 import { overrideEdited, readToolOverride } from '../components/ui_types.ts';
-import { toolOwnerLabel } from '../plugins/registry.ts';
+import { buildToolRows } from '../components/tool_rows.ts';
 import PluginsView from './PluginsView.vue';
 import SkillsView from './SkillsView.vue';
 
 /**
- * 能力页（原「技能」页扩容）：一个分段器，两段 ——
+ * 「能力」段（设置 · 能力）：二级药丸 工具｜技能｜插件。
  *  - 工具：脚本内置工具库，点一行进详情改提示词 / 参数 / 超时 / 停用，行尾 ✎ 只弹提示词
  *  - 技能：整份技能库（列表 + 编辑弹窗 + 参考文件弹窗，复用 SkillsView）
+ *  - 插件：插件库（列表 + 管理页，复用 PluginsView）
+ *
+ * 它**不再占一个页面**：设置页把它整段塞进「能力」那一格（阶段 2），所以这里的根节点只管内容，
+ * 页面级的 .cx-body 由 SettingsView 提供。
  *
  * 归位原则（reports/苍玄助手-UI整理.md）：库只在这一个入口；
- * 「这个预设用哪些工具 / 技能」是**本次配置**，去设置页勾。所以工具行上不再挂预设勾选开关。
+ * 「这个预设用哪些工具 / 技能」是**本次配置**，去「预设」段勾。所以工具行上不再挂预设勾选开关。
  *
  * 覆盖项仍然只读（data.tool_overrides）：写路径唯一 —— emit 给 App.vue → store.setToolOverride。
  */
@@ -114,10 +119,13 @@ const props = withDefaults(
   defineProps<{
     data?: RootData;
     tools?: UiTool[];
+    /** 子段跳转意图（H3）：设置了 sub 就切到那个二级段（工具 / 技能 / 插件） */
+    segIntent?: GotoSeg | null;
   }>(),
   {
     data: () => RootDataSchema.parse({}),
     tools: () => [],
+    segIntent: null,
   },
 );
 const emit = defineEmits<{
@@ -137,8 +145,13 @@ const emit = defineEmits<{
   /** 插件设置改了（写路径唯一：App.vue → store.setPluginConfig(id, patch)） */
   'plugin-patch': [id: string, patch: Record<string, unknown>];
   'plugin-reset': [id: string];
-  /** 插件详情「它加了什么」点一行跳过去（页面 id / 'capability'） */
+  /** 插件详情「它加了什么」点一行跳过去（页面 id） */
   goto: [id: string];
+  /**
+   * 带子段的跳转（H3）：本组件只认识「设置 · 能力」这一格里的二级段，
+   * 往上交给 SettingsView → App.vue 记成一笔落点，从任何地方点都落得回来。
+   */
+  'goto-seg': [intent: GotoSeg];
 }>();
 
 /** 用 ref 句柄拿 data：store 重新 load 时会整个替换 data.value，缓存普通对象引用会读到旧数据 */
@@ -152,6 +165,18 @@ const SEG_ITEMS: SegItem[] = [
 
 const seg = ref('tools');
 
+/**
+ * 子段落点（H3）：拿到意图就切到它指的二级段（'tools' / 'skills' / 'plugins'）。
+ * 认对象身份而不是值 —— App.vue 每次跳转都造新对象，所以「目标没变」的重复点也生效。
+ */
+watch(
+  () => props.segIntent,
+  next => {
+    if (next?.seg === 'capability' && next.sub) seg.value = next.sub;
+  },
+  { immediate: true },
+);
+
 /* ---------- 工具：清单（内核 + 预设里已有的名字） ---------- */
 
 const preset = computed(() => data.value.presets.find(item => item.id === data.value.active_preset_id) ?? null);
@@ -159,25 +184,13 @@ const preset = computed(() => data.value.presets.find(item => item.id === data.v
 /** 当前预设跟随「能力」页的全局设置时，工具详情里的「在本预设里启用」开关不起作用（默认就是跟随） */
 const followsGlobal = computed(() => !(preset.value?.use_global_caps ?? false));
 
-/** 内核给的工具清单 + 预设里已有的工具名（内核没就绪时至少能看能改） */
-const toolRows = computed<UiTool[]>(() => {
-  const out: UiTool[] = [];
-  const seen = new Set<string>();
-  for (const tool of props.tools) {
-    if (!seen.has(tool.name)) {
-      seen.add(tool.name);
-      out.push(tool);
-    }
-  }
-  for (const name of preset.value?.tools ?? []) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      // 内核清单里没有（例如插件被关掉）：仍然给出来源标签，别让它看着像底座的工具
-      out.push({ name, owner: toolOwnerLabel(name) });
-    }
-  }
-  return out;
-});
+/**
+ * 工具行：内核全量清单里**来源可用**的那些 + 预设硬引用过、但来源关着的兜底行（行上标「来源已停用」）。
+ *
+ * 口径跟设置 · 预设 的「这个预设用哪些工具」Sheet **共用一份**（components/tool_rows.ts，H4）：
+ * 两处各写一份的话，改一处漏一处 —— F-B 就是这么来的。
+ */
+const toolRows = computed<UiTool[]>(() => buildToolRows(props.tools, preset.value?.tools ?? []));
 
 /** 详情页里那个「在当前预设里启用」开关读的就是它 */
 function toolOn(tool: UiTool) {
@@ -248,6 +261,24 @@ function onToolReset() {
 }
 
 /* ---------- 插件段：只转发事件，写路径在 App.vue → store ---------- */
+
+/**
+ * 插件管理页「它加了什么 → 工具：…」点一下：PluginDetail 发的是 'capability'
+ * （阶段 1 的老口径 = 回「能力 · 工具」段；页面注册表里它已经不是页面了）。
+ *
+ * 两条路一起走（H3）：
+ *  - 本地先切到工具段 —— 常见情形（本来就在能力段里点）立刻到位，不依赖上层；
+ *  - 再把「设置 · 能力 · 工具」这条完整落点抛上去，App.vue 记一笔 —— 将来从别处发起的跳转
+ *    （⋯ 更多页面 / 错误边界里的「去设置」）也落在同一处，而不是落到设置页默认的「接口」段。
+ */
+function onGoto(id: string) {
+  if (id === 'capability') {
+    seg.value = 'tools';
+    emit('goto-seg', { page: 'settings', seg: 'capability', sub: 'tools' });
+    return;
+  }
+  emit('goto', id);
+}
 
 function onPluginToggle(id: string, enabled: boolean) {
   emit('plugin-toggle', id, enabled);

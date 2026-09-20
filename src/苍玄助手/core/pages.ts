@@ -4,9 +4,10 @@
  * 页面的**唯一来源**就是这里 + 各插件 manifest 的 contributes.pages；
  * active_tab 只存 id，是不是合法页面由 availablePages() 现算（老数据里的页 id 可能已经不存在）。
  *
- * 阶段 1 的 order 是**照着老顶栏逐格对齐**的：
- *   立绘 10（插件页）· 世界书 20（插件页）· 对话 30 · 能力 40 · 记录 50 · 设置 90
- * 阶段 2 起会重排：记录并进对话页的 ⋯、能力并进设置 → 只剩 对话 10 / 设置 90。
+ * 阶段 2 起核心页只剩两个：**对话 10 · 设置 90**（插件页夹在中间）。
+ *   - 记录不占页面：它是对话页右上角 ⋯ 里的一张 Sheet；
+ *   - 能力（工具 / 技能 / 插件）不占页面：它是设置里的一格。
+ * 老数据的 active_tab = records / capability 由 TAB_ID_ALIASES 兜到 chat / settings（见 core/types.ts）。
  */
 export interface PageEntry {
   id: string;
@@ -18,9 +19,7 @@ export interface PageEntry {
 }
 
 export const CORE_PAGES: PageEntry[] = [
-  { id: 'chat', title: '对话', order: 30, inTabbar: true, owner: 'base' },
-  { id: 'capability', title: '能力', order: 40, inTabbar: true, owner: 'base' },
-  { id: 'records', title: '记录', order: 50, inTabbar: true, owner: 'base' },
+  { id: 'chat', title: '对话', order: 10, inTabbar: true, owner: 'base' },
   { id: 'settings', title: '设置', order: 90, inTabbar: true, owner: 'base' },
 ];
 

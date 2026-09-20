@@ -121,16 +121,28 @@ test('bundle: 面板桥接了全部宿主接口（回归「只桥 8 / 19」那�
   assert.ok(bundle.content.includes('HOST_API_NAMES'), 'panel.js 应该用数组声明桥接名单');
 });
 
-test('bundle: 「能力」页与工具错误码都在产物里', () => {
-  // UI 去重归位：技能页扩成「能力」页（工具｜技能），设置页只留 接口｜预设｜数据
+test('bundle: 阶段 2 的 4 格页面 / 「能力」并进设置 / 记录进 ⋯ Sheet 都在产物里', () => {
   const all = bundle.content + appJs + appCss;
-  for (const marker of ['capability', '能力', 'cx-multi', 'goto-capability', 'SCOPE_DENIED']) {
-    assert.ok(all.includes(marker), '产物里找不到 ' + marker);
-  }
+
   // A9：页面 id 与标题来自页面注册表（core/pages.ts 的核心页 + 插件 manifest 的 contributes.pages），
   // 不再是写死的页签名单。标识符会被压缩掉，所以这里断言**字符串字面量**真的进了产物。
-  for (const marker of ['portraits', 'worldbook', '立绘', '世界书', '记录']) {
+  // 阶段 2 的 4 格：对话/设置（核心页）+ 苍玄助手(portraits)/世界书(worldbook)（插件页）
+  for (const marker of ['chat', 'portraits', 'worldbook', 'settings', '对话', '设置', '苍玄助手', '世界书']) {
     assert.ok(all.includes(marker), '页面注册表里的 ' + marker + ' 应该出现在产物里');
   }
+
+  // 记录与能力都不再占页面，但文案还在：记录 = 对话页 ⋯ 的 Sheet 标题；能力 = 设置里的一格
+  for (const marker of ['记录', '能力', '接口', '预设', '数据', '工具', '技能', '插件']) {
+    assert.ok(all.includes(marker), '产物里找不到 ' + marker);
+  }
+
+  // F2：来源插件关掉时的兜底行文案 + 工具错误码
+  for (const marker of ['来源已停用', 'cx-multi', 'SCOPE_DENIED']) {
+    assert.ok(all.includes(marker), '产物里找不到 ' + marker);
+  }
+
+  // 老页名只作为 TAB_ID_ALIASES 的键留下（兜老数据的 active_tab），不再是页面 / 一次性事件
+  assert.ok(all.includes('capability') && all.includes('records'), '老页名还要留着兜老数据');
+  assert.equal(all.includes('goto-capability'), false, '阶段 2 删掉了 goto-capability 跨页事件');
 });
 

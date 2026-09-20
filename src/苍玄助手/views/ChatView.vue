@@ -1,9 +1,11 @@
 <template>
   <div class="cx-body">
-    <!-- 顶栏：Agent｜聊天 + 对话设置入口 -->
+    <!-- 顶栏：Agent｜聊天 + 记录（⋯）+ 对话设置 -->
     <div class="cx-blk cx-pb10">
       <div class="cx-frow">
         <SegBar :model-value="session.mode" :items="MODE_ITEMS" variant="mode" class="cx-modebar-grow" @update:model-value="onModeChange" />
+        <!-- 记录不占页面（阶段 2）：收进这张 Sheet -->
+        <button class="cx-iconbtn" type="button" title="记录" @click="recordsOpen = true">⋯</button>
         <button class="cx-iconbtn" type="button" title="对话设置" @click="settingsOpen = true">⚙</button>
       </div>
     </div>
@@ -128,6 +130,16 @@
       <button class="cx-ghost" type="button" :disabled="!data.drafts.length" @click="emit('save-drafts')">全部保存</button>
     </template>
   </Sheet>
+
+  <!-- 记录：记录页不再占顶栏（阶段 2），整份收进这张 Sheet；
+       会话动作还是走 App.vue → store，Sheet 里不直接改数据 -->
+  <Sheet v-if="recordsOpen" title="记录" @close="recordsOpen = false">
+    <RecordsView :data="data" @session-action="emit('session-action', $event)" />
+    <template #footer>
+      <span class="cx-spacer"></span>
+      <button class="cx-ghost" type="button" @click="recordsOpen = false">关闭</button>
+    </template>
+  </Sheet>
 </template>
 
 <script setup lang="ts">
@@ -147,6 +159,7 @@ import SegBar from '../components/SegBar.vue';
 import Sheet from '../components/Sheet.vue';
 import ToolGroup from '../components/ToolGroup.vue';
 import { timeLabel, type SegItem } from '../components/ui_types.ts';
+import RecordsView from './RecordsView.vue';
 
 /**
  * 对话页。
@@ -155,6 +168,7 @@ import { timeLabel, type SegItem } from '../components/ui_types.ts';
  *  - 工具调用压成一行（约 28px），同一轮里连续多条在跑完后收起成「▸ N 次工具调用」
  *  - 生图卡永远展开；失败和改动默认摊开
  *  - 底部状态行（运行中 / 就绪）+ [＋][发送/停止]
+ *  - 右上角 ⋯ = 记录（原「记录」页整段塞进 Sheet：记录不再占顶栏）
  */
 const props = withDefaults(
   defineProps<{ data?: RootData; assistantName?: string }>(),
@@ -199,6 +213,8 @@ const MODE_ITEMS: SegItem[] = [
 const text = ref('');
 const diffOpen = ref(false);
 const settingsOpen = ref(false);
+/** 记录 Sheet（原「记录」页的内容） */
+const recordsOpen = ref(false);
 
 /** 会话列表（轻量元信息）：标题 / 轮数 / 更新时间 */
 const sessionRows = computed(() => data.value.sessions.map(toSessionMeta));

@@ -34,11 +34,18 @@
       @preset-change="onPresetChange"
       @mode-change="store.setMode($event)"
     />
-    <!-- 能力（原「技能」页扩容）：分段 工具｜技能。工具覆盖项 / 技能库的写路径都从这里转给 store -->
-    <CapabilityView
-      v-else-if="tab === 'capability'"
+    <!-- 设置：接口｜预设｜能力｜数据。「能力」里三段 工具｜技能｜插件（CapabilityView 在里面），
+         工具覆盖项 / 技能库 / 插件设置的写路径都从这里转给 store；记录在对话页右上角 ⋯ 里 -->
+    <SettingsView
+      v-else
       :data="store.data"
       :tools="tools"
+      :models="models"
+      :global-caps="globalCaps"
+      :seg-intent="segIntent"
+      @fetch-models="onFetchModels"
+      @preset-action="onPresetAction"
+      @data-action="onDataAction"
       @tool-override="onToolOverride"
       @tool-reset="onToolReset"
       @save="onTouched"
@@ -50,25 +57,7 @@
       @plugin-patch="onPluginPatch"
       @plugin-reset="onPluginReset"
       @goto="goto"
-      @change="store.save()"
-    />
-    <RecordsView
-      v-else-if="tab === 'records'"
-      :data="store.data"
-      @session-action="onSessionAction"
-    />
-    <!-- 设置：接口｜预设｜数据。预设里只剩「单独启用预设能力」的紧凑多选（默认跟随全局），
-         要改提示词 / 参数由 goto-capability 转到能力页 -->
-    <SettingsView
-      v-else
-      :data="store.data"
-      :tools="tools"
-      :models="models"
-      :global-caps="globalCaps"
-      @fetch-models="onFetchModels"
-      @preset-action="onPresetAction"
-      @data-action="onDataAction"
-      @goto-capability="goto('capability')"
+      @goto-seg="requestGotoSeg"
       @change="store.save()"
     />
 
@@ -81,7 +70,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { DEFAULT_ON_TOOLS, createRegistry } from './agent/registry.ts';
 import AppShell from './components/AppShell.vue';
-import type { UiEntry, UiRole, UiTool, UiWorld } from './components/ui_types.ts';
+import type { GotoSeg, UiEntry, UiRole, UiTool, UiWorld } from './components/ui_types.ts';
 import { fetchModels, loadEntries, loadRoles, loadWorlds, parsePortraitFile, toUiTools } from './core/adapters.ts';
 import type { PageEntry } from './core/pages.ts';
 import type { ToolOverride } from './core/ports.ts';
@@ -100,10 +89,8 @@ import { generateImages } from './plugins/image/nai.ts';
 import { allPages, availablePages, pluginAllTools, pluginTools as pluginToolsOf, toolOwner, toolOwnerLabel } from './plugins/registry.ts';
 import { createRunner } from './run/runner.ts';
 import { useAppStore } from './stores/app.ts';
-import CapabilityView from './views/CapabilityView.vue';
 import ChatView from './views/ChatView.vue';
 import PortraitsView from './views/PortraitsView.vue';
-import RecordsView from './views/RecordsView.vue';
 import SettingsView from './views/SettingsView.vue';
 import WorldbookView from './views/WorldbookView.vue';
 
@@ -173,18 +160,27 @@ const entries = ref<UiEntry[]>([]);
 const catalog = ref<UiTool[]>([]);
 
 /**
- * 工具清单 = 内核清单里「底座贡献 + 已启用插件贡献」的那些，每行带来源标签。
- * 关掉插件，它的工具行立刻消失（界面不缓存第二份）。
+ * 工具清单：内核清单**全量**，每行打来源标签 + 「来源已停用」标记。
  *
- * ⚠️ 这里用 **pluginAllTools**（插件注册的全部工具），不用 pluginTools（只含默认给的）：
- * 界面是「改提示词 / 改参数说明」的唯一入口，按需工具（世界书的 entry_meta）也必须列得出来 ——
- * 全局能力那份是 pluginTools，两件事别混（验收 F4）。
+ * ⚠️ 清单口径用 **pluginAllTools**（插件注册的全部工具，含按需的 entry_meta），
+ * 不用 pluginTools（只含默认给的）：界面是「改提示词 / 改参数说明」的唯一入口，
+ * 按需工具也必须列得出来（验收 F4）。全局能力那份是 pluginTools，两件事别混。
+ *
+ * 界面口径（验收 F2）：
+ *  - owner_disabled = false → 正常行（底座 / 插件开着）；
+ *  - owner_disabled = true  → 不占正常行，只有**预设里硬引用过**它时才以兜底行出现、标「来源已停用」。
+ * 标在 App.vue：来源插件开没开只有这里拿得到 store.plugin_state（两个视图只管画）。
  */
 const tools = computed<UiTool[]>(() => {
   const fromPlugins = new Set(pluginAllTools(store.data));
-  return catalog.value
-    .filter(tool => toolOwner(tool.name) === 'base' || fromPlugins.has(tool.name))
-    .map(tool => ({ ...tool, owner: toolOwnerLabel(tool.name) }));
+  return catalog.value.map(tool => {
+    const owner = toolOwner(tool.name);
+    return {
+      ...tool,
+      owner: toolOwnerLabel(tool.name),
+      owner_disabled: owner === 'base' ? false : !fromPlugins.has(tool.name),
+    };
+  });
 });
 
 const models = ref<string[]>([]);
@@ -216,7 +212,30 @@ function notify(text: string): void {
   noticeTimer = setTimeout(() => { notice.value = ''; }, 3200);
 }
 
+/* -------------------- 子段落点（H3） -------------------- */
+
+/**
+ * 一次性的子段意图：「工具：… ›」这类跳转要落到 设置 · 能力 · 工具，
+ * 光有页面 id 不够（capability / tools 都不是页面），所以把目标子段一起存下来。
+ * at 每次 +1：同一个目标重复点也算一条新请求；SettingsView 靠它认「这条已经消费过」，
+ * 免得用户之后自己回到设置页时被一条旧意图拽到「能力」段去。
+ */
+const segIntent = ref<GotoSeg | null>(null);
+let segSeq = 0;
+
+function requestGotoSeg(intent: GotoSeg): void {
+  segSeq += 1;
+  segIntent.value = { ...intent, at: segSeq };
+  store.setTab(intent.page);
+}
+
 function goto(id: string): void {
+  // 'capability' 已经不是页面（阶段 2）：它就是「设置 · 能力 · 工具」这条落点。
+  // 从任何地方发都走同一处（H3），不再依赖「发起时刚好在能力段」。
+  if (id === 'capability') {
+    requestGotoSeg({ page: 'settings', seg: 'capability', sub: 'tools' });
+    return;
+  }
   store.setTab(id);
 }
 

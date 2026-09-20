@@ -34,7 +34,7 @@ export const PLUGIN_MANIFESTS: PluginManifest[] = [
     builtin: true,
     defaultEnabled: true,
     contributes: {
-      pages: [{ id: 'portraits', title: '立绘', order: 10, inTabbar: true }],
+      pages: [{ id: 'portraits', title: '苍玄助手', order: 20, inTabbar: true }],
       tools: [],
     },
   },
@@ -47,7 +47,7 @@ export const PLUGIN_MANIFESTS: PluginManifest[] = [
     builtin: true,
     defaultEnabled: true,
     contributes: {
-      pages: [{ id: 'worldbook', title: '世界书', order: 20, inTabbar: true }],
+      pages: [{ id: 'worldbook', title: '世界书', order: 30, inTabbar: true }],
       tools: [...WB_TOOLS, { name: 'entry_meta', defaultOn: false }],
     },
   },

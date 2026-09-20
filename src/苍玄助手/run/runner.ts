@@ -37,6 +37,8 @@ import { buildScopePrompt } from '../agent/tools_worldbook.ts';
 import { createTransport } from '../agent/transport.ts';
 import { createDraftView } from '../agent/wb_view.ts';
 import type { LlmMessage, ToolOverrideMap, WorldbookPort } from '../core/ports.ts';
+import { pluginAllTools, toolOwner } from '../plugins/registry.ts';
+import type { PluginStateHost } from '../plugins/types.ts';
 import { emptyMacroData, formatEntries, formatHistory, render, type MacroData } from '../core/macros.ts';
 import {
   nowMs,
@@ -200,6 +202,22 @@ function balancedEnd(text: string, start: number, open: string, close: string): 
  *  - 角色列表 / 角色名 = selection.character_ids
  *  - 上下文 = history 转文本；产物 = 最近一个产物
  */
+/**
+ * 这一轮**真正可用**的工具定义：底座自己的全给，插件注册的只在「插件开着」时给。
+ *
+ * 「关掉即消失」有三层，缺一层就露馅（验收 F-A）：
+ *   ① 界面 —— App.vue 用 pluginTools / pluginAllTools 算清单与来源标签；
+ *   ② 显示用能力 —— App.vue 的 globalCaps；
+ *   ③ **运行时这一层**（这里）：关掉的插件，它的工具连 ToolDef 都不进这一轮，
+ *      否则模型照样能调、界面却写着「来源已停用」，两边打脸。
+ *
+ * 注意用 pluginAllTools（插件注册的全部工具）而不是 pluginTools：
+ * 按需工具（世界书的 entry_meta）_def_ 要在，能不能发由 resolveCaps 按 default_on 决定。
+ */
+export function liveToolDefs<T extends { name: string }>(defs: T[], state: PluginStateHost): T[] {
+  const fromPlugins = new Set(pluginAllTools(state));
+  return defs.filter(def => toolOwner(def.name) === 'base' || fromPlugins.has(def.name));
+}
 async function buildMacroData(
   args: RunArgs,
   extra: { round: number; hasImage: boolean; artifact?: string },
@@ -561,7 +579,7 @@ export function createRunner(): Runner {
       const guards = registry.guards();
       guards.reset();
       const overrides = (args.data.tool_overrides ?? {}) as ToolOverrideMap;
-      const toolDefs = resolveToolDefs(registry.defs, overrides);
+      const toolDefs = resolveToolDefs(liveToolDefs(registry.defs, args.data), overrides);
       const maxRounds = args.preset.max_rounds || args.data.gen.max_rounds;
       const transport = createTransport();
       // 两级能力：预设自己的 vs 跟随「能力」页的全局默认（口径 = core/types.ts 的 resolveCaps）

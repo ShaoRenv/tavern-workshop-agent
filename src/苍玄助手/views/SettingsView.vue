@@ -1,6 +1,6 @@
 <template>
   <div class="cx-body">
-    <!-- 二级导航：接口｜预设｜数据（设置页只留全局的东西，工具/技能归「能力」页） -->
+    <!-- 二级导航：接口｜预设｜能力｜数据（能力里再分 工具｜技能｜插件，见下面的 CapabilityView） -->
     <div class="cx-blk cx-pb10">
       <SegBar v-model="seg" :items="SET_SEG_ITEMS" variant="mode" class="cx-modebar-grow" />
     </div>
@@ -137,7 +137,7 @@
             </p>
 
             <!-- 勾选区顶部：要改提示词 / 参数的去「能力」页 -->
-            <button class="cx-goto" type="button" @click="emit('goto-capability')">改提示词 / 参数 →「能力」页</button>
+            <button class="cx-goto" type="button" @click="seg = 'capability'">改提示词 / 参数 →「能力 · 工具」段</button>
 
             <button class="cx-multi" type="button" @click="toolPickOpen = true">
               <span>工具 {{ pickedToolCount }} / {{ toolRows.length }}</span>
@@ -150,16 +150,38 @@
               <span class="cx-multi-go">▾</span>
             </button>
 
-            <p class="cx-hint cx-mt10">点开一行做勾选（带全开 / 全关）；工具、技能本身在「能力」页管理。</p>
+            <p class="cx-hint cx-mt10">点开一行做勾选（带全开 / 全关）；工具、技能本身在「能力」段管理。</p>
           </template>
           <p v-else class="cx-hint">
-            跟随「能力」页的全局设置（当前 {{ globalToolCount }} 个工具 / {{ globalSkillCount }} 个技能，在「能力」页改）
+            跟随「能力」的全局设置（当前 {{ globalToolCount }} 个工具 / {{ globalSkillCount }} 个技能，在「能力」段改）
           </p>
         </div>
       </template>
 
+      <!-- ============ 能力：工具｜技能｜插件（原来的「能力」页，现在只占设置里的一格） ============ -->
+      <template v-else-if="seg === 'capability'">
+        <CapabilityView
+          :data="data"
+          :tools="tools"
+          :seg-intent="segIntent"
+          @goto-seg="onGotoSeg"
+          @tool-override="onToolOverride"
+          @tool-reset="onToolReset"
+          @save="emit('save', $event)"
+          @delete="emit('delete', $event)"
+          @duplicate="emit('duplicate', $event)"
+          @export="emit('export', $event)"
+          @skill-toggle="emit('skill-toggle', $event)"
+          @plugin-toggle="onPluginToggle"
+          @plugin-patch="onPluginPatch"
+          @plugin-reset="onPluginReset"
+          @goto="onGoto"
+          @change="touch"
+        />
+      </template>
+
       <!-- ============ 数据：备份 / 迁移 / 危险操作（下载和读文件都由 App.vue 接，这里只发事件） ============ -->
-      <div v-else class="cx-blk">
+      <div v-else-if="seg === 'data'" class="cx-blk">
         <div class="cx-blkh">
           <span class="cx-t">数据</span>
           <span class="cx-spacer"></span>
@@ -194,13 +216,20 @@
       <label v-for="tool in toolRows" :key="tool.name" class="cx-trow" :class="{ off: !toolOn(tool) }">
         <input type="checkbox" :checked="toolOn(tool)" @change="toggleTool(tool)" />
         <div>
-          <div class="cx-tn2">{{ tool.title || tool.name }}</div>
-          <div class="cx-td">{{ tool.desc || '（内核还没给这个工具写说明）' }}</div>
+          <div class="cx-tn2">
+            {{ tool.title || tool.name }}
+            <!-- 跟「能力 · 工具」段同一套表达：来源标签 + 来源已停用 -->
+            <span class="cx-tag">{{ tool.owner || '底座' }}</span>
+            <span v-if="tool.owner_disabled" class="cx-tag warn">来源已停用</span>
+          </div>
+          <div class="cx-td">
+            {{ tool.desc || '（内核还没给这个工具写说明）' }}<template v-if="tool.owner_disabled"> · 来源停用了，不会发给模型</template>
+          </div>
         </div>
       </label>
     </div>
     <p v-if="toolRows.length === 0" class="cx-hint">工具清单还没就绪：agent 内核注册好工具后会自动出现在这里。</p>
-    <p class="cx-hint">清单是脚本内置的，你只能勾要不要；想加新的告诉我。改提示词 / 参数去「能力」页。</p>
+    <p class="cx-hint">清单是脚本内置的，你只能勾要不要；想加新的告诉我。改提示词 / 参数去「能力 · 工具」段。</p>
     <template #footer>
       <span class="cx-spacer"></span>
       <button class="cx-ghost" type="button" @click="toolPickOpen = false">完成</button>
@@ -225,7 +254,7 @@
         </div>
       </label>
     </div>
-    <p v-if="data.skills.length === 0" class="cx-hint">还没有技能。去「能力」页建几个，这里就能勾了。</p>
+    <p v-if="data.skills.length === 0" class="cx-hint">还没有技能。去「能力 · 技能」段建几个，这里就能勾了。</p>
     <p class="cx-hint">技能库（新建 / 编辑 / 参考文件）在「能力 · 技能」段。</p>
     <template #footer>
       <span class="cx-spacer"></span>
@@ -289,9 +318,19 @@
   </Sheet>
 </template>
 
+<script lang="ts">
+/**
+ * 模块级（跨挂载）：已经应用过的子段意图序号。
+ * SettingsView 会随页面切换反复挂载 / 卸载，而「这条意图已经落实过了」要跨挂载记住 ——
+ * 不然用户之后再回设置页，会被一条旧意图从「接口」段拽到「能力」段去。
+ */
+let appliedIntentAt = 0;
+</script>
+
 <script setup lang="ts">
 import { computed, nextTick, ref, toRef, watch } from 'vue';
 
+import type { ToolOverride } from '../core/ports.ts';
 import {
   isAgentPreset,
   PresetMessageSchema,
@@ -313,11 +352,14 @@ import MsgRow from '../components/MsgRow.vue';
 import SegBar from '../components/SegBar.vue';
 import Sheet from '../components/Sheet.vue';
 import Sw from '../components/Sw.vue';
-import type { SegItem, UiTool } from '../components/ui_types.ts';
+import type { GotoSeg, SegItem, UiTool } from '../components/ui_types.ts';
+import { buildToolRows } from '../components/tool_rows.ts';
+import CapabilityView from './CapabilityView.vue';
 
 /**
- * 设置页：只有三块，用分段器切 —— 接口｜预设｜数据。
- *
+ * 设置页：只有四块，用分段器切 —— 接口｜预设｜能力｜数据。
+ * 「能力」里是二级药丸 工具｜技能｜插件（CapabilityView 整段塞进来；能力不再占独立页面）。
+ * 
  * 预设（v4 起只有一种，没有 kind，reports/苍玄助手-预设与上下文.md）：
  *  - **预设本体**：items 序列 —— 普通消息（走宏渲染）+ 特殊层（上下文 / 用户需求，
  *    运行时原生展开成真正的消息）
@@ -327,17 +369,25 @@ import type { SegItem, UiTool } from '../components/ui_types.ts';
  *    跟随全局时算上「能力」页那份默认工具，所以自己 tools=[] 也可能是 Agent
  *
  * 归位（reports/苍玄助手-UI整理.md 三）：
- *  - 工具 / 技能**本身**（库）在「能力」页；这里不再复制那份 13 行清单
- *  - 要改提示词 / 参数，走那条「改提示词 / 参数 →「能力」页」
+ *  - 工具 / 技能**本身**（库）在「能力」段；这里不再复制那份 13 行清单
+ *  - 要改提示词 / 参数，点那条「改提示词 / 参数 →「能力 · 工具」段」（同一页切段）
  */
 const props = withDefaults(
-  defineProps<{ data?: RootData; tools?: UiTool[]; models?: string[]; globalCaps?: GlobalCaps }>(),
+  defineProps<{
+    data?: RootData;
+    tools?: UiTool[];
+    models?: string[];
+    globalCaps?: GlobalCaps;
+    /** 子段跳转意图（H3）：App.vue 存的一次性落点 —— 进来要按它选好一级段 / 二级段 */
+    segIntent?: GotoSeg | null;
+  }>(),
   {
     data: () => RootDataSchema.parse({}),
     tools: () => [],
     models: () => [],
     // 独立预览没有全局清单时给一份空的：解析出来是「普通对话」
     globalCaps: () => ({ tools: [], skills: [] }),
+    segIntent: null,
   },
 );
 /** 「数据」区块能发出去的动作；下载 / 读文件由 App.vue 实现 */
@@ -346,9 +396,22 @@ type DataAction = 'export-all' | 'export-nokey' | 'import' | 'clear-session' | '
 const emit = defineEmits<{
   'fetch-models': [];
   'preset-action': [action: string, presetId: string];
-  /** 去「能力」页改工具 / 技能的提示词与参数（路由由 App.vue 接） */
-  'goto-capability': [];
   'data-action': [action: DataAction];
+  /** 子段落点往上转（例如插件管理页的「工具：… ›」）：App.vue 记一笔 + 切页面，段位由本页 / 能力段消费 */
+  'goto-seg': [intent: GotoSeg];
+  /* 「能力」段（CapabilityView）的事件：本页只转发，写路径仍然唯一在 App.vue → store */
+  'tool-override': [name: string, patch: Partial<ToolOverride>];
+  'tool-reset': [name: string];
+  save: [skill: Skill];
+  delete: [skillId: string];
+  duplicate: [skill: Skill];
+  export: [skill: Skill];
+  'skill-toggle': [skill: Skill];
+  'plugin-toggle': [id: string, enabled: boolean];
+  'plugin-patch': [id: string, patch: Record<string, unknown>];
+  'plugin-reset': [id: string];
+  /** 插件详情「它加了什么 → 页面」点一行跳过去（页面 id） */
+  goto: [id: string];
   /**
    * 页面里直接改过 props.data（接口字段 / 预设字段 / 消息与特殊层）之后发一次。
    * App.vue 接成 store.save()（防抖 2.5 秒）。全局 deep watch 已经删了，漏一次就是丢数据。
@@ -361,6 +424,41 @@ function touch(): void {
   emit('change');
 }
 
+/* ---------- 「能力」段：只转发 ---------- */
+
+function onToolOverride(name: string, patch: Partial<ToolOverride>): void {
+  emit('tool-override', name, patch);
+}
+
+function onToolReset(name: string): void {
+  emit('tool-reset', name);
+}
+
+function onPluginToggle(id: string, enabled: boolean): void {
+  emit('plugin-toggle', id, enabled);
+}
+
+function onPluginPatch(id: string, patch: Record<string, unknown>): void {
+  emit('plugin-patch', id, patch);
+}
+
+function onPluginReset(id: string): void {
+  emit('plugin-reset', id);
+}
+
+/**
+ * 能力段里的子段跳转（插件管理页「工具：… ›」）：往上交给 App.vue 记一笔意图、切到设置页。
+ * 真正的段位由本页的 watch(props.segIntent) 落 —— 这样哪怕发起时不在设置页也落得回来（H3）。
+ */
+function onGotoSeg(intent: GotoSeg): void {
+  emit('goto-seg', intent);
+}
+
+/** 插件详情里的页面行：交给 App.vue 走 store.setTab（那里会校验页面还在不在） */
+function onGoto(id: string): void {
+  emit('goto', id);
+}
+
 /**
  * 用 ref 句柄拿 data：store 重新 load 时会整个替换 data.value，
  * 缓存成普通对象引用就会一直读旧数据、改到旧对象上。
@@ -370,6 +468,8 @@ const data = toRef(props, 'data');
 const SET_SEG_ITEMS: SegItem[] = [
   { value: 'api', label: '接口' },
   { value: 'preset', label: '预设' },
+  // 能力（工具｜技能｜插件）从独立页面降级成设置里的一格：页面少了，入口深了一层
+  { value: 'capability', label: '能力' },
   { value: 'data', label: '数据' },
 ];
 const ROUTE_ITEMS: SegItem[] = [
@@ -410,6 +510,21 @@ const SPECIAL_KINDS: { value: SpecialKind; label: string; hint: string }[] = (
 ).map(value => ({ value, label: SPECIAL_KIND_LABELS[value], hint: SPECIAL_KIND_HINTS[value] }));
 
 const seg = ref('api');
+
+/**
+ * 子段落点（H3）：App.vue 每来一条新意图（at 递增）就把一级段选过去；
+ * 能力里的二级段由 CapabilityView 自己认（它拿的是同一个意图对象）。
+ * immediate：从别处牵起的跳转，是切到设置页之后本组件才挂载的 —— 挂载当场就要落位。
+ */
+watch(
+  () => props.segIntent,
+  next => {
+    if (!next || next.at === appliedIntentAt) return;
+    appliedIntentAt = next.at ?? 0;
+    if (next.seg) seg.value = next.seg;
+  },
+  { immediate: true },
+);
 const presetMenu = ref(false);
 const msgEl = ref<HTMLTextAreaElement | null>(null);
 const toolPickOpen = ref(false);
@@ -470,24 +585,12 @@ function setStream(value: boolean): void {
 
 /* ---------- 工具：只是「这个预设用哪些」，清单本身在「能力」页 ---------- */
 
-/** 内核给的工具清单 + 预设里已有的工具名（内核没就绪时至少能看能勾） */
-const toolRows = computed<UiTool[]>(() => {
-  const out: UiTool[] = [];
-  const seen = new Set<string>();
-  for (const tool of props.tools) {
-    if (!seen.has(tool.name)) {
-      seen.add(tool.name);
-      out.push(tool);
-    }
-  }
-  for (const name of preset.value?.tools ?? []) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      out.push({ name });
-    }
-  }
-  return out;
-});
+/**
+ * 这份清单是「这个预设用哪些」的勾选源：正常行只给来源可用的工具，
+ * 预设里硬引用过、来源关着的以兜底行出现（行上标「来源已停用」）。
+ * 口径与「能力 · 工具」段**共用一份**（components/tool_rows.ts，H4）——F-B 就是两处分叉的后果。
+ */
+const toolRows = computed<UiTool[]>(() => buildToolRows(props.tools, preset.value?.tools ?? []));
 
 const pickedToolCount = computed(() => preset.value?.tools.length ?? 0);
 

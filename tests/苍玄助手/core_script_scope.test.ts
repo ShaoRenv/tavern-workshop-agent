@@ -249,11 +249,11 @@ test('io: 读入口走脚本变量（loadData 不碰 global 作用域）', () =>
     setHostBridge({
       getVariables: scope => {
         scopes.push(scope);
-        // 历史数据里存的页签名：'skills' 读出来要落到 'capability'（页签扩容改名）
+        // 历史数据里存的页签名：阶段 2 起 'skills'（老「能力」页）读出来要落到 'settings'
         return { [GLOBAL_KEY]: { active_tab: 'skills' } };
       },
     });
-    assert.equal(loadData().active_tab, 'capability');
+    assert.equal(loadData().active_tab, 'settings');
     assert.deepEqual(scopes, [{ type: 'script' }]);
   } finally {
     setHostBridge(null);

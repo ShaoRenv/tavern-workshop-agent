@@ -241,8 +241,10 @@ sequenceDiagram
   CP->>E: compaction/end
   E-->>AS: 成功（替换节点已落盘，replaceGeneration +1）
   AS->>ST: append 状态：epoch+1、里程碑入 history、phase=clean
+  Note over AS,SC: B 方案：里程碑 goal/exit_criteria/steps 冻结保留，压缩不会丢掉
+  AS->>SC: 下一次 pre-step 立刻重新注入里程碑主线（不依赖摘要是否提到）
   AS-->>M: 注入 (c)「压缩完成，请重新规划」
-  AS->>M: 可选：agent.followup() 自动开新回合
+  AS->>M: continueAfterCompact=true 才 agent.followup() 自动开新回合（默认 false，等 Lead 派活）
   Note over CP: 失败走 compaction/end 携带 error；busy 则下个 idle 重试
 ```
 
@@ -272,7 +274,8 @@ sequenceDiagram
  │                  │                       │                 │                  │                    │  信号量/冷却/门控 │
  │                  │                       │                 │◄────compaction/start → summary → end────│ 写替换节点       │
  │                  │                       │                 │◄──成功: epoch+1、清里程碑、clean─────────│                 │
- │◄────────注入(c)「压缩完成，请重新规划」──────────────────────────────────────────│  (可选 followup 自动续跑)            │
+ │                  │                       │                 │  里程碑 goal/验收条件/步骤 冻结保留（B方案） │                 │
+ │◄────下一次 pre-step 重新注入里程碑主线，再叠加 (c)「压缩完成，请重新规划」────────│  followup 续跑默认关闭            │
  │                  │                       │                 │                  │                    │                 │
  │     若长期 busy 或到达 0.8×contextWindow：compaction-basic 在回合中途兜底压缩（默认 auto:true）                          │
 ````

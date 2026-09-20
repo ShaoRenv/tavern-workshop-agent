@@ -1,20 +1,23 @@
 /**
  * 阶段 1-C：插件注册表 + 页面注册表 + plugin_state（v5）的契约测试。
  *
- * 要防的回归（reports/苍玄助手-底座化实施计划.md §3、reports/苍玄助手-设计自查.md A9）：
+ * 要防的回归（reports/苍玄助手-底座化实施计划.md §3/§4、reports/苍玄助手-设计自查.md A9）：
  *  - 页面集合是**运行时算的**（核心页 + 已启用插件页按 order），不再是写死的 TAB_IDS；
  *  - 插件开关只住在 plugin_state，缺省取 manifest.defaultEnabled；
  *  - 关掉插件 → 它的页面从顶栏消失、它的工具不给模型（「活的贡献」关掉即消失）；
- *  - active_tab 只是一个 id：未知字符串不再是坏数据，「画不出来」由 availablePages + store.setTab 兜底。
+ *  - active_tab 只是一个 id：未知字符串不再是坏数据，「画不出来」由 availablePages + store.setTab 兜底；
+ *  - 阶段 2 起核心页只剩 对话 10 / 设置 90，插件页 portraits 20（苍玄助手）/ worldbook 30 夹在中间：
+ *    记录进对话页 ⋯ 的 Sheet、能力进设置里的一格；老页名 records / capability / skills 由 TAB_ID_ALIASES 兜。
  *
  * 跑法：node --test "tests/苍玄助手/*.test.ts"
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createPinia, setActivePinia } from 'pinia';
 
 const root = '../../src/苍玄助手/';
-const { DATA_VERSION, RootDataSchema } = await import(root + 'core/types.ts');
+const { DATA_VERSION, RootDataSchema, TAB_ID_ALIASES, migrateTabId } = await import(root + 'core/types.ts');
 const { CORE_PAGES, mergePages, tabbarPages, findPage } = await import(root + 'core/pages.ts');
 const {
   PLUGIN_MANIFESTS,
@@ -42,6 +45,14 @@ function state(plugin_state = {}) {
   return { plugin_state };
 }
 
+/** 剥掉注释：注释里提到旧代码不算数，只看真正会跑的代码（照 stores_save.test.ts 的写法） */
+function codeOnly(text) {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/[^\n]*$/gm, '');
+}
+
 /** 世界书注册了 7 个工具，但默认给 6 个（entry_meta 是按需的） */
 const WB_TOOLS = ['wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete'];
 const WB_META = 'entry_meta';
@@ -58,41 +69,67 @@ function freshStore() {
 
 /* ==================== 页面注册表 ==================== */
 
-test('页面注册表：availablePages(store.data) 的顺序与标题 = 现在的 6 格（老顺序逐格不变）', () => {
+test('页面注册表：availablePages(store.data) = 对话/苍玄助手/世界书/设置（阶段 2 的 4 格）', () => {
   assert.deepEqual(
     availablePages({}).map(page => [page.id, page.title, page.order, page.inTabbar, page.owner]),
     [
-      ['portraits', '立绘', 10, true, 'cangxuan'],
-      ['worldbook', '世界书', 20, true, 'worldbook'],
-      ['chat', '对话', 30, true, 'base'],
-      ['capability', '能力', 40, true, 'base'],
-      ['records', '记录', 50, true, 'base'],
+      ['chat', '对话', 10, true, 'base'],
+      ['portraits', '苍玄助手', 20, true, 'cangxuan'],
+      ['worldbook', '世界书', 30, true, 'worldbook'],
       ['settings', '设置', 90, true, 'base'],
     ],
   );
 
-  // 核心页还是这 4 个（阶段 1 不动界面：records / capability 第 2 阶段才并走）
+  // 核心页只剩 对话 10 / 设置 90（记录进对话页 ⋯、能力进设置里的一格）
   assert.deepEqual(
-    CORE_PAGES.map(page => page.id),
-    ['chat', 'capability', 'records', 'settings'],
+    CORE_PAGES.map(page => [page.id, page.title, page.order]),
+    [
+      ['chat', '对话', 10],
+      ['settings', '设置', 90],
+    ],
   );
 
-  // 生图插件只有工具、没有页面
+  // records / capability 已经不占页面：它们只留在 TAB_ID_ALIASES 里兜老数据
+  const ids = availablePages({}).map(page => page.id);
+  assert.equal(ids.includes('records'), false, '记录不占页面');
+  assert.equal(ids.includes('capability'), false, '能力不占页面');
+  assert.deepEqual(TAB_ID_ALIASES, { skills: 'settings', capability: 'settings', records: 'chat' });
+
+  // 生图插件只有工具、没有页面；插件页只来自开着的插件
   assert.equal(PLUGIN_MANIFESTS.find(manifest => manifest.id === 'image').contributes.pages, undefined);
   assert.deepEqual(pluginPages({}).map(page => page.id), ['portraits', 'worldbook'], '插件页只来自开着的插件');
   assert.deepEqual(allPages({}).map(page => page.id), availablePages({}).map(page => page.id));
 });
 
 test('页面注册表：mergePages 按 order 升序、同 order 按 id；tabbarPages 过滤 inTabbar:false', () => {
+  // 核心页 chat(10) / settings(90) 之间按 order 夹进插件页：20 < 50 < 90
   const merged = mergePages([
-    { id: 'zzz-late', title: 'Z', order: 25, inTabbar: true, owner: 'x' },
-    { id: 'portraits', title: '立绘', order: 10, inTabbar: true, owner: 'cangxuan' },
+    { id: 'zzz-late', title: 'Z', order: 50, inTabbar: true, owner: 'x' },
+    { id: 'portraits', title: '苍玄助手', order: 20, inTabbar: true, owner: 'cangxuan' },
   ]);
-  // 只在传入的那两张插件页 + 4 张核心页之间排序（order 25 落在世界书 20 与对话 30 之间）
-  assert.deepEqual(merged.map(page => page.id), ['portraits', 'zzz-late', 'chat', 'capability', 'records', 'settings']);
+  assert.deepEqual(
+    merged.map(page => [page.id, page.order]),
+    [
+      ['chat', 10],
+      ['portraits', 20],
+      ['zzz-late', 50],
+      ['settings', 90],
+    ],
+  );
+
+  // 同 order 按 id 稳定排序（顺序不随声明顺序抖）
+  assert.deepEqual(
+    mergePages([
+      { id: 'bbb', title: 'B', order: 40, inTabbar: true, owner: 'x' },
+      { id: 'aaa', title: 'A', order: 40, inTabbar: true, owner: 'x' },
+    ]).map(page => page.id),
+    ['chat', 'aaa', 'bbb', 'settings'],
+  );
 
   const pages = allPages({});
-  assert.equal(findPage(pages, 'records').title, '记录');
+  assert.equal(findPage(pages, 'settings').title, '设置');
+  assert.equal(findPage(pages, 'records'), null, '记录已经不是页面了');
+  assert.equal(findPage(pages, 'capability'), null, '能力已经不是页面了');
   assert.equal(findPage(pages, 'nope'), null, '找不到返回 null，调用方自己决定回落');
   assert.equal(tabbarPages([...pages, { id: 'hidden', title: '隐藏', order: 99, inTabbar: false, owner: 'x' }]).some(p => p.id === 'hidden'), false);
 });
@@ -124,7 +161,8 @@ test('H1 回归闸：inTabbar:false 的页面进 allPages、但不进 availableP
   const all = mergePages([hidden]);
   assert.equal(all.some(page => page.id === 'hidden'), true, '存在性留得住它');
   assert.equal(tabbarPages(all).some(page => page.id === 'hidden'), false, '顶栏画的时候过滤掉');
-  assert.equal(tabbarPages(all).length, CORE_PAGES.length, '顶栏只剩 4 个核心页（隐藏页被过滤掉）');
+  assert.deepEqual(CORE_PAGES.map(page => page.id), ['chat', 'settings'], '阶段 2 核心页只剩 2 个');
+  assert.equal(tabbarPages(all).length, CORE_PAGES.length, '顶栏过滤掉隐藏页后只剩核心页');
 });
 
 test('关掉生图：pluginTools 里没有 gen_image；重开就回来', () => {
@@ -141,14 +179,42 @@ test('关掉生图：pluginTools 里没有 gen_image；重开就回来', () => {
 test('关掉世界书：世界书页从 availablePages 消失、它的 7 个工具消失；重开就回来', () => {
   const off = state({ worldbook: { enabled: false } });
 
-  assert.deepEqual(availablePages(off).map(page => page.id), ['portraits', 'chat', 'capability', 'records', 'settings']);
+  assert.deepEqual(availablePages(off).map(page => page.id), ['chat', 'portraits', 'settings']);
   assert.equal(availablePages(off).some(page => page.id === 'worldbook'), false, '页面没了');
   assert.deepEqual(pluginTools(off), [], '默认给的 6 个没了，苍玄助手本身不带工具');
   assert.deepEqual(pluginAllTools(off), [], '注册的 7 个也一起没了（关掉即消失）');
 
   const back = state({ worldbook: { enabled: true } });
-  assert.deepEqual(availablePages(back).map(page => page.id), ['portraits', 'worldbook', 'chat', 'capability', 'records', 'settings']);
+  assert.deepEqual(availablePages(back).map(page => page.id), ['chat', 'portraits', 'worldbook', 'settings']);
   assert.deepEqual(pluginTools(back), WB_TOOLS);
+});
+
+test('F-A 回归闸：运行时也认插件开关（关掉的插件，工具连 def 都不进这一轮）', async () => {
+  // 硬规矩 2「关掉即消失」有三层：界面清单 / 显示用 globalCaps / **运行时 toolDefs**。
+  // 前两层阶段 1 验过，第三层是阶段 2 验收抓出来的（界面写「来源已停用」、模型却照样能调）。
+  const { liveToolDefs } = await import(root + 'run/runner.ts');
+  const defs = [{ name: 'skill' }, { name: 'wb_list' }, { name: 'entry_meta' }, { name: 'gen_image' }];
+
+  // 默认：世界书开、生图关。按需工具 entry_meta 的 **def** 要在（能不能发由 resolveCaps 按 default_on 决定）
+  assert.deepEqual(
+    liveToolDefs(defs, state()).map(def => def.name),
+    ['skill', 'wb_list', 'entry_meta'],
+    '底座的给、世界书的给（含按需 def）、生图的先不给',
+  );
+
+  // 关掉世界书：它的工具连 def 都不进这一轮 → 模型根本看不到、也调不了
+  assert.deepEqual(
+    liveToolDefs(defs, state({ worldbook: { enabled: false } })).map(def => def.name),
+    ['skill'],
+    '关掉世界书 → wb_list 与 entry_meta 一起消失',
+  );
+
+  // 开生图：它的工具才进来
+  assert.deepEqual(
+    liveToolDefs(defs, state({ image: { enabled: true } })).map(def => def.name),
+    ['skill', 'wb_list', 'entry_meta', 'gen_image'],
+    '开生图 → gen_image 才进这一轮',
+  );
 });
 
 test('F4 回归闸：界面工具清单用 pluginAllTools（按需工具也列得出来）', async () => {
@@ -207,13 +273,21 @@ test('pluginStatus：未启用 > 插件自己说的（缺配置）> 已启用', 
 
 /* ==================== active_tab 放宽成 string ==================== */
 
-test('active_tab：未知字符串是合法数据（schema 不清洗），非字符串才被拒', () => {
-  // 老数据里合法但页面可能不存在 / 已改名的 id：schema 一律原样保留，兜底交给界面
-  assert.equal(RootDataSchema.parse({ active_tab: 'records' }).active_tab, 'records');
-  assert.equal(RootDataSchema.parse({ active_tab: 'portraits' }).active_tab, 'portraits');
+test('active_tab：老页名兜底（records→chat，capability/skills→settings）；未知字符串保留；非字符串被拒', () => {
+  // TAB_ID_ALIASES 只干一件事：把老数据里存过的页名兜到现在的页
+  assert.deepEqual(TAB_ID_ALIASES, { skills: 'settings', capability: 'settings', records: 'chat' });
+  assert.equal(migrateTabId('records'), 'chat');
+  assert.equal(migrateTabId('capability'), 'settings');
+  assert.equal(migrateTabId('skills'), 'settings');
+  assert.equal(migrateTabId('nope'), 'nope', '未知字符串原样返回');
+  assert.equal(migrateTabId(123), 123, '非字符串原样返回，交给 schema 拒');
+
+  // schema 层（所有读入口都过它：loadData / 逐块恢复 / importAll）
+  assert.equal(RootDataSchema.parse({ active_tab: 'records' }).active_tab, 'chat');
+  assert.equal(RootDataSchema.parse({ active_tab: 'capability' }).active_tab, 'settings');
+  assert.equal(RootDataSchema.parse({ active_tab: 'skills' }).active_tab, 'settings');
+  assert.equal(RootDataSchema.parse({ active_tab: 'portraits' }).active_tab, 'portraits', 'portraits 还是真页面（标题苍玄助手）');
   assert.equal(RootDataSchema.parse({ active_tab: 'nope' }).active_tab, 'nope', '未知字符串不再被清洗');
-  // skills → capability 的老名字兜底仍然在（migrateTabId）
-  assert.equal(RootDataSchema.parse({ active_tab: 'skills' }).active_tab, 'capability');
   // 非字符串仍然是坏数据
   assert.equal(RootDataSchema.safeParse({ active_tab: 123 }).success, false);
   assert.equal(RootDataSchema.safeParse({ active_tab: ['records'] }).success, false);
@@ -227,37 +301,44 @@ test('active_tab：未知字符串是合法数据（schema 不清洗），非字
 test('store.setTab：页面不存在就回落到第一个可用页；关插件撤掉当前页时也自动回落', () => {
   const { store, writes } = freshStore();
 
-  assert.equal(store.data.active_tab, 'portraits', '默认页就是第一个可用页');
+  // schema 缺省就是 portraits（苍玄助手），它现在是真页面 → 保持不动
+  assert.equal(store.data.active_tab, 'portraits');
 
   // 未知 id（老数据 / 手改）→ 第一个可用页
   store.setTab('nope');
-  assert.equal(store.data.active_tab, 'portraits');
-  // 页面真的存在就原样保留（records 是核心页，永远在）
-  store.setTab('records');
-  assert.equal(store.data.active_tab, 'records');
+  assert.equal(store.data.active_tab, 'chat');
+
+  // 老页名走 TAB_ID_ALIASES 兜到它该去的页（records → 对话、capability / skills → 设置），
+  // 而不是「第一个可用页」；关键是**绝不会**把 active_tab 写成画不出来的 id。
+  for (const [legacy, expect] of [['records', 'chat'], ['capability', 'settings'], ['skills', 'settings']] as const) {
+    store.setTab(legacy);
+    assert.equal(store.data.active_tab, expect, legacy + ' 应该兜到 ' + expect);
+    assert.notEqual(store.data.active_tab, legacy, '不许把画不出来的 id 写进 active_tab');
+    for (const page of availablePages(store.data)) assert.notEqual(page.id, legacy);
+  }
 
   // 当前页是插件页 → 关掉插件即撤页，并自动回落到第一个可用页
   store.setTab('portraits');
   store.setPluginEnabled('cangxuan', false);
-  assert.equal(store.data.active_tab, 'worldbook');
+  assert.equal(store.data.active_tab, 'chat');
   assert.deepEqual(
     availablePages(store.data).map(page => page.id),
-    ['worldbook', 'chat', 'capability', 'records', 'settings'],
+    ['chat', 'worldbook', 'settings'],
   );
   store.setTab('portraits');
-  assert.equal(store.data.active_tab, 'worldbook', '已撤掉的页再 setTab 也进不去');
+  assert.equal(store.data.active_tab, 'chat', '已撤掉的页再 setTab 也进不去');
 
-  // 关的不是当前页的插件：当前页不动
-  store.setTab('chat');
-  store.setPluginEnabled('worldbook', false);
-  assert.equal(store.data.active_tab, 'chat');
-
-  // 重开就回来
+  // 重开苍玄助手：当前页停在它上面时，关掉**别的**插件不该把当前页挪走
   store.setPluginEnabled('cangxuan', true);
+  store.setTab('portraits');
+  store.setPluginEnabled('worldbook', false);
+  assert.equal(store.data.active_tab, 'portraits', '关的不是当前页的插件 → 当前页不动');
+
+  // 都重开就回到 4 格
   store.setPluginEnabled('worldbook', true);
   assert.deepEqual(
     availablePages(store.data).map(page => page.id),
-    ['portraits', 'worldbook', 'chat', 'capability', 'records', 'settings'],
+    ['chat', 'portraits', 'worldbook', 'settings'],
   );
 
   // 落盘：save() 是 2500ms 防抖，断言前先显式冲一次
@@ -393,4 +474,59 @@ test('store：setPluginConfig 忽略 enabled 键（开关只在 setPluginEnabled
   assert.equal(last.plugins.image.steps, 28);
   assert.equal('enabled' in last.plugins.image, false);
   assert.deepEqual(last.plugin_state, { image: { enabled: true } });
+});
+
+/* ==================== 阶段 2 结构（源码级防回归） ==================== */
+
+test('源码级：App.vue 的页面分支只剩 portraits / worldbook / chat（设置走 v-else），没有 capability / records', () => {
+  const app = codeOnly(readFileSync('src/苍玄助手/App.vue', 'utf8'));
+  const branchIds = [...app.matchAll(/v-(?:if|else-if)="tab === '([^']+)'"/g)].map(match => match[1]);
+  assert.deepEqual(branchIds, ['portraits', 'worldbook', 'chat'], '页面分支 = 2 个插件页 + 1 个核心页');
+  assert.equal(branchIds.includes('capability'), false, '能力不再是页面');
+  assert.equal(branchIds.includes('records'), false, '记录不再是页面');
+  assert.match(app, /<SettingsView[\s\S]*?v-else/, '设置是兜底分支');
+  // 跨页跳转统一走 goto(pageId) → store.setTab；阶段 1 的 goto-capability 一次性事件删了
+  assert.equal(app.includes('goto-capability'), false, 'goto-capability 应该已经删掉');
+  assert.ok(app.includes('function goto('), '跨页跳转统一走 goto(pageId)');
+  assert.ok(app.includes('store.setTab(id)'), 'goto 落回 setTab（存在性校验在 store）');
+  // 阶段 1 那条 watch 整个 store.data 的 deep watcher 也没了（页面写点各自 emit change）
+  assert.equal(/\bdeep\s*:\s*true\b/.test(app), false, '不该再有 deep: true 的 watcher');
+});
+
+test('源码级：设置里四格（接口/预设/能力/数据）＋「能力」里三段（工具/技能/插件）', () => {
+  const segLabels = (text, name) => {
+    const block = new RegExp('const ' + name + ': SegItem\\[\\] = \\[([\\s\\S]*?)\\];').exec(text);
+    assert.ok(block, '没找到 ' + name);
+    return [...block[1].matchAll(/label: '([^']+)'/g)].map(match => match[1]);
+  };
+
+  const settings = readFileSync('src/苍玄助手/views/SettingsView.vue', 'utf8');
+  assert.deepEqual(segLabels(settings, 'SET_SEG_ITEMS'), ['接口', '预设', '能力', '数据'], '设置外层四格');
+  // 能力整段塞在设置里（CapabilityView），不再是顶栏的一页
+  assert.match(settings, /v-else-if="seg === 'capability'"/);
+  assert.match(settings, /<CapabilityView[\s\S]*?@change="touch"/, 'CapabilityView 的写点转成设置页的 change');
+
+  const capability = readFileSync('src/苍玄助手/views/CapabilityView.vue', 'utf8');
+  assert.deepEqual(segLabels(capability, 'SEG_ITEMS'), ['工具', '技能', '插件'], '能力内三段');
+});
+
+test('源码级：记录不占页面 —— 对话页右上角 ⋯ 打开一张「记录」Sheet', () => {
+  const chat = readFileSync('src/苍玄助手/views/ChatView.vue', 'utf8');
+  assert.match(chat, /@click="recordsOpen = true"/, '⋯ 按钮打开记录');
+  assert.match(chat, /<Sheet v-if="recordsOpen"/, '记录收在一张 Sheet 里');
+  assert.match(chat, /title="记录"/, 'Sheet 标题 = 记录');
+  assert.match(chat, /<RecordsView/, '原记录页的内容整段塞进 Sheet');
+
+  const app = codeOnly(readFileSync('src/苍玄助手/App.vue', 'utf8'));
+  assert.equal(app.includes('RecordsView'), false, 'App.vue 不再挂记录页');
+});
+
+test('源码级：来源插件关掉时「能力 · 工具」段有「来源已停用」兜底行（F2）', () => {
+  const ui = readFileSync('src/苍玄助手/components/ui_types.ts', 'utf8');
+  assert.match(ui, /owner_disabled\?: boolean/, 'UiTool 要有 owner_disabled');
+  const capability = readFileSync('src/苍玄助手/views/CapabilityView.vue', 'utf8');
+  assert.match(capability, /tool\.owner_disabled/, '工具行要读它');
+  assert.match(capability, /来源已停用/, '兜底行要标「来源已停用」');
+  const app = codeOnly(readFileSync('src/苍玄助手/App.vue', 'utf8'));
+  assert.match(app, /owner_disabled:/, 'App.vue 给工具行打这个标');
 });

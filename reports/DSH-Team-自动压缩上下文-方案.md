@@ -18,6 +18,7 @@
 | 为什么不能立即压 | compactNow 内部走 agent.runMaintenance()，**要求 idle**（非 idle 抛 ManualCompactionError(busy)）。设计成“声明完成 → 本回合收尾 → 下个 idle 边界压缩”，不打断工具链 |
 | 和内置自动压缩冲突吗 | 不冲突。内置 compaction-basic 默认 auto:true、阈值 0.8×contextWindow（本机 800k），继续当兜底；本方案在 100k 处**提前引导**、在里程碑边界**主动压** |
 | 最大风险 | 成员长期不回到 idle 会推迟压缩 → 由 hardTokens + 内置 0.8 兜底；另一个风险是压缩过频 → 冷却 + 经济性门控 |
+| 能不能彻底关掉 | 能。`enabled: false` 一关，插件等于不存在，Team 立刻回到现状（只剩 DSH 自带的 0.8×window 自动压缩）。压缩完是否自动叫醒队友由 `continueAfterCompact` 单独控制，默认 **false** |
 
 ---
 
@@ -146,7 +147,8 @@
 - clean：无里程碑。每步读占用；≥ armTokens 且 < hardTokens → armed。
 - armed：注入“设定里程碑”指令（常驻 context）；首步立即注入，之后按 reminderCooldownSteps（默认 8）温和重述，最多 maxArmSteps（默认 40）次；≥ hardTokens（默认 600k）→ 直接 compressing 并注入强制边界告警。
 - active：常驻 context 换成里程碑状态卡；模型用 team_milestone_set 更新步骤（CAS）。
-- compressing：等待 idle；成功后 epoch+1、里程碑归档进 history（留最近 3 条）、回 clean；下个回合注入 POST_COMPACTION_REMINDER，并按 continueAfterCompact 决定是否 agent.followup() 自动续跑。
+- compressing：等待 idle；成功后 epoch+1、里程碑归档进 history（留最近 3 条）、回 clean；**下一次请求立刻重新注入「当前里程碑状态」（B 方案，见 4.4）**，再叠加 POST_COMPACTION_REMINDER；是否自动叫醒队友由 continueAfterCompact 决定（默认 false，按 Team 的节奏应由 Lead 派下一单）。
+- **总开关**：enabled=false 时 apply() 直接不装任何作用域，等于插件没挂载；dryRun=true 时只走提示与计量，绝不调 compactNow，用于试水。
 - 被 interrupt_agent 或回合出错：状态不变，只是推迟。
 
 ### 4.3 关键代码骨架（真实 API）
@@ -157,6 +159,7 @@ export const name = 'team-context-milestone';
 export const inject = ['agents', 'agentTeams', 'tools', 'systemPrompt', 'tokenMeter', 'compaction'];
 
 export function apply(ctx, cfg) {
+  if (cfg.enabled === false) return;      // 总开关：关掉后零作用域、零提示、零压缩
   const installed = new Map();
   const maybeInstall = (agent) => {
     if (installed.has(agent) || ctx.agentTeams.tryMembership(agent) === undefined) return;
@@ -203,6 +206,7 @@ async function drain(agent) {
     if (result === null) finishEpoch(agent, { kind: 'nothing-to-compact' });
     else finishEpoch(agent, { kind: 'compacted', shadowedTokens: result.shadowedTokenCount,
                               seqs: result.shadowedSeqs.length });
+    // 默认 false：不自动叫醒，等 Lead 派下一单；true 才会主动唤醒队友续跑
     if (cfg.continueAfterCompact && hasRemainingWork(agent)) agent.followup(postCompactReplan(agent));
   } catch (e) {
     const code = e?.name === 'ManualCompactionError' ? e.code : 'unknown';   // busy|cancelled|changed|summary|commit|persistence
@@ -217,10 +221,20 @@ async function drain(agent) {
 ### 4.4 状态与持久化（B 方案）
 
 - Durable：每次状态迁移 agent.session.append('team-milestone/state', {epoch, phase, milestone, historyTail, counters, at})；用 ctx.sessionProjections.register({key:'teamMilestone', stateVersion:1, stateSchema, init, apply}) 回放。崩溃/重启无需额外存储即可恢复。先例：sandbox/mode、approval/policy。
+- **B 方案：里程碑状态必须活过压缩。** 压缩只替换对话历史（surface），不会动 system prompt 与投影状态，所以：
+  1. 压缩**前**把当前里程碑的 goal / exit_criteria / steps / evidence 冻结进 'team-milestone/state'（这一步本来就有，关键是**不要**把它和 history 一起归档清空）；
+  2. 压缩**后**的下一次 pre-step，renderMilestoneContext 直接把这个冻结值渲染出来 → 队友醒来自带主线（"我在干什么、干到哪、怎么算干完"），不必依赖摘要会不会提到；
+  3. 摘要只作为细节补充。摘要丢主线也不影响任务连续性——这是 B 相对 A（只靠摘要）的核心价值。
+- 归档仅清空"已完成"里程碑的 steps 明细，goal 与 exit_criteria 进 history 尾部（保留最近 3 条）供追溯。
 - Runtime 索引：插件内 WeakMap 存阈值节流、步数计数等易失量。
 - A 方案增量：把 milestone 写进 Team journal（新增 team/milestone-* 事件 + projection + TeamService 方法），Lead 即可跨成员查询。
 
-### 4.5 注入的提示词（逐字，英文为实现版）
+### 4.5 注入的提示词（初稿，必须用 dryRun 验证后再定稿）
+
+> **诚实声明**：下面四段是**我手写的初稿**，不是验证过的定稿。其中只有 SoL-Pi 的两句
+> （BOUNDARY_COMPACTION_INSTRUCTIONS、POST_COMPACTION_PLAN_REMINDER）有原文可参照，其余措辞都是推测。
+> 提示词工程没有"一次写对"，**这四段必须做成可配置模板 + 用 dryRun 跑真实任务迭代**（见 4.5.1）。
+> 风险点：(a) 一次要求 4 个字段，模型可能只填 goal 就交差或把 steps 写成废话； (b) 状态卡每步注入，可能过于啰嗦。
 
 **(a) armed 常驻 context**
 
@@ -271,6 +285,41 @@ cannot afford to lose (team_milestone_set or a file), then continue.
 ```
 
 措辞要点（来自 SoL-Pi 的经验）：**只说“harness 会在下一个 idle 边界压缩”，不能说“调用它就会压缩”**——决策权留在 harness，经济性不足时可以不压，模型侧不会觉得被骗。
+
+### 4.5.1 提示词迭代流程（承认"初稿不可靠"的工程姿势）
+
+**第一原则：四段提示词全部作为 Config 模板暴露，默认值只是兜底，不改代码就能调措辞。**
+
+«««ts
+Config = z.object({
+  // 四段模板，支持 {{totalTokens}} / {{armTokens}} / {{goal}} 等占位符
+  promptArmed:    z.string().default(DEFAULT_ARMED),
+  promptActive:   z.string().default(DEFAULT_ACTIVE),
+  promptPostCompact: z.string().default(DEFAULT_POST_COMPACT),
+  promptHardLimit: z.string().default(DEFAULT_HARD_LIMIT),
+});
+«««
+
+**为什么必须这样**：提示词写死等于把"未经验证的措辞"固化进代码，日后每次调整都要发版。做成模板后，调措辞 = 改一行 YAML + 重启，可以快速试十几个版本。
+
+**迭代步骤**：
+
+| 步骤 | 做法 | 看什么 |
+|---|---|---|
+| 1 最小可用版 | 先把 (a) 砍到只剩一句话：「你的上下文到了 {{totalTokens}}，可以用 team_milestone_set 声明一个大阶段；声明完成并验收后我会帮你压缩历史。」 | 模型**会不会调用工具**（不调就是措辞没让它明白"这是个动作"） |
+| 2 补字段 | 模型调了但字段残缺，再逐条补要求（先补 goal，再补 exit_criteria，最后补 steps） | 每次只加一条要求，看**字段完整率**变化，避免一次加太多反而全崩 |
+| 3 测 (b) 状态卡 | 观察 active 阶段每步注入的状态卡 | 模型是否照着 steps 走；token 开销是否值得 |
+| 4 测 (c) 重规划 | 压缩后看模型是否重建里程碑 | 不重建 = 措辞不够强，或摘要已足够、可考虑删掉这段 |
+| 5 测 (d) 强制边界 | 人为让模型一直不声明 | 模型收到 (d) 后是否会把要紧信息写下来 |
+
+**量化指标**（建议 dryRun 期间记录）：
+
+- 调用率：越过 armTokens 后 N 步内调用 team_milestone_set 的比率（目标 > 80%）
+- 字段完整率：goal / exit_criteria / steps 三项齐全的比率（目标 > 70%）
+- 步骤质量：steps 是否可验收（人工抽样，目标：不出现"完成这个任务"级别的废话）
+- 打扰度：模型是否在无关场景被提示带偏（观察是否出现"我要不要建个里程碑"之类的废话输出）
+
+**坑**：指标不达标时，**优先怀疑提示词**而不是模型能力——同一件事换个说法，调用率可能从 30% 跳到 90%。
 
 ### 4.6 工具 schema（仅 Team 成员可见，只加 2 个）
 
@@ -338,7 +387,7 @@ DSH 侧可用实测输入：assistant/message 的 usage（含 cacheReadTokens/ca
 | 场景 | 处理 |
 |---|---|
 | 模型长期不声明（armed 到 maxArmSteps） | 注入 (d) → compressing → idle 时压缩；同时告警 Lead |
-| compactNow 一直 busy | 保留 compressing，逐 idle 重试；超 maxBusyRetries 降级为等内置 0.8 阈值并给 Lead 一条 notice |
+| compactNow 撞上 busy（Lead 恰好在同一瞬间派活） | 保留 compressing 状态，下个 idle 重试；Team 的实际节奏是「队友干完 → Lead 消化很久 → 再派活」，真空期很宽裕，通常第一次就能压上。超 maxBusyRetries 降级为等内置 0.8 阈值并给 Lead 一条 notice |
 | compactNow 返回 null | 回 clean，epoch 不变，记录原因 |
 | summary/changed/commit/persistence 失败 | 指数退避 ≤3 次；仍失败则冻结本成员并向 Lead 报失败码 |
 | 压缩与 send_message 竞争 | DSH 已用 maintenance.wakeRequested 闩住，压缩结束后自动投递 |
@@ -350,6 +399,23 @@ DSH 侧可用实测输入：assistant/message 的 usage（含 cacheReadTokens/ca
 ### 4.12 多成员协同
 
 每个成员的阈值、里程碑、epoch 完全独立；Lead 的上下文里不镜像 teammates 的里程碑（省 token），需要时用阶段 2 的 team_milestone_status 或 A 方案的 roster 扩展。压缩期间成员对外仍报 idle，但“不可干活”；可选在 A 方案里通过 list_agents 的 diagnostics 附加 compacting 标记。
+
+### 4.13 开关语义：怎样“关掉里程碑压缩、回归原本功能”
+
+| 配置 | 效果 | 什么时候用 |
+|---|---|---|
+| enabled: false | **彻底关闭**。apply() 立刻返回，不给任何成员装 context、不注册工具、不挂 agent/status 钩子。Team 的行为与没装插件**完全一致**，只剩 DSH 自带的 compaction-basic（0.8×window 回合中途自动压缩）在跑 | 想完全回归原状、或者这个功能上线后觉得不合适 |
+| dryRun: true | **只提示、不压缩**。仍然在 100k 注入提示、仍然记状态与日志，但绝不调 compactNow | 首次上线试水，观察提示会不会打扰模型、会不会破坏 KV cache |
+| enabledRoles: ['teammate'] | 只在队友身上生效，Lead 不触发 | 只想压缩队友、保留 Lead 的完整记忆 |
+| armTokens: 一个极大值（如 999999999） | 等价于永不 armed，但插件还在跑（有开销） | 不推荐，直接用 enabled: false |
+| continueAfterCompact: false | 压缩照常发生，只是压完不自动叫醒队友 | **本 Team 的默认**：等 Lead 消化完再派活 |
+
+**“原本功能”具体是什么**（关掉后回到的状态，两条都在，跟本插件无关）：
+
+1. DSH 内置自动压缩：某个成员上下文到 0.8 × contextWindow（本机 80 万）时，在回合中途自动压一次；
+2. /compact 人工命令：想手动压就敲一次。
+
+也就是说：**关掉不会让压缩能力消失，只是回到“到量才压 + 人工可压”，没有“模型设里程碑、完成后压”这一层。**
 
 ---
 
@@ -366,7 +432,7 @@ dsh-team-context-milestone/
 │  ├─ scope.ts                  # install(agent)：context 注入 + 工具 + 钩子 + 卸载（约 150 行）
 │  ├─ state.ts                  # 状态机 + RuntimeState WeakMap（约 220 行）
 │  ├─ persist.ts                # session.append 事件 + sessionProjections.register 投影（约 120 行）
-│  ├─ prompts.ts                # 4.5 四段文案 + renderMilestoneContext / renderOneShot（约 120 行）
+│  ├─ prompts.ts                # 四段模板渲染（占位符替换）+ renderMilestoneContext / renderOneShot；模板来自 Config（约 120 行）
 │  ├─ tools.ts                  # 两个 defineTool + 校验/拒绝 + 紧凑 JSON 输出（约 180 行）
 │  ├─ compaction-driver.ts      # idle 调度、信号量、失败退避、finishEpoch、followup 续跑（约 170 行）
 │  ├─ economics.ts              # 阶段 2：horizon / breakeven / 窗口保护（约 150 行）
@@ -386,10 +452,11 @@ dsh-team-context-milestone/
     - id: team-context-milestone
       name: 'dsh-team-context-milestone'
       config:
+        enabled: true         # 设 false = 彻底关闭里程碑压缩，回归原本功能
         armTokens: 100000
         hardTokens: 600000
         keepRecentTokens: 20000
-        continueAfterCompact: true
+        continueAfterCompact: false   # 压完不自动叫醒，等 Lead 派活
         gate: threshold
         maxConcurrentCompactions: 1
         dryRun: true          # 首次上线先只注入提示、不真压
@@ -413,6 +480,7 @@ dsh-team-context-milestone/
 
 | 键 | 默认 | 含义 |
 |---|---|---|
+| **enabled** | **true** | **总开关。false = 插件完全不装作用域，Team 立刻回到现状（只剩 DSH 自带的 0.8×window 自动压缩）。要"关掉里程碑压缩、回归原本功能"就把它设成 false** |
 | armTokens | 100000 | 达到后进入 armed 并注入提示（R2） |
 | maxArmRatio | 0.5 | 阈值钳制 min(armTokens, maxArmRatio × contextWindow)，保护小窗口模型 |
 | hardTokens | 600000 | 模型不响应的强制边界（仍需 idle 才能压） |
@@ -423,12 +491,14 @@ dsh-team-context-milestone/
 | maxConcurrentCompactions | 1 | 进程内并发压缩信号量 |
 | maxBusyRetries | 5 | busy 重试上限，超过降级 |
 | minEpochIntervalTokens | 300000 | 两次压缩之间的最小 token 间隔（防抖） |
-| continueAfterCompact | true | 压完是否 agent.followup() 自动续跑 |
+| **continueAfterCompact** | **false** | **压缩完成后是否自动叫醒队友继续干活。名字直译就是「压缩完还继续跑吗」：true = 插件主动唤醒队友让它自己接着干；false = 压完只留一句「记得重新规划」的提醒，安静等 Lead 派下一单。按本 Team 的节奏（队友干完 → Lead 消化很久 → 再派活）应当用 false** |
 | gate | threshold | threshold 或 economic（4.8） |
 | cacheWriteReadRatio | 12.5 | 仅 economic 用 |
 | quantizeTokens | true | 占用数字量化，减少尾部缓存失效 |
 | enabledRoles | ['lead','teammate'] | 生效角色（灰度） |
 | dryRun | false | 只注入提示与日志、不真压（首次上线建议 true） |
+| promptArmed / promptActive / promptPostCompact / promptHardLimit | 见 4.5 | **四段提示词模板，可整段替换。默认值只是未验证的初稿，调措辞不必改代码** |
+| promptMinimal | false | true 时只用最小提示（4.5.1 步骤 1 的那一句），用于从零测调用率 |
 
 ---
 
@@ -442,14 +512,18 @@ dsh-team-context-milestone/
 
 ### 6.2 手工验收（本机 Web GUI）
 
-1. dryRun:true，把某成员做到超过 100k → 日志出现 arm，下一次请求出现 team:milestone 文本，不压缩。
-2. 关 dryRun，调 team_milestone_set → 文本换成状态卡；会话 JSONL 出现 team-milestone/state。
-3. 走完步骤并 team_milestone_complete → 回合结束后出现 compaction/start 到 summary 到 end，日志显示 shadowed 区间与 token。
-4. 压缩后的下一个请求出现 (c) 重规划提示，模型重建里程碑，无重复旧工具结果。
-5. 对比压缩前后 usage.cacheReadTokens/totalTokens：前缀仍在命中，总 token 显著下降。
-6. compressing 阶段 kill 再启动 → 成员恢复并完成压缩。
-7. Lead + 2 teammate 同时到边界 → 串行执行，无交错 checkpoint，无消息丢失。
-8. 完全不声明里程碑撑到 600k → 注入 (d) → idle 时压缩 → Lead 收到告警。
+1. **dryRun:true 下先验提示词**（不要跳过）：把某成员做到超过 100k → 日志出现 arm；然后看模型**实际有没有调 team_milestone_set**、字段填得全不全。不达标就照 4.5.1 改 promptArmed 再跑，直到调用率与字段完整率达标，才进入第 2 步。
+2. dryRun:true 下确认注入位置正确：下一次请求尾部出现提示，但 system prompt 前缀逐字节未变（可对比请求头），不压缩。
+3. 关 dryRun，调 team_milestone_set → 文本换成状态卡；会话 JSONL 出现 team-milestone/state 事件。
+4. 走完步骤并 team_milestone_complete → 回合结束后出现 compaction/start 到 summary 到 end，日志显示 shadowed 区间与 token。
+5. **B 方案验证**：压缩后的下一个请求里，里程碑的 goal/exit_criteria/steps 主线**仍然在**（不依赖摘要有没有提到），模型据此继续，无重复旧工具结果。
+6. **开关验证**：把 enabled 改 false 重启 → 100k 不再注入任何文本、不再压缩，Team 行为与没装插件一致；改回 true 后功能恢复。
+7. **续跑验证**：continueAfterCompact=false 时压完**不自动跑**，等 Lead 派活才动；设 true 时压完自动开新回合。
+8. 对比压缩前后 usage.cacheReadTokens/totalTokens：前缀仍在命中，总 token 显著下降。
+9. compressing 阶段 kill 再启动 → 成员恢复并完成压缩。
+10. Lead + 2 teammate 同时到边界 → 串行执行，无交错 checkpoint，无消息丢失。
+11. 完全不声明里程碑撑到 600k → 注入 (d) → idle 时压缩 → Lead 收到告警。
+12. **busy 容错**：在压缩被触发的同一瞬间让 Lead 派活 → 不应报错，应下个 idle 重试成功。
 
 ### 6.3 可观测性
 

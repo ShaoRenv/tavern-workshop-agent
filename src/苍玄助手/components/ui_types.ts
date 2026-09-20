@@ -67,6 +67,11 @@ export interface UiTool {
    * 页签名字不再由界面手写（TAB_LABELS 已删），页面标题来自页面注册表。
    */
   owner?: string;
+  /**
+   * 来源插件被关掉了（App.vue 按 pluginEnabled(owner) 填）。
+   * 界面口径：正常行不画它；**预设里硬引用过**的才以兜底行出现，并标「来源已停用」。
+   */
+  owner_disabled?: boolean;
 }
 
 /** 详情页要渲染的一个参数 */
@@ -99,6 +104,24 @@ export interface UiSessionEvent {
 export interface SegItem {
   value: string;
   label: string;
+}
+
+/**
+ * 子段跳转意图（H3）：一次跳转 = 目标页面 + 设置里的一级段 (+ 能力里的二级段)。
+ *
+ * 为什么不能只带页面 id：「设置 · 能力 · 工具」这条落点里的 capability / tools 都不是页面，
+ * 只发页面 id 会落到设置页默认的「接口」段（页面注册表里没有 capability 时还会被兜到别的页）。
+ * 所以把目标子段一起带下去 —— App.vue 存一次，SettingsView / CapabilityView 各自消费。
+ */
+export interface GotoSeg {
+  /** 目标页面 id */
+  page: string;
+  /** 设置页一级段：api / preset / capability / data */
+  seg: string;
+  /** 能力段里的二级段：tools / skills / plugins（别的一级段用不上） */
+  sub?: string;
+  /** 序号（宿主填）：同值重复点也算一次新请求，消费方靠它认「这是不是新的一条」 */
+  at?: number;
 }
 
 /** 分组显示名：内核给什么用什么（不再自己兜底，免得跟内核不同步） */

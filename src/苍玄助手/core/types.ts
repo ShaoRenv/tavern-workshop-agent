@@ -795,9 +795,15 @@ export type Selection = z.infer<typeof SelectionSchema>;
  * 不改 DATA_VERSION：只是页签名变了，数据结构没变。
  */
 // 页面 id 的**唯一来源**是 core/pages.ts 的 CORE_PAGES + 各插件 manifest（这里不再有名单）。
-// 第 2 / 3 阶段把 records、portraits 两个页面撤掉时，往这张表里加 records → chat / portraits → chat，
-// 老数据就直接落到对话页，而不是靠「第一个可用页」兜底。
-export const TAB_ID_ALIASES: Record<string, string> = { skills: 'capability' };
+// 这张表只干一件事：把**老数据里存过的页名**兜到现在的页，免得老用户一进来落到「第一个可用页」。
+//   skills / capability（老「能力」页）→ settings（能力现在是设置里的一格）
+//   records（老「记录」页）→ chat（记录现在是对话页 ⋯ 里的一张 Sheet）
+// 阶段 3 撤掉 portraits 页时再加 portraits → chat。
+export const TAB_ID_ALIASES: Record<string, string> = {
+  skills: 'settings',
+  capability: 'settings',
+  records: 'chat',
+};
 
 /** 把历史页签名兜底成现页签名；不是老名字就原样返回（交给 enum 去校验合法性） */
 export function migrateTabId(value: unknown): unknown {

@@ -75,13 +75,14 @@ test('types: 非法枚举 / 越界数字被拒', () => {
   // core/pages.ts + stores/app.ts 的 setTab，见 plugin_registry.test.ts）；
   // 非字符串仍然是坏数据。
   assert.equal(RootDataSchema.parse({ active_tab: 'nope' }).active_tab, 'nope', '未知字符串原样保留，schema 不清洗');
-  assert.equal(RootDataSchema.parse({ active_tab: 'records' }).active_tab, 'records');
+  assert.equal(RootDataSchema.parse({ active_tab: 'portraits' }).active_tab, 'portraits', 'portraits 还是真页面');
   assert.equal(RootDataSchema.safeParse({ active_tab: 123 }).success, false, '非字符串仍被拒');
   assert.equal(RootDataSchema.safeParse({ active_tab: ['records'] }).success, false);
   assert.equal(RootDataSchema.safeParse({ active_tab: null }).success, false);
-  // 页签改名（skills → capability）：老名字兜底成新名字，不算非法值（DATA_VERSION 不动）
-  assert.equal(RootDataSchema.parse({ active_tab: 'skills' }).active_tab, 'capability');
-  assert.equal(RootDataSchema.parse({ active_tab: 'capability' }).active_tab, 'capability');
+  // 阶段 2 老页名兜底（TAB_ID_ALIASES）：记录 → 对话、能力 / 技能 → 设置，不算非法值（DATA_VERSION 不动）
+  assert.equal(RootDataSchema.parse({ active_tab: 'records' }).active_tab, 'chat');
+  assert.equal(RootDataSchema.parse({ active_tab: 'capability' }).active_tab, 'settings');
+  assert.equal(RootDataSchema.parse({ active_tab: 'skills' }).active_tab, 'settings');
   assert.equal(RootDataSchema.safeParse({ api: { route: 'nope' } }).success, false);
   assert.equal(RootDataSchema.safeParse({ api: { timeout_sec: 0 } }).success, false);
   assert.equal(RootDataSchema.safeParse({ gen: { max_rounds: 0 } }).success, false);
@@ -339,15 +340,16 @@ test('storage: 坏块逐块恢复 —— 好数据保留、坏块换默认、数
   assert.equal(result.data.active_session_id, 'sess-default');
 });
 
-test('storage: active_tab 未知字符串不再被清洗（schema 只认「是不是字符串」，页面兜底在 store）', () => {
+test('storage: active_tab 未知字符串不再被清洗；老页名走 TAB_ID_ALIASES 兜底（不报警告）', () => {
   // 老数据里合法、但页面可能不存在 / 已改名的 id：读进来原样保留，绝不是坏块
   const recovered = recoverRootData({ active_tab: 'nope' });
   assert.deepEqual(recovered.warnings, []);
   assert.equal(recovered.data.active_tab, 'nope');
-  assert.equal(recoverRootData({ active_tab: 'records' }).data.active_tab, 'records');
   assert.equal(recoverRootData({ active_tab: 'portraits' }).data.active_tab, 'portraits');
-  // 老页签名 skills → capability 的兜底还在
-  assert.equal(recoverRootData({ active_tab: 'skills' }).data.active_tab, 'capability');
+  // 阶段 2 老页名兜底：记录 → 对话、能力 / 技能 → 设置（整份读入口也过 migrateTabId）
+  assert.equal(recoverRootData({ active_tab: 'records' }).data.active_tab, 'chat');
+  assert.equal(recoverRootData({ active_tab: 'capability' }).data.active_tab, 'settings');
+  assert.equal(recoverRootData({ active_tab: 'skills' }).data.active_tab, 'settings');
   // 非字符串仍然按坏块换默认值
   assert.equal(recoverRootData({ active_tab: 123 }).data.active_tab, 'portraits');
   assert.equal(recoverRootData({ active_tab: ['records'] }).data.active_tab, 'portraits');
@@ -364,10 +366,10 @@ test('storage: 好数据原样读出（不改内容、不误报警告）', () =>
   assert.equal(result.data.active_tab, 'worldbook');
   assert.equal(result.data.selection.demand, '整理天枢阁');
 
-  // 老页签名也走「原样读出」这条路：'skills' 落到 'capability'，不报警告
+  // 老页签名也走「原样读出」这条路：阶段 2 起 'skills' 落到 'settings'（能力并进设置），不报警告
   const legacyTab = recoverRootData({ active_tab: 'skills' });
   assert.deepEqual(legacyTab.warnings, []);
-  assert.equal(legacyTab.data.active_tab, 'capability');
+  assert.equal(legacyTab.data.active_tab, 'settings');
 });
 
 test('storage: recoverRootData 对奇形怪状输入不抛异常', () => {

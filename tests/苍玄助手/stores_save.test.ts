@@ -101,13 +101,13 @@ test('save: 挂起期间调 save(true) 仍然立刻写盘；release 不会重复
   try {
     writes.length = 0;
     store.holdSaves();
-    store.setTab('records');
+    store.setTab('worldbook');
     t.mock.timers.tick(SAVE_DEBOUNCE_MS * 2);
     assert.equal(writes.length, 0, '自动防抖那条路被抑制');
 
     store.save(true);
     assert.equal(writes.length, 1, '显式立即写不受挂起影响');
-    assert.equal(box.saved().active_tab, 'records');
+    assert.equal(box.saved().active_tab, 'worldbook');
     assert.equal(store.dirty, false);
 
     store.releaseSaves();
@@ -156,7 +156,7 @@ test('save: 任务抛异常时 withHeldSaves() 仍然释放（finally 语义）�
     writes.length = 0;
     await assert.rejects(
       store.withHeldSaves(async () => {
-        store.setTab('capability');
+        store.setTab('worldbook');
         throw new Error('跑挂了');
       }),
       /跑挂了/,
@@ -165,7 +165,7 @@ test('save: 任务抛异常时 withHeldSaves() 仍然释放（finally 语义）�
     assert.equal(store.savesHeld, false, '异常路径也必须释放，否则之后永远不落盘');
     assert.equal(store.savesHeldCount, 0);
     assert.equal(writes.length, 1, '异常前改的东西要保住');
-    assert.equal(box.saved().active_tab, 'capability');
+    assert.equal(box.saved().active_tab, 'worldbook');
   } finally {
     t.mock.timers.reset();
     box.done();
@@ -265,13 +265,22 @@ test('源码级: App.vue 不再有 deep 全局 watcher，页面的写点都接�
 
   // 会直接改 store.data 的页面：都 emit('change')，由 App.vue 接成 store.save()
   // （ChatView 的 mode 与 SkillsView 的开关走的是 store 动作，另有断言）
-  for (const view of ['WorldbookView', 'PortraitsView', 'SettingsView', 'CapabilityView']) {
+  for (const view of ['WorldbookView', 'PortraitsView', 'SettingsView']) {
     const src = codeOnly(readFileSync('src/苍玄助手/views/' + view + '.vue', 'utf8'));
     assert.ok(src.includes("emit('change')"), view + ' 的写点没有 emit(\'change\') 出口');
     const usage = new RegExp('<' + view + '[\\s\\S]*?/>').exec(app);
     assert.ok(usage, 'App.vue 里没找到 ' + view + ' 的用法');
     assert.match(usage[0], /@change="store\.save\(\)"/, view + ' 的 change 事件没接到 store.save()');
   }
+
+  // 能力并进设置（阶段 2）：CapabilityView 不再由 App.vue 直接挂，而是 SettingsView 里的一格；
+  // 它的写点经 @change="touch" → SettingsView emit('change') → App.vue @change="store.save()" 串上去。
+  const settingsSrc = codeOnly(readFileSync('src/苍玄助手/views/SettingsView.vue', 'utf8'));
+  const capUsage = /<CapabilityView[\s\S]*?\/>/.exec(settingsSrc);
+  assert.ok(capUsage, 'SettingsView 里没找到 CapabilityView 的用法');
+  assert.match(capUsage[0], /@change="touch"/, 'CapabilityView 的 change 没接到 SettingsView 的 touch');
+  assert.ok(settingsSrc.includes("emit('change')"), 'SettingsView 的 touch 要 emit(change)，否则 App.vue 收不到写点');
+  assert.ok(!/<CapabilityView/.test(app), 'App.vue 不该再直接挂 CapabilityView（能力是设置里的一格）');
 
   // ChatView：Agent｜聊天 由 store.setMode 落盘
   assert.match(app, /@mode-change="store\.setMode\(\$event\)"/);

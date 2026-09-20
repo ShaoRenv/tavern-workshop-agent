@@ -36,6 +36,7 @@ import {
   eventsForTurn,
   makeEvent,
   makeSession,
+  migrateTabId,
   pickActiveSession,
   sessionTitle,
   titleFromText,
@@ -321,10 +322,13 @@ export const useAppStore = defineStore('cx-assistant', () => {
    * 不许把 active_tab 写成一个界面画不出来的 id（否则整个面板会空）。
    */
   function setTab(id: string): void {
-    // 合法性看**全部页面**（allPages）：inTabbar:false 的页面（例如以后的 MCP 内容页）也得能打开，
-    // 顶栏只画 availablePages —— 两件事别混成一个判断，否则那些页面永远进不去（H1）。
+    // ① 老页名先过别名：schema 层（TAB_ID_ALIASES）已经兜过一道，这里是给「直接拿老 id 调 setTab」的调用方兜底，
+    //    免得 records / capability 这类历史 id 落到「第一个可用页」而不是它该去的对话页 / 设置页。
+    // ② 合法性看**全部页面**（allPages）：inTabbar:false 的页面（例如以后的 MCP 内容页）也得能打开，
+    //    顶栏只画 availablePages —— 两件事别混成一个判断，否则那些页面永远进不去（H1）。
+    const want = typeof id === 'string' ? String(migrateTabId(id)) : id;
     const pages = allPages(data.value);
-    const hit = pages.find(page => page.id === id) ?? pages[0];
+    const hit = pages.find(page => page.id === want) ?? pages[0];
     data.value.active_tab = hit ? hit.id : 'chat';
     save();
   }

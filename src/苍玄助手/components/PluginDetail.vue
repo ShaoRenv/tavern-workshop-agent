@@ -416,7 +416,8 @@ const isImage = computed(() => props.def.id === 'image');
 
 /** 它加了什么：页面行 + 工具行（都来自 manifest 的 contributes） */
 const pages = computed(() => props.def.contributes.pages ?? []);
-const tools = computed(() => props.def.contributes.tools ?? []);
+/** contributes.tools 是 PluginToolRef[]（阶段 1 改的）：界面只显示名字 */
+const tools = computed(() => (props.def.contributes.tools ?? []).map(ref => ref.name));
 
 type NumKey = 'steps' | 'width' | 'height' | 'seed' | 'guidance' | 'guidance_rescale' | 'max_count';
 type BoolKey = 'quality' | 'smea' | 'smea_dyn' | 'variety' | 'decrisp' | 'straight_alpha';
