@@ -93,10 +93,42 @@ test('bundle: 面板里没有残留「苍玄界立绘工坊」（回归 task-9 �
 test('bundle: 内联的 app JS 带上了脚本变量存储（type: script + __CX_SCRIPT_ID__）', () => {
   assert.ok(appJs.includes('__CX_SCRIPT_ID__'), '没打进去 script id 解析链');
   assert.ok(appJs.includes("type:'script'") || appJs.includes('type:"script"'), '没打进去脚本作用域');
-  assert.ok(!appJs.includes("type:'global'") && !appJs.includes('type:"global"'), '不该再有 global 作用域');
-  assert.ok(appJs.includes('没有可用的酒馆助手脚本变量接口'), '存储报错文案应该是脚本变量版本');
+
+  /*
+   * 存储失败的报错文案：**从源码现取，不写死**。
+   *
+   * ⚠️ 这条原来写死了「没有可用的酒馆助手脚本变量接口」。阶段 3.5 扩展化时那句文案被改成
+   * 形态无关的「没有可用的变量写入接口」（存储现在两形态通用），**断言没跟着改 → 过期红**
+   * （独立验收在 bundle_artifact.test.ts:96 抓到，我当时跑的 507/507 是拿**旧构建产物**跑的，
+   *  被这个假绿骗了一次，别再写死文案）。
+   *
+   * 现取还有一个额外好处：它顺带成了「**有没有重新 build**」的闸 ——
+   * 源码改了文案却忘了重新构建，产物里的字还是旧的，这条就会红。
+   * 跑测试前先 `pnpm build`（它会重新生成 src/酒馆助手脚本-苍玄助手.json）。
+   */
+  const storageSrc = readFileSync('src/苍玄助手/core/storage.ts', 'utf8');
+  const phrase = /没有可用的[^'"，（）\n]*接口/.exec(storageSrc)?.[0];
+  assert.ok(phrase, 'core/storage.ts 里找不到「保存失败：没有可用的…接口」这句文案');
+  assert.ok(appJs.includes(phrase), '构建产物的存储报错文案与源码不一致：' + phrase + '（改动后忘了重新 build？）');
+
   assert.ok(appJs.includes('getScriptId'), '降级链里要有 getScriptId');
 });
+
+/*
+ * 这里原来还有一条 assert(!appJs.includes("type:'global'"))，**已删除**。
+ *
+ * 它的原始意图是：老版存储只走「脚本变量」一个作用域，产物里出现 type:'global'
+ * 说明有人写错了域。这条闸在阶段 3.5 之后**过期了**：
+ *
+ * 变量作用域适配层（core/native.ts）现在**必须**同时覆盖 local / global 两档 ——
+ * 它要把 ST 原生的 variables.{local,global} 适配成底座的老「整表」语义
+ * （决策 3：StoragePort 抽层；决策 2 的能力表也依赖它能探测两档）。
+ * 所以 'global' 这个**字符串**出现在产物里是正确的，不是回归。
+ *
+ * 判据：闸拦的是「用错了域」，不是「提到了 global 这个词」。
+ * 直接删掉而不是换个正则 —— 「产物里出现某字符串」本来就不能证明语义对错，
+ * 真正该管的是**运行时用哪个域**，那由 core_script_scope.test.ts 按行为断言。
+ */
 
 test('bundle: 面板桥接了全部宿主接口（回归「只桥 8 / 19」那个真 bug）', () => {
   // panel.js 的 HOST_API_NAMES 必须覆盖应用要用的全部接口。

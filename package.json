@@ -2,6 +2,8 @@
   "scripts": {
     "build:dev": "webpack --mode development",
     "build": "webpack --mode production && node build_tavern_script.mjs",
+    "build:ext": "webpack --mode production",
+    "build:ext:dev": "webpack --mode development",
     "watch": "node dev_server.mjs --watch",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,scss,html,vue}\" --no-error-on-unmatched-pattern",
     "test": "node --test \"tests/**/*.test.ts\"",

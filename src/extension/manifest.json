@@ -1,0 +1,22 @@
+{
+  "display_name": "苍玄界",
+  "loading_order": 120,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "index.css",
+  "author": "ShaoRenv",
+  "version": "0.1.0",
+  "homePage": "",
+  "auto_update": false,
+  "minimum_client_version": "1.12.0",
+  "i18n": {},
+  "hooks": {
+    "activate": "onActivate",
+    "enable": "onEnable",
+    "disable": "onDisable",
+    "install": "onInstall",
+    "update": "onUpdate",
+    "delete": "onDelete"
+  }
+}

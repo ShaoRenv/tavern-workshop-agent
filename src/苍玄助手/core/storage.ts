@@ -2,7 +2,8 @@
  * 苍玄助手 · 持久化层（storage）
  *
  * 职责：
- *  1) 把 `window.TavernHelper` 的全局接口收在一处（薄封装），测试时可以注入假实现；
+ *  1) 宿主接口一律转发 core/host.ts 的**唯一一条** provider chain（本文件不再自己实现链），
+ *     测试用 setHostBridge 注入假实现；
  *  2) 用酒馆助手「**脚本变量**」保存整棵 RootData（key = types.ts 的 GLOBAL_KEY）；
  *     脚本卸载 / 关闭，数据就跟着没，不在酒馆里留残留。**不碰 window.localStorage**。
  *     script_id 解析链：globalThis.__CX_SCRIPT_ID__（面板脚本注入）→ getScriptId() → 省略；
@@ -45,54 +46,38 @@ import {
   type Session,
 } from './types.ts';
 import type { ZodType } from 'zod';
+import { getHostBridge as getInjectedBridge, hostFn, setHostBridge as setInjectedBridge } from './host.ts';
+import type { HostProviderTable } from './host.ts';
+import { dataScope as nativeDataScope, declareNativeKey } from './native.ts';
 
-/* ============================ 宿主接口薄封装 ============================ */
+/* ============================ 宿主接口：转发 core/host.ts 的唯一一条链 ============================ */
 
-/** 宿主接口的统一签名；参数与返回值都按酒馆助手的原始约定 */
-export type HostFn = (...args: any[]) => any;
+/**
+ * 宿主接口薄封装 —— **这里不再自己实现解析链**，一律转发 core/host.ts。
+ *
+ * 审计出来的三条平行链（storage.ts 的 hostFn / transport.ts 的 globalFunction /
+ * macros.ts 的裸读 globalThis）已经收敛成 core/host.ts 里的**一条** provider chain。
+ * 保留下面这几个名字，只是为了让既有调用点（portrait / worldbook / adapters /
+ * plugins.host）与既有测试的 import 不用改。
+ *
+ * 解析顺序见 host.ts：注入的假实现 → 注册的原生适配器 → TavernHelper[name] → globalThis[name]。
+ * 晚绑定：每次调用重新走一遍整条链，不做任何缓存。
+ */
 
 /** 可注入的宿主接口表：key 就是酒馆助手接口名 */
-export type HostBridge = Record<string, HostFn | undefined>;
+export type HostBridge = HostProviderTable;
 
-let injectedBridge: HostBridge | null = null;
+export { hostFn, hasHostFn } from './host.ts';
+export type { HostFn, HostProviderTable } from './host.ts';
 
-/** 注入假实现（测试用）；传 null 恢复成读真实全局 */
+/** 注入假实现（测试用）；传 null 恢复成读真实宿主 */
 export function setHostBridge(bridge: HostBridge | null): void {
-  injectedBridge = bridge;
+  setInjectedBridge(bridge);
 }
 
 /** 取当前注入的宿主接口表；没注入过返回 null */
 export function getHostBridge(): HostBridge | null {
-  return injectedBridge;
-}
-
-/**
- * 按名字取宿主接口。
- *
- * 查找顺序：注入的假实现 → window.TavernHelper[name] → 全局同名函数。
- * 找不到返回 null（调用方自己决定是抛错还是降级），不做任何缓存，
- * 这样界面运行时接口晚一点就绪也能拿到。
- */
-export function hostFn(name: string): HostFn | null {
-  const injected = injectedBridge?.[name];
-  if (typeof injected === 'function') return injected;
-
-  const scope = typeof globalThis === 'undefined' ? null : (globalThis as Record<string, any>);
-  if (!scope) return null;
-
-  const helper = scope.TavernHelper;
-  if (helper && typeof helper[name] === 'function') {
-    return (...args: any[]) => helper[name](...args);
-  }
-  if (typeof scope[name] === 'function') {
-    return (...args: any[]) => scope[name](...args);
-  }
-  return null;
-}
-
-/** 宿主接口在不在（界面可用来显示「未连接」） */
-export function hasHostFn(name: string): boolean {
-  return hostFn(name) !== null;
+  return getInjectedBridge();
 }
 
 /** 普通对象判断（排除数组与 null） */
@@ -100,12 +85,19 @@ export function isPlainRecord(value: unknown): value is Record<string, unknown> 
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/* ============================ 变量作用域：脚本变量 ============================ */
+/* ============================ 变量作用域 ============================ */
 
-/** 酒馆助手的变量作用域参数；数据一律放脚本变量 */
+/**
+ * 酒馆助手的变量作用域参数。
+ *
+ * ⚠️ P4-10 起**不只 script 一种**：扩展形态没有脚本，必须用 global 才读得回来
+ * （详见 core/native.ts 的 dataScope 注释与下面的 resolveDataScope）。
+ * script 这一档**原样保留** —— 老用户的数据就在脚本作用域里，删档等于搬家搬丢。
+ */
 export interface VariableScope {
-  type: 'script';
-  /** 省略 = 当前脚本（脚本内调用时可以直接省） */
+  /** script = 酒馆助手的脚本变量；global = 酒馆全局变量（跨会话）；chat = 当前聊天 */
+  type: 'script' | 'global' | 'chat';
+  /** 仅 type='script' 用；省略 = 当前脚本（脚本内调用时可以直接省） */
   script_id?: string;
 }
 
@@ -131,12 +123,67 @@ export function resolveScriptId(): string | undefined {
   return undefined;
 }
 
-/** 所有 getVariables / insertOrAssignVariables / replaceVariables / updateVariablesWith 都用它 */
+/**
+ * 所有 getVariables / insertOrAssignVariables / replaceVariables / updateVariablesWith 都用它。
+ *
+ * ⚠️ 保留原样（脚本形态仍要用，见 P4-10 的结论）。
+ * **扩展形态请用 resolveDataScope()** —— 它会在没有脚本时自动切到 global，
+ * 而本函数在扩展形态会返回一个必然抛错的裸 script 作用域（那正是 P4-10 的 bug 源）。
+ */
 export function scriptScope(): VariableScope {
   const script_id = resolveScriptId();
   return script_id === undefined ? { type: 'script' } : { type: 'script', script_id };
 }
 
+/* ==================== 数据作用域：读与写**必须**共用同一个 ==================== */
+
+/**
+ * 当前该用哪个作用域存整棵 RootData。
+ *
+ * ⚠️ **读和写都调它**，而且同一次会话内结果被缓存（见 dataScopeCache）——
+ * 「读在 A 作用域、写在 B 作用域」正是 P4-10 那个数据丢失 bug 的病根。
+ *
+ * 分流规则（由 core/native.ts 的 dataScope 定，那边有完整的取舍说明）：
+ *   - 脚本形态（能拿到 script_id）→ { type: 'script', script_id }  ← 老数据原地不动
+ *   - 扩展形态（没有脚本这层）    → { type: 'global' }              ← 跨刷新、跨会话
+ *
+ * 为什么缓存：作用域必须在**一次会话里稳定**。若中途从 script 漂到 global，
+ * 就会出现「读在 A、写在 B」的错位 —— 哪怕只漂一次也会丢数据。
+ * 缓存的是**已确定的**作用域；第一次调用时若还判不准（宿主没就绪），
+ * 返回一个临时值但**不写缓存**，等下一次判准了再定下来。
+ */
+let dataScopeCache: VariableScope | null = null;
+
+/** 测试用：清掉作用域缓存（也用于「换聊天 / 重载」后强制重新判定） */
+export function resetDataScope(): void {
+  dataScopeCache = null;
+}
+
+export function resolveDataScope(): VariableScope {
+  if (dataScopeCache) return dataScopeCache;
+
+  const scope = nativeDataScope() as VariableScope;
+  // 脚本形态 / 扩展形态都能**确定**下来的才缓存。
+  // 判不准的情形（宿主的 getScriptId 晚就绪）不缓存，下次再判。
+  if (scope.type === 'global' || (scope.type === 'script' && scope.script_id)) {
+    dataScopeCache = scope;
+  }
+  return scope;
+}
+
+/**
+ * 数据存在哪儿（人话）。界面上说明 / 排查问题时用；不会抛。
+ */
+export function describeStorageScope(): string {
+  try {
+    const scope = resolveDataScope();
+    if (scope.type === 'script') return '脚本变量' + (scope.script_id ? '（' + scope.script_id + '）' : '');
+    if (scope.type === 'global') return '酒馆全局变量（跨会话）';
+    return '当前聊天变量';
+  } catch {
+    return '未知';
+  }
+}
 /* ============================ 多会话迁移（v1 → v2） ============================ */
 
 export interface MigrateResult {
@@ -488,19 +535,113 @@ function finalizeRecovered(recovered: RootData, warnings: string[]): RecoverResu
 
 /* ============================ 读 ============================ */
 
-/** 从酒馆助手**脚本变量**读出原始内容；读不到返回 null（由调用方兜底） */
+/**
+ * 上一次读盘的结果。P4-10 的**保护**靠它（比修作用域更重要的一条）。
+ *
+ * 历史事故：读失败时只 console.warn 一句就返回 null → store 用默认值启动 →
+ * 紧接着的 save 把**默认值**写回去 → 用户数据被静默覆盖。
+ * 「刷新一次，设置全没」就是这么来的。
+ *
+ * 现在读的结果记在这里，写路径据此决定**要不要拦**：
+ *   - 'ok'        读到了真数据（哪怕是个老版本）→ 照常允许写
+ *   - 'empty'     读通了，但存储里确实**没有**我们的 key（全新用户）→ 允许写
+ *   - 'failed'    读**失败**（接口缺失 / 抛错 / 拿到非对象）→ **拦住**用默认值覆盖
+ *   - null        还没读过（此时写是允许的：调用方可能只是直接 set 数据，没有读的过程）
+ */
+type LoadOutcome = 'ok' | 'empty' | 'failed';
+let lastLoadOutcome: LoadOutcome | null = null;
+
+/** 上一次读盘的结果（界面 / 测试可以据此显示「存储读取失败」） */
+export function getLastLoadOutcome(): LoadOutcome | null {
+  return lastLoadOutcome;
+}
+
+/** 测试 / 重载用：把读盘结果清回「还没读过」 */
+export function resetLoadOutcome(): void {
+  lastLoadOutcome = null;
+  failedLoadSnapshot = null;
+}
+
+/**
+ * 从**数据作用域**读出原始内容；读不到返回 null（由调用方兜底）。
+ *
+ * ⚠️ P4-10 修的是这里：以前无条件用 scriptScope()，扩展形态下那个作用域会抛
+ * 「未指定 script_id」。现在用 resolveDataScope() —— 扩展形态自动落到 global，
+ * **读得回来**。写路径用的是同一个 resolveDataScope()，读写不再错位。
+ *
+ * 读的结果会记进 lastLoadOutcome，供写路径的「不许覆盖」保护使用。
+ */
 export function readStoredRootData(): unknown {
+  // ⚠️ **先声明我们固定要读的键**（P4-10b）。ST 原生的变量接口**不能枚举**
+  // （只有按 key 的 get/set），所以原生适配器的「读整表」= 按一张**已知键清单**逐个 get。
+  // 那张清单如果只记「本进程写过什么」，**冷启动（刚刷新页面）时就是空的** →
+  // getVariables 返回 {} → 上层以为没数据 → 用默认值 → 紧接着写回默认值 → **用户数据被覆盖**。
+  // 真机上就是这么丢的：改完立刻读是对的，刷新后就没了。
+  //
+  // 在这里声明而不是在模块顶层：适配器表可能在 storage.ts 被 import 之前就建好了
+  // （扩展 activate 注册适配器 → 之后才 mount 界面），而 declaredSeeds 是模块级累积的，
+  // 所以在这里补声明一定来得及；模块顶层声明则依赖 import 顺序，靠不住。
+  //
+  // 两个作用域都声明：适配器按 scope 的**类型**决定去 variables.local 还是 .global 读，
+  // 而 resolveDataScope() 在脚本形态给 script / 扩展形态给 global —— 两条路都要能读到。
+  declareNativeKey('global', GLOBAL_KEY);
+  declareNativeKey('local', GLOBAL_KEY);
+
   const getVariables = hostFn('getVariables');
   if (!getVariables) {
+    lastLoadOutcome = 'failed';
+    rememberFailedLoadDefault();
     console.warn('[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据');
     return null;
   }
+
+  const scope = resolveDataScope();
   try {
-    const table = getVariables(scriptScope());
-    if (!isPlainRecord(table)) return null;
-    return table[GLOBAL_KEY];
+    const table = getVariables(scope);
+    if (!isPlainRecord(table)) {
+      // 拿到的不是对象：这台机器的作用域语义不对 —— 这是**读失败**，不是「没数据」
+      lastLoadOutcome = 'failed';
+      rememberFailedLoadDefault();
+      console.warn('[苍玄助手] 读取数据作用域 ' + describeStorageScope() + ' 返回的不是对象，按读失败处理');
+      return null;
+    }
+    const raw = table[GLOBAL_KEY];
+
+    // ⚠️ 「读不到」和「没有数据」是**两件事**，这里必须分开（P4-10b 事故的最后一环）：
+    //
+    // 原生变量接口**根本列不出键**（实测：Object.keys 只有那七个方法名，
+    // {...variables.global} 是 {}）。所以「按已知键逐个读」读不到时，可能是
+    // 「存储里确实没有」，也可能是「我压根不知道有哪些键、没读到它」。
+    // 后一种**绝不能**当成前者 —— 那正是「默认值覆盖用户数据」这条静默丢失的入口。
+    //
+    // 适配器用 _canEnumerateVariables() 告诉我们它到底能不能枚举：
+    //   不能枚举 + 没读到我们的 key → 'failed'（拦住写入，等用户真的改过再放行）
+    //   能枚举   + 没读到我们的 key → 'empty'（真的没有，可以安全初始化）
+    const canEnumerate = hostFn('_canEnumerateVariables');
+    const enumerable = typeof canEnumerate === 'function' ? canEnumerate() === true : true;
+    if (raw === undefined && !enumerable) {
+      lastLoadOutcome = 'failed';
+      rememberFailedLoadDefault();
+      console.warn(
+        '[苍玄助手] 读数据作用域 ' + describeStorageScope() + ' 没读到 ' + GLOBAL_KEY +
+          '，而这台机器的变量接口**不能枚举键** —— 分不清「没有数据」还是「没读到」，' +
+          '按读失败处理；为避免覆盖用户数据，在用户真正改动之前不会写回存储',
+      );
+      return null;
+    }
+
+    // 读**通了**，但里面没有我们的 key = 全新用户（或空存储）→ 'empty'，允许写。
+    // 这与「读失败」必须分开：前者可以放心写默认值，后者写了就是覆盖用户数据。
+    lastLoadOutcome = raw === undefined ? 'empty' : 'ok';
+    return raw;
   } catch (error) {
-    console.warn('[苍玄助手] 读取脚本变量失败，本次使用默认数据', error);
+    lastLoadOutcome = 'failed';
+    rememberFailedLoadDefault();
+    console.warn(
+      '[苍玄助手] 读取数据作用域 ' + describeStorageScope() + ' 失败，本次使用默认数据；' +
+        '为避免覆盖用户数据，在用户真正改动之前不会写回存储',
+      error,
+    );
     return null;
   }
 }
@@ -519,7 +660,6 @@ export function loadData(): unknown {
 export function loadRootData(): RootData {
   return loadData() as RootData;
 }
-
 /* ============================ 写 ============================ */
 
 /** 转成纯 JSON 值（去掉 undefined / 类实例，保证能存进酒馆变量） */
@@ -527,19 +667,28 @@ function toPlainJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
+/** 这台机器有没有任何一个可用的变量写入接口（环境级判断，与数据无关） */
+function hasWriteInterface(): boolean {
+  return !!(hostFn('insertOrAssignVariables') || hostFn('replaceVariables') || hostFn('updateVariablesWith'));
+}
+
 /**
- * 真正落盘：写进**脚本变量**表。
+ * 真正落盘：写进**数据作用域**表。
  *
  * 优先 `insertOrAssignVariables`（只动我们那一个 key，别的变量不受影响），
  * 退而求其次用 `replaceVariables` / `updateVariablesWith`（读出整表再合并写回）。
  *
+ * ⚠️ 三个分支用的是**同一个** resolveDataScope() 结果（读出来存进 `scope` 变量），
+ * 这一点是有意的：读写作用域一旦不一致，就是 P4-10 那个数据丢失 bug。
+ *
  * @returns 是否写成功；没有任何可用接口时返回 false
  */
 function writeRawRootData(payload: unknown): boolean {
+  const scope = resolveDataScope();
   try {
     const insertOrAssign = hostFn('insertOrAssignVariables');
     if (insertOrAssign) {
-      insertOrAssign({ [GLOBAL_KEY]: payload }, scriptScope());
+      insertOrAssign({ [GLOBAL_KEY]: payload }, scope);
       return true;
     }
 
@@ -547,9 +696,9 @@ function writeRawRootData(payload: unknown): boolean {
 
     const replace = hostFn('replaceVariables');
     if (replace && getVariables) {
-      const table = getVariables(scriptScope());
+      const table = getVariables(scope);
       const next = isPlainRecord(table) ? { ...table, [GLOBAL_KEY]: payload } : { [GLOBAL_KEY]: payload };
-      replace(next, scriptScope());
+      replace(next, scope);
       return true;
     }
 
@@ -557,43 +706,173 @@ function writeRawRootData(payload: unknown): boolean {
     if (updateWith) {
       updateWith(
         (table: Record<string, unknown>) => (isPlainRecord(table) ? { ...table, [GLOBAL_KEY]: payload } : { [GLOBAL_KEY]: payload }),
-        scriptScope(),
+        scope,
       );
       return true;
     }
   } catch (error) {
-    console.warn('[苍玄助手] 写入脚本变量失败', error);
+    console.warn('[苍玄助手] 写入数据作用域 ' + describeStorageScope() + ' 失败', error);
     return false;
   }
 
   return false;
 }
 
+/* -------------------- 读失败时的「不许覆盖」保护（P4-10 第 4 条）-------------------- */
+
 /**
- * 给 store 用的写入口：先校验（坏块顺带修复），再写回脚本变量。
+ * 用户是否已经**真的动过**数据。
  *
- * @throws 写不进去时抛错（store 会 catch 并 warn），校验失败的块不会抛而是被修复
+ * 读失败后的保护要靠它区分两种情况：
+ *   - 用户还没动过 → 这次 save 写的是**默认值** → 必须拦住（否则覆盖用户数据）；
+ *   - 用户已经改过 → 写的是**用户的新数据** → 必须放行（否则用户的改动存不进去）。
+ *
+ * 为什么用这个标志、而不是「是不是第一次 save」或者「data 是否等于默认值」：
+ *   - 「第一次 save 就拦」会连用户的真实改动一起拦掉 —— 那是把数据丢失换成「存不进去」，同样坏；
+ *   - 「比较 data 与默认值」不可靠：用户可能恰好把某项改回默认值，或者默认值随版本变化，
+ *     这个判据会**误判**，而误判的代价是数据丢失。
+ * 显式标志由调用方（store / 界面）在「用户操作导致数据变化」时置位，语义明确、不猜。
  */
-export function saveData(data: unknown): void {
+let userTouchedData = false;
+
+/**
+ * 声明「用户已经动过数据」—— 之后 saveData 不再受「读失败保护」拦截。
+ *
+ * 调用时机：任何**由用户操作触发**的数据变更（改设置、切页签、发消息…）。
+ * store 的 save() 就是这条路。
+ */
+export function markUserTouchedData(): void {
+  userTouchedData = true;
+}
+
+/** 用户是否已动过数据（测试 / 界面用） */
+export function hasUserTouchedData(): boolean {
+  return userTouchedData;
+}
+
+/** 测试 / 重载用：复位「用户动过数据」标志 */
+export function resetUserTouchedData(): void {
+  userTouchedData = false;
+}
+
+/* -------------------- 保护：读失败后的「不许用默认值覆盖」 -------------------- */
+
+/**
+ * 读失败时，我们手上那份「凭空来的默认数据」的指纹。
+ *
+ * 读失败 → recoverRootData(null) 给出一份各块填满 default 的 RootData。
+ * 把它的 JSON 存下来：若调用方之后写的内容**和它一模一样**，说明用户还没动过任何东西，
+ * 此时写盘就是「用默认值覆盖用户数据」，必须拦。
+ * 若内容**不一样**，说明确实有东西变了（用户改了设置 / 代码改了数据），放行。
+ */
+let failedLoadSnapshot: string | null = null;
+
+/** 读失败时记下「默认数据」的指纹（由 readStoredRootData 调） */
+function rememberFailedLoadDefault(): void {
+  try {
+    failedLoadSnapshot = JSON.stringify(recoverRootData(null).data);
+  } catch {
+    // 连默认值都算不出来：那就不设指纹，宁可多放行一次也不误拦用户数据
+    failedLoadSnapshot = null;
+  }
+}
+
+/**
+ * 该不该拦住这次写？（三条判据，**必须同时成立**）
+ *
+ *   1. 上一次读盘**失败**（lastLoadOutcome === 'failed'）
+ *      —— 读成功 / 存储本来就空 / 还没读过，都不是「可能覆盖」的场景，放行；
+ *   2. 用户还没显式声明动过数据（markUserTouchedData 未调）；
+ *   3. 这次要写的内容**恰好等于**失败读产生的那份默认数据
+ *      —— 内容不同就说明确实变了，放行（否则用户的改动会永远存不进去，
+ *         那是把「数据丢失」换成「存不进去」，一样是坏结果）。
+ *
+ * 为什么第 3 条用的是「与**本次失败读产生的快照**比对」而不是「与 schema 默认值比对」：
+ * 前者是这次具体事故的精确指纹，不受版本升级 / 默认值调整影响；
+ * 后者会因为默认值随版本变化而误判，而误判的代价是数据丢失。
+ */
+export function shouldBlockWrite(data?: unknown): boolean {
+  if (lastLoadOutcome !== 'failed') return false;
+  if (userTouchedData) return false;
+  if (failedLoadSnapshot === null) return true; // 没有指纹可比 → 保守拦住（读失败 + 没动过）
+  if (data === undefined) return true;
+  try {
+    return JSON.stringify(recoverRootData(data).data) === failedLoadSnapshot;
+  } catch {
+    // 比不出来 → 保守：拦住（读失败 + 没动过，写下去大概率是覆盖）
+    return true;
+  }
+}
+
+
+/**
+ * 给 store 用的写入口：先过「读失败保护」，再校验（坏块顺带修复），最后写回。
+ *
+ * @param force 显式跳过「读失败保护」（导入数据 / 用户手动恢复这类场景用）。
+ *              默认 false —— **默认必须是安全的**，要绕过得写出来。
+ * @throws 被保护拦下、或写不进去时抛错（store 会 catch 并 warn）
+ */
+export function saveData(data: unknown, force = false): void {
+  // 顺序有意如此：**先判「有没有写入接口」**（环境级硬错，信息量最大），再判「读失败保护」。
+  // 反过来的话，纯环境缺接口的场景会先撞上保护，用户看到的是一句「已阻止写入」，
+  // 而真正的原因（这台机器根本没有写入接口）被盖住了 —— 报错要指向根因。
+  if (!hasWriteInterface()) {
+    throw new Error(
+      '保存失败：没有可用的变量写入接口（insertOrAssignVariables / replaceVariables / updateVariablesWith），' +
+        '当前作用域 ' + describeStorageScope(),
+    );
+  }
+
+  if (!force && shouldBlockWrite(data)) {
+    const message =
+      '已阻止写入：这次启动**没能读到**原有数据（作用域 ' +
+      describeStorageScope() +
+      ' 读取失败），而用户尚未改动过任何东西。' +
+      '若此时写盘，就会用默认值覆盖掉存储里的真实数据。' +
+      '请先检查宿主变量接口；确认要覆盖可显式传 force=true。';
+    console.warn('[苍玄助手] ' + message);
+    throw new Error(message);
+  }
+
   const { data: safe, warnings } = recoverRootData(data);
   if (warnings.length > 0) {
     console.warn('[苍玄助手] 保存前修复了 ' + warnings.length + ' 处数据问题');
   }
   const written = writeRawRootData(toPlainJson(safe));
-  if (!written) throw new Error('保存失败：没有可用的酒馆助手脚本变量接口（insertOrAssignVariables / replaceVariables / updateVariablesWith）');
-}
-
-/** 强类型 + 布尔返回版本：不抛错，失败返回 false（界面内部用） */
-export function saveRootData(data: RootData): boolean {
-  try {
-    saveData(data);
-    return true;
-  } catch (error) {
-    console.warn('[苍玄助手] saveRootData 失败', error);
-    return false;
+  if (!written) {
+    throw new Error(
+      '保存失败：没有可用的变量写入接口（insertOrAssignVariables / replaceVariables / updateVariablesWith），' +
+        '或作用域 ' + describeStorageScope() + ' 写入被宿主拒绝',
+    );
   }
 }
 
+/**
+ * 强类型 + 布尔返回版本：不抛错，失败返回 false（界面内部用）。
+ *
+ * ⚠️ 被「读失败保护」拦下时，除了返回 false，还会打一条**说清原因**的 warn ——
+ * 拦截本身是一个「用户数据现在存不进去」的事件，**不能静默**：
+ * 静默拦截和静默覆盖一样坏，只是方向相反。
+ */
+export function saveRootData(data: RootData, force = false): boolean {
+  try {
+    saveData(data, force);
+    return true;
+  } catch (error) {
+    const blocked = !force && shouldBlockWrite(data);
+    if (blocked) {
+      console.warn(
+        '[苍玄助手] 这次保存被**拦下**了（不是没写成功，是主动拒绝写）：' +
+          '启动时读数据失败，为避免用默认值覆盖你原有的数据，在你有实际改动前不会写回。' +
+          '你刚才的改动尚未保存 —— 请检查宿主变量接口后重试。',
+        error,
+      );
+    } else {
+      console.warn('[苍玄助手] saveRootData 失败', error);
+    }
+    return false;
+  }
+}
 /* ============================ 防抖保存 ============================ */
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;

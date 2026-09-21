@@ -19,7 +19,14 @@
  * 为什么要传 state：插件工具是不是可用取决于插件开关（关掉即消失），
  * 而「哪些插件开着」只有 getVariables 里的 plugin_state 知道。
  */
-import type { ToolDef, ToolOverride, ToolOverrideMap, ToolSpec, WorldbookPort } from '../core/ports.ts';
+import type {
+  SettingsSchema,
+  ToolDef,
+  ToolOverride,
+  ToolOverrideMap,
+  ToolSpec,
+  WorldbookPort,
+} from '../core/ports.ts';
 import { asText, clip, resultFail, resultOk, schemaObject, schemaString } from './toolkit.ts';
 import { createSkillTools, type AgentSkillLike, type RegistryOptions, type SkillDraft } from './tools_skill.ts';
 import { createToolGuards, type ToolGuardSet } from './guards.ts';
@@ -261,6 +268,9 @@ export class ToolRegistry {
         ...(def.readonly ? { readonly: true } : {}),
         ...(def.source ? { source: def.source } : {}),
         ...(def.origin ? { origin: def.origin } : {}),
+        // 工具自己的声明式设置（阶段 4）：内核只负责**原样透出**，不认识里面任何键。
+        // 没声明就保持键缺席 —— 详情页据此显示「这个工具没有专属设置」。
+        ...(def.settings !== undefined ? { settings: def.settings } : {}),
         missing: false,
       };
     });
@@ -293,6 +303,13 @@ export interface ToolCatalogRow {
   readonly?: boolean;
   source?: 'builtin' | 'external';
   origin?: string;
+  /**
+   * 这个工具自己的声明式设置（ToolDef.settings，阶段 4）。
+   *
+   * 内核**只透传、不认识**：里面是通用字段声明（core/ports.ts 的 SettingsSchema），
+   * 画成什么样由宿主的 SettingsForm 决定 —— 外部工具没有 DOM，只能靠这条路给自己做设置。
+   */
+  settings?: SettingsSchema;
   missing: boolean;
 }
 

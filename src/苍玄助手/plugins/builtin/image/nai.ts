@@ -14,6 +14,7 @@
  *  - v5 的 straight_alpha / tag_hint_* 真的会发出去（它那边被后面整体重建 body 冲掉了）
  */
 import type { GenImageConfig } from '../../../core/types.ts';
+import { hostFn } from '../../../core/host.ts';
 import { isV4Plus, naiVersion, qualityWordsFor, supportsStraightAlpha, NAI_UC_PRESETS } from './options.ts';
 
 /** 官网接口；反代/镜像填在 config.site_url 里 */
@@ -325,7 +326,10 @@ export async function generateImages(
   options: GenerateOptions = {},
 ): Promise<string[]> {
   const plan = planNaiRequest(config, prompt, negative);
-  const doFetch = options.fetchImpl ?? (globalThis.fetch as typeof fetch);
+  // fetch 走 core/host.ts 的唯一一条链（不再裸读 globalThis.fetch）：
+  // 显式注入的 options.fetchImpl 优先（那是调用方传的，不是第二条链），
+  // 否则 原生适配器 → globalThis.TavernHelper.fetch → globalThis.fetch 逐层兜。
+  const doFetch = (options.fetchImpl ?? hostFn('fetch')) as typeof fetch | null;
   if (typeof doFetch !== 'function') throw new Error('这个环境里没有 fetch，发不了请求');
 
   const controller = new AbortController();

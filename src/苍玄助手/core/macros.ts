@@ -2,6 +2,7 @@
  * 宏替换。顺序很重要：**先过酒馆自己的宏引擎，再换我们的自定义宏**。
  * 这样 {{roll}} {{user}} {{char}} {{time}} 这些酒馆宏白嫖，我们只管自己那几个。
  */
+import { hostFn } from './host.ts';
 import type { Turn } from './types.ts';
 
 export interface MacroData {
@@ -48,14 +49,22 @@ export const OUR_MACROS = [
   '上下文', '产物', '未完成', '轮数', '截图', '当前时间',
 ] as const;
 
-type StGlobals = { substitudeMacros?: (text: string) => string };
-
-/** 过一遍酒馆宏；宿主没有就原样返回（测试环境也能跑） */
+/**
+ * 过一遍酒馆宏；宿主没有就原样返回（测试环境也能跑）。
+ *
+ * ⚠️ 这里曾经**裸读 globalThis.substitudeMacros** —— 那是审计出来的**第三条平行链**：
+ * 同一个 substitudeMacros 在 transport 走的是 .bind() 早绑定的 private 版本，
+ * 在这里走的是裸全局，注入的假实现只在 storage 那条链上生效。
+ * 现在统一走 core/host.ts 的 provider chain（晚绑定：每次调用重新解引用），
+ * 于是「注入的假实现 / 原生适配器 / TavernHelper.substitudeMacros / globalThis.substitudeMacros」
+ * 四条来源在**全项目**只有一个解析答案。
+ */
 export function applyStMacros(text: string): string {
-  const g = globalThis as unknown as StGlobals;
-  if (typeof g.substitudeMacros !== 'function') return text;
+  const fn = hostFn('substitudeMacros');
+  if (typeof fn !== 'function') return text;
   try {
-    return g.substitudeMacros(text);
+    const out = fn(text);
+    return typeof out === 'string' ? out : text;
   } catch (err) {
     console.warn('[苍玄助手] 酒馆宏替换失败，原样使用', err);
     return text;

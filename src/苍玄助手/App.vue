@@ -1,5 +1,17 @@
 <template>
-  <AppShell :pages="pages" :tab="tab" :status="status" @update:tab="store.setTab($event)">
+  <FloatingShell
+    ref="shellEl"
+    :tab-title="tab"
+    :running="busy"
+    @close="onShellAction('close')"
+  >
+  <AppShell
+    :pages="pages"
+    :tab="tab"
+    :status="status"
+    @update:tab="store.setTab($event)"
+    @close="onShellAction('close')"
+  >
     <!-- 阶段 3：苍玄助手插件不再带页面（顶栏收成 3 格：对话 / 世界书 / 设置）。
          它的宏与工具照常由插件贡献，运行时门禁见 run/runner.ts 的 liveToolDefs。 -->
     <!-- 页面级错误边界：某个插件内容页抛错时，只把这一页换成提示，面板整体照常可用 -->
@@ -61,6 +73,7 @@
 
     <div v-if="notice" :style="toastStyle">{{ notice }}</div>
   </AppShell>
+  </FloatingShell>
 </template>
 
 <script setup lang="ts">
@@ -68,6 +81,7 @@ import { computed, onErrorCaptured, onMounted, onUnmounted, ref, watch } from 'v
 
 import { DEFAULT_ON_TOOLS, createRegistry } from './agent/registry.ts';
 import AppShell from './components/AppShell.vue';
+import FloatingShell from './components/FloatingShell.vue';
 import type { GotoSeg, UiEntry, UiRole, UiTool, UiWorld } from './components/ui_types.ts';
 import { fetchModels, loadEntries, loadRoles, loadWorlds, parsePortraitFile, toUiTools } from './core/adapters.ts';
 import type { PageEntry } from './core/pages.ts';
@@ -221,6 +235,17 @@ const toastStyle = 'position:sticky;bottom:8px;margin:0 12px;padding:8px 12px;bo
  *  - 长时间任务（agent 运行 / 写回草稿）：用 holdSaves() + finally releaseSaves() 收成一次
  *  - 极少数「必须马上落地」的动作（弹窗保存 / 导入）：store.save(true)
  */
+
+/**
+ * 面板外壳的把手（悬浮球 / 浮层）。这里只做「收起」这一件事 ——
+ * 打开由悬浮球自己点，App.vue 不参与，免得两边抢状态。
+ */
+const shellEl = ref<{ setOpen: (next: boolean) => void } | null>(null);
+
+/** 浮层壳事件统一在这里收：目前只有「收起」 */
+function onShellAction(action: string): void {
+  if (action === 'close') shellEl.value?.setOpen(false);
+}
 
 function notify(text: string): void {
   notice.value = text;

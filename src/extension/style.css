@@ -1,0 +1,21 @@
+/*
+ * 苍玄界 · 扩展样式
+ *
+ * 只放「扩展在酒馆页面里占的容器」相关的样式。
+ * 面板本体全部样式在 src/苍玄助手/global.css，用 cx-* / --qx-* 前缀隔离。
+ *
+ * ⚠️ 这里的选择器越少越好：宿主页面里满是 .flex1 / .menu_button 这类通用类名，
+ * 一旦漏出去就会把酒馆自己的界面改花。
+ */
+
+/*
+ * 挂载点：不占位。
+ *
+ * 容器挂在 document.body 下（见 src/extension/index.ts 的 mountTarget —— 挂设置抽屉里
+ * 会被抽屉的 display:none 把整棵子树的几何压成 0×0，球就永远看不见且不报错）。
+ * display:contents 让这个盒子本身不产生布局盒，只把子节点（.cx-ball / .cx-pw）
+ * 交给 body 参与布局；两者都是 position:fixed，既不占位、也不受 body 布局影响。
+ */
+#cx-root-mount {
+  display: contents;
+}

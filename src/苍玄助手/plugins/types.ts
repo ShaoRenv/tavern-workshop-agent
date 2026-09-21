@@ -10,7 +10,7 @@
  * 从此「插件 = 一个自包含目录 + manifest.ts」，内置插件与未来外部插件同形 ——
  * 外部插件只剩「目录里的文件从哪来」这一个问题了。
  */
-import type { ToolDef } from '../core/ports.ts';
+import type { SettingsSchema, ToolDef } from '../core/ports.ts';
 
 /** 插件 id：cangxuan / worldbook / image / mcp */
 export type PluginId = string;
@@ -57,6 +57,20 @@ export interface PluginMacro {
   /** 一句话说明（界面 / 文档用） */
   desc?: string;
   render: (data: PluginMacroContext) => string;
+  /**
+   * 进**酒馆宏引擎**时用的 ASCII 别名（可选）。
+   *
+   * ⚠️ 为什么需要它：酒馆的宏名**只能含 ASCII**（词法器只认 [a-zA-Z] 开头，
+   * 见 MacroLexer.js:17 的 MACRO_IDENTIFIER_PATTERN）。所以中文名的宏
+   * **永远不可能**在角色卡 / 酒馆里生效 —— 只会静默不替换。
+   *
+   * 于是分两条路走：
+   *   - scopes 含 'preset'：中文名照旧，走**我们自己的**渲染器（不经酒馆词法器）→ 用户预设不用改
+   *   - scopes 含 'tavern'：必须提供这个 ASCII 别名，注册给酒馆的是它
+   *
+   * 没给别名又声明了 'tavern' → 底座明确拒绝注册并报原因（不静默失败）。
+   */
+  tavernAlias?: string;
 }
 
 /**
@@ -68,28 +82,14 @@ export interface PluginMacro {
 export type PluginMacroContext = Record<string, unknown>;
 
 /**
- * 插件贡献的一个设置字段（阶段 4 起由声明式 SettingsForm.vue 渲染）。
+ * 插件贡献的设置声明：`SettingsSchema`（字段 + 块）。**规范形状在 core/ports.ts 的 SettingsField。**
  *
- * 阶段 3 只补**契约**：插件声明字段，界面暂时仍可自己画 —— 但外部插件
- * 没有自己画界面的机会，所以字段形状现在就要定死。
+ * ⚠️ 阶段 3 这里曾经有**第二套**字段形状（`PluginSettingField`：7 种控件、把布尔叫 `switch`、
+ * 条件显示只能写 `showIf: '另一个字段名'`），跟 core/ports.ts 的 `ToolSettingsField`
+ * （8 种控件、布尔叫 `boolean`）不是一回事 —— 于是 `SettingsForm` 根本写不出来。
+ * 阶段 4 合成**一份**：一种控件名、一种条件表达（`visibleIf` 谓词，能表达
+ * `model 是 v3 才显示` 这种「跟另一个字段的值有关」而 `showIf` 表达不了的事）。
  */
-export interface PluginSettingField {
-  /** 存在 plugins.<id>.<key> 里 */
-  key: string;
-  label: string;
-  type: 'text' | 'password' | 'number' | 'switch' | 'select' | 'textarea';
-  /** 一句话说明 */
-  hint?: string;
-  /** 缺省值（类型与 type 对应） */
-  default?: unknown;
-  /** type='select' 时的选项 */
-  options?: Array<{ value: string; label: string }>;
-  /** number 用 */
-  min?: number;
-  max?: number;
-  /** 正数才显示（值是 plugins.<id> 下的另一个字段名）—— 声明式表单的「条件显示」 */
-  showIf?: string;
-}
 
 /**
  * 插件清单。
@@ -116,7 +116,21 @@ export interface PluginManifest {
     macros?: PluginMacro[];
     skills?: PluginSkillRef[];
     presets?: PluginPresetRef[];
-    settings?: PluginSettingField[];
+    settings?: SettingsSchema;
+    /**
+     * 这个插件**需要哪些宿主能力**（能力名 = core/capability.ts 的 CAPABILITIES[].name，
+     * 也就是 core/host.ts 的 hostFn 认的那个接口名）。
+     *
+     * 装载口径（core/capability.ts 的 evaluatePluginCapabilities）：
+     *   - 底座启动**探一遍**宿主，得出一张能力表；
+     *   - 这里声明的能力里，**required 的缺失 → 该插件不注册**，并给一句人话原因；
+     *   - 只声明可选能力的缺失 → 照常注册，界面标「部分功能降级」。
+     *
+     * 为什么要有这个字段：迁移前能力可得性是**隐式**的 —— 拿不到宿主接口时插件
+     * 跑起来炸在半路，用户只看到一句没有上下文的报错。声明出来后，缺能力是
+     * **装载期**就能说清的事：「世界书插件不可用（缺 getWorldbook）」。
+     */
+    requires?: string[];
   };
   /**
    * 插件自己算状态（未启用由底座先判，这里只管「开着的插件缺什么」）。

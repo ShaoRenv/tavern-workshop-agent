@@ -25,6 +25,9 @@ const {
   hasHostFn,
   isPlainRecord,
   getHostBridge,
+  resetDataScope,
+  resetLoadOutcome,
+  resetUserTouchedData,
 } = await import(core + 'storage.ts');
 
 /* ============================ types 校验 ============================ */
@@ -387,12 +390,25 @@ test('storage: recoverRootData 对奇形怪状输入不抛异常', () => {
 
 /* ============================ storage：读 ============================ */
 
-test('storage: loadData 走宿主 getVariables（脚本作用域），缺接口时给默认值', () => {
-  const scopes = [];
+test('storage: loadData 走宿主 getVariables（**按形态选作用域**），缺接口时给默认值', () => {
+  // ⚠️ P4-10 改：原来只断言 { type: 'script' }。新契约是「按形态分流」，
+  // 所以脚本形态 / 扩展形态**两面都钉** —— 只钉一面等于没测到真正的契约。
+  const saved = {
+    scriptId: globalThis.__CX_SCRIPT_ID__,
+    helper: globalThis.TavernHelper,
+    bare: globalThis.getScriptId,
+  };
   try {
+    // ---- 形态一：脚本形态 → 带 script_id 的脚本作用域 ----
+    delete globalThis.TavernHelper;
+    delete globalThis.getScriptId;
+    globalThis.__CX_SCRIPT_ID__ = 'sid-storage';
+    resetDataScope();
+    resetLoadOutcome();
+    const scriptScopes = [];
     setHostBridge({
       getVariables: scope => {
-        scopes.push(scope);
+        scriptScopes.push(scope);
         return { [GLOBAL_KEY]: { active_tab: 'chat', gen: { retry: 5 } } };
       },
     });
@@ -400,29 +416,92 @@ test('storage: loadData 走宿主 getVariables（脚本作用域），缺接口�
     assert.equal(data.active_tab, 'chat');
     assert.equal(data.gen.retry, 5);
     assert.equal(data.gen.image_concurrency, 4, '没写的字段要补 default');
-    assert.deepEqual(scopes, [{ type: 'script' }], '读也要走脚本变量');
+    assert.deepEqual(scriptScopes, [{ type: 'script', script_id: 'sid-storage' }], '脚本形态：读走脚本变量');
+
+    // ---- 形态二：扩展形态 → global（P4-10：否则真机读不回来） ----
+    delete globalThis.__CX_SCRIPT_ID__;
+    resetDataScope();
+    resetLoadOutcome();
+    const extScopes = [];
+    setHostBridge({
+      getVariables: scope => {
+        extScopes.push(scope);
+        return { [GLOBAL_KEY]: { active_tab: 'chat', gen: { retry: 5 } } };
+      },
+    });
+    assert.equal(loadData().active_tab, 'chat');
+    assert.deepEqual(extScopes, [{ type: 'global' }], '扩展形态：读必须走 global');
   } finally {
     setHostBridge(null);
+    if (saved.scriptId === undefined) delete globalThis.__CX_SCRIPT_ID__;
+    else globalThis.__CX_SCRIPT_ID__ = saved.scriptId;
+    if (saved.helper !== undefined) globalThis.TavernHelper = saved.helper;
+    if (saved.bare !== undefined) globalThis.getScriptId = saved.bare;
+    resetDataScope();
+    resetLoadOutcome();
   }
   assert.equal(readStoredRootData(), null, '没宿主读不到 → null');
-  assert.equal(loadData().active_tab, 'chat');
 });
 
 /* ============================ storage：写 ============================ */
 
+/**
+ * P4-10：写作用域也是**按形态分流**的，所以三个降级用例都两面钉。
+ *
+ * 用法：runInBothForms(body)，body 收到 { scopes, expectedScope }，
+ * 分别在「脚本形态」与「扩展形态」下各跑一遍，断言各自该用的作用域。
+ */
+function runInBothForms(body) {
+  const saved = {
+    scriptId: globalThis.__CX_SCRIPT_ID__,
+    helper: globalThis.TavernHelper,
+    bare: globalThis.getScriptId,
+  };
+  const current = () => globalThis.__CX_SCRIPT_ID__;
+  try {
+    // 形态一：脚本形态
+    delete globalThis.TavernHelper;
+    delete globalThis.getScriptId;
+    globalThis.__CX_SCRIPT_ID__ = 'sid-write';
+    resetDataScope();
+    resetLoadOutcome();
+    resetUserTouchedData();
+    body({ form: 'script', expectedScope: { type: 'script', script_id: 'sid-write' } });
+
+    // 形态二：扩展形态
+    delete globalThis.__CX_SCRIPT_ID__;
+    resetDataScope();
+    resetLoadOutcome();
+    resetUserTouchedData();
+    body({ form: 'extension', expectedScope: { type: 'global' } });
+  } finally {
+    setHostBridge(null);
+    if (saved.scriptId === undefined) delete globalThis.__CX_SCRIPT_ID__;
+    else globalThis.__CX_SCRIPT_ID__ = saved.scriptId;
+    if (saved.helper !== undefined) globalThis.TavernHelper = saved.helper;
+    if (saved.bare !== undefined) globalThis.getScriptId = saved.bare;
+    resetDataScope();
+    resetLoadOutcome();
+    resetUserTouchedData();
+    void current;
+  }
+}
+
 test('storage: 没有任何变量接口时 saveData 抛错（store 会 catch）', () => {
   try {
     setHostBridge({});
-    assert.throws(() => saveData(defaultRootData()), /没有可用的酒馆助手脚本变量接口/);
+    // ⚠️ P4-10 改：报错文案更新 —— 现在要说清「没有写入接口」，也要带上作用域信息。
+    // 期望仍钉住**真实原因**（是「没有可用的变量写入接口」），不是泛泛的「保存失败」。
+    assert.throws(() => saveData(defaultRootData()), /没有可用的变量写入接口/);
     assert.equal(saveRootData(defaultRootData()), false, 'saveRootData 不抛，返回 false');
   } finally {
     setHostBridge(null);
   }
 });
 
-test('storage: 优先 insertOrAssignVariables，只动我们那一个 key，作用域是脚本变量', () => {
-  const calls = [];
-  try {
+test('storage: 优先 insertOrAssignVariables，只动我们那一个 key（作用域按形态分流）', () => {
+  runInBothForms(({ form, expectedScope }) => {
+    const calls = [];
     setHostBridge({
       insertOrAssignVariables: (payload, options) => calls.push({ payload, options }),
     });
@@ -430,36 +509,34 @@ test('storage: 优先 insertOrAssignVariables，只动我们那一个 key，作�
     data.selection.demand = '整理天枢阁';
     saveData(data);
     assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].options, { type: 'script' }, '数据放脚本变量，卸载脚本不留残留');
-    assert.ok(!('script_id' in calls[0].options), '解析不到脚本 id 时省略，用脚本内默认作用域');
+    assert.deepEqual(calls[0].options, expectedScope, form + '：写作用域要跟读一致');
     assert.equal(calls[0].payload[GLOBAL_KEY].selection.demand, '整理天枢阁');
     assert.equal(calls[0].payload[GLOBAL_KEY].version, DATA_VERSION);
     assert.ok(!('other' in calls[0].payload), '整表接口不该被用');
-  } finally {
-    setHostBridge(null);
-  }
+    // 核心意图之一仍在：只动我们那一个 key，别人的变量不碰
+    assert.deepEqual(Object.keys(calls[0].payload), [GLOBAL_KEY], '只许动 GLOBAL_KEY 那一个键');
+  });
 });
 
-test('storage: 退化到 replaceVariables 时保留别人的变量，作用域是脚本变量', () => {
-  const replaced = [];
-  try {
+test('storage: 退化到 replaceVariables 时保留别人的变量（作用域按形态分流）', () => {
+  runInBothForms(({ form, expectedScope }) => {
+    const replaced = [];
     setHostBridge({
       getVariables: () => ({ someone_else: { a: 1 }, [GLOBAL_KEY]: { active_tab: 'chat' } }),
       replaceVariables: (next, options) => replaced.push({ next, options }),
     });
     saveData(defaultRootData());
     assert.equal(replaced.length, 1);
-    assert.deepEqual(replaced[0].next.someone_else, { a: 1 });
+    // 核心意图仍在：别人的变量必须被保留
+    assert.deepEqual(replaced[0].next.someone_else, { a: 1 }, form + '：不许把别人的变量抹掉');
     assert.equal(replaced[0].next[GLOBAL_KEY].active_tab, 'chat');
-    assert.deepEqual(replaced[0].options, { type: 'script' });
-  } finally {
-    setHostBridge(null);
-  }
+    assert.deepEqual(replaced[0].options, expectedScope, form + '：写作用域要跟读一致');
+  });
 });
 
-test('storage: 退化到 updateVariablesWith 时保留别人的变量，作用域是脚本变量', () => {
-  let merged = null;
-  try {
+test('storage: 退化到 updateVariablesWith 时保留别人的变量（作用域按形态分流）', () => {
+  runInBothForms(({ expectedScope }) => {
+    let merged = null;
     setHostBridge({
       updateVariablesWith: (updater, options) => {
         merged = { value: updater({ someone_else: 7 }), options };
@@ -468,10 +545,8 @@ test('storage: 退化到 updateVariablesWith 时保留别人的变量，作用�
     saveData(defaultRootData());
     assert.equal(merged.value.someone_else, 7);
     assert.equal(merged.value[GLOBAL_KEY].version, DATA_VERSION);
-    assert.deepEqual(merged.options, { type: 'script' });
-  } finally {
-    setHostBridge(null);
-  }
+    assert.deepEqual(merged.options, expectedScope, '写作用域要跟读一致');
+  });
 });
 
 test('storage: 写入前先校验修复坏块（坏值不会落盘）', () => {

@@ -27,6 +27,15 @@ interface Config {
 interface Entry {
   script: string;
   html?: string;
+  /**
+   * true = 这个入口要打成**酒馆扩展**（dist 里多出一份 manifest.json，允许分包）。
+   *
+   * 为什么要区分：扩展与「单文件酒馆脚本」的打包约束**正好相反**。
+   * 脚本形态：一个 .json 里就一段代码，import() 拆出的 chunk 永远 404 → 必须单文件。
+   * 扩展形态：dist 目录由酒馆的静态服务器伺服 → 允许分包，也就不该再受 LimitChunkCount 的限制。
+   * 判定方式：入口同级目录有 manifest.json 就是扩展（官方模板也是这个布局）。
+   */
+  extension?: boolean;
 }
 
 function parse_entry(script_file: string) {
@@ -35,6 +44,82 @@ function parse_entry(script_file: string) {
     return { script: script_file, html };
   }
   return { script: script_file };
+}
+
+/** 入口同级有 manifest.json ⇒ 这是扩展入口（照官方模板 / ST 的发现规则） */
+function is_extension_entry(script_file: string) {
+  return fs.existsSync(path.join(path.dirname(script_file), 'manifest.json'));
+}
+
+/** 扩展入口的产出目录：dist 里保持同名目录，dist/extension/index.js */
+function extension_out_dir(script_file: string) {
+  return path.join(
+    import.meta.dirname,
+    'dist',
+    path.relative(import.meta.dirname, path.dirname(script_file)).replace(/^[^\\/]+[\\/]/, ''),
+  );
+}
+
+/**
+ * 把 manifest.json / style.css 抄进产出目录 —— 酒馆要求 manifest.json 与 js 同级。
+ * 扩展的 css 由 MiniCssExtractPlugin 直接产出，不用这里抄。
+ */
+function copy_extension_assets(script_file: string) {
+  const dir = path.dirname(script_file);
+  const out = extension_out_dir(script_file);
+  return {
+    apply(compiler: webpack.Compiler) {
+      compiler.hooks.afterEmit.tap('copy_extension_assets', () => {
+        try {
+          fs.mkdirSync(out, { recursive: true });
+          const manifest = path.join(dir, 'manifest.json');
+          if (fs.existsSync(manifest)) {
+            fs.copyFileSync(manifest, path.join(out, 'manifest.json'));
+            console.info(`\x1b[36m[extension]\x1b[0m 已产出 ${path.relative(import.meta.dirname, path.join(out, 'manifest.json'))}`);
+          }
+          prune_stale_chunks(out);
+        } catch (error) {
+          console.error('\x1b[31m[extension]\x1b[0m 抄 manifest.json 失败', error);
+        }
+      });
+    },
+  };
+}
+
+/**
+ * 删掉**没有被 index.js 引用**的旧 chunk。
+ *
+ * ⚠️ 为什么必须做：chunk 是 contenthash 命名的，每次改代码就多一个新名字。
+ * webpack 的 `output.clean` 只清**本次 compilation 记过账**的文件，历史上积累的旧 chunk
+ * 会一直躺在 dist 里 —— 实测一轮开发下来堆了 **9 个**，而 index.js 只引用其中 1 个。
+ *
+ * 危害有两个，都很实在：
+ *  1. 玩家更新时如果走的是「覆盖拷贝」（而不是先删目录），旧 chunk 会和新的混在一起；
+ *     一旦 index.js 与 chunk 版本错配，就是**更新后白屏**（这正是发布原子性要防的）。
+ *  2. 包体虚胖：8 个没人引用的 228KB 文件跟着仓库走。
+ *
+ * 所以构建收尾时主动清一次，保证 dist/extension 里只有「当前这一套」。
+ */
+function prune_stale_chunks(out: string) {
+  const entry = path.join(out, 'index.js');
+  if (!fs.existsSync(entry)) return;
+
+  const code = fs.readFileSync(entry, 'utf8');
+  // chunk 文件名形如 index.<hash>.chunk.js；从入口里把所有引用抠出来
+  const referenced = new Set(code.match(/index\.[0-9a-f]{16,}\.chunk\.js/g) ?? []);
+
+  let removed = 0;
+  for (const file of fs.readdirSync(out)) {
+    if (!/\.chunk\.js(\.map)?$/.test(file)) continue;
+    // .map 跟着它的同名 chunk 一起留 / 一起删
+    const base = file.replace(/\.map$/, '');
+    if (referenced.has(base)) continue;
+    fs.rmSync(path.join(out, file), { force: true });
+    removed += 1;
+  }
+  if (removed > 0) {
+    console.info(`\x1b[36m[extension]\x1b[0m 清掉 ${removed} 个没被引用的旧 chunk（防「更新后白屏」+ 防包体虚胖）`);
+  }
 }
 
 function common_path(lhs: string, rhs: string) {
@@ -76,7 +161,10 @@ function glob_script_files() {
 
 const config: Config = {
   port: 6621,
-  entries: glob_script_files().map(parse_entry),
+  entries: glob_script_files().map(parse_entry).map(entry => ({
+    ...entry,
+    extension: is_extension_entry(entry.script),
+  })),
 };
 
 let io: Server;
@@ -210,16 +298,26 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
 
         return `${is_direct === true ? 'src' : 'webpack'}://${info.namespace}/${resource_path}${is_direct || is_vue_script ? '' : '?' + info.hash}`;
       },
-      filename: `${script_filepath.name}.js`,
+      // 扩展入口固定产出 index.js / index.css（manifest.json 里就写这两个名字）；
+      // 脚本入口沿用模板的「一个目录一个同名文件」。
+      filename: entry.extension ? 'index.js' : `${script_filepath.name}.js`,
+      ...(entry.extension ? { cssFilename: 'index.css', assetModuleFilename: '[name][ext]' } : {}),
       path: path.join(
         import.meta.dirname,
         'dist',
         path.relative(import.meta.dirname, script_filepath.dir).replace(/^[^\\/]+[\\/]/, ''),
       ),
       chunkFilename: `${script_filepath.name}.[contenthash].chunk.js`,
-      asyncChunks: true,
-      clean: true,
-      publicPath: '',
+      /**
+       * publicPath 定死为 './'（相对）。
+       *
+       * 扩展的 dist 目录在 `/scripts/extensions/third-party/<名字>/` 下，具体路径取决于
+       * 用户把仓库 clone 到哪，**编译期无从得知**。用 './' 让 webpack 按 chunk 自身位置
+       * 解相对 URL，装到哪都对。
+       * 脚本入口用 ''（酒馆里也是相对自身）。
+       */
+      publicPath: entry.extension ? './' : '',
+      asyncChunks: entry.extension,
       library: {
         type: 'module',
       },
@@ -346,7 +444,7 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
               loader: 'yaml-loader',
             },
           ].concat(
-            entry.html === undefined
+            entry.html === undefined || entry.extension
               ? ([
                   {
                     test: /\.vue\.s(a|c)ss$/,
@@ -369,8 +467,10 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
                   },
                   {
                     test: /\.s(a|c)ss$/,
+                    // 扩展要真产出一个 index.css（manifest.json 的 css 字段指向它），
+                    // 所以走 MiniCssExtract；脚本形态没有独立 css 文件可伺服，只能 style-loader 内联。
                     use: [
-                      'style-loader',
+                      entry.extension ? MiniCssExtractPlugin.loader : 'style-loader',
                       { loader: 'css-loader', options: { url: false } },
                       'postcss-loader',
                       'sass-loader',
@@ -379,7 +479,11 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
                   },
                   {
                     test: /\.css$/,
-                    use: ['style-loader', { loader: 'css-loader', options: { url: false } }, 'postcss-loader'],
+                    use: [
+                      entry.extension ? MiniCssExtractPlugin.loader : 'style-loader',
+                      { loader: 'css-loader', options: { url: false } },
+                      'postcss-loader',
+                    ],
                     exclude: /node_modules/,
                   },
                 ] as any[])
@@ -418,8 +522,30 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
       ],
       alias: {},
     },
-    plugins: (entry.html === undefined
-      ? [new MiniCssExtractPlugin()]
+    plugins: (entry.html === undefined || entry.extension
+      ? [
+          new MiniCssExtractPlugin(
+            entry.extension
+              ? {
+                  /**
+                   * ⚠️ 扩展的 CSS **必须全部进这一个文件**。
+                   *
+                   * 为什么：manifest.json 的 `css` 字段只能指向**一个**样式表，
+                   * 酒馆就只加载它。只要样式被分到异步 chunk（`<id>.index.css`），
+                   * 那个文件就**永远不会被加载** —— 表现是「悬浮球和面板全是裸样式」，
+                   * 而且控制台一声不响（没有 404，因为压根没人请求它）。
+                   *
+                   * 所以 extension 入口下 filename === chunkFilename：
+                   * 无论同步还是异步，CSS 都吐进 index.css。
+                   */
+                  // 样式已经由 splitChunks.cacheGroups.styles 合成一个 chunk，
+                  // 所以这里只需要一个固定文件名（manifest.css 指的就是它）。
+                  filename: 'index.css',
+                  chunkFilename: 'index.css',
+                }
+              : {},
+          ),
+        ]
       : [
           new HtmlWebpackPlugin({
             template: path.join(import.meta.dirname, entry.html),
@@ -461,13 +587,15 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
           // globs: ['src/panel/component/*.vue'],
           resolvers: [VueUseComponentsResolver(), VueUseDirectiveResolver()],
         }),
-        new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }),
+        // 单文件闸：**只对脚本入口**。扩展入口要正常分包（见 optimization.splitChunks）。
+        ...(entry.extension ? [] : [new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 })]),
         new webpack.DefinePlugin({
           __VUE_OPTIONS_API__: false,
           __VUE_PROD_DEVTOOLS__: process.env.CI !== 'true',
           __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
         }),
       )
+      .concat(entry.extension ? [copy_extension_assets(entry.script)] : [])
       .concat(
         should_obfuscate
           ? [
@@ -499,18 +627,50 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
             }),
       ],
       /**
-       * ⚠️ 一刀切关掉分包（阶段 3 的构建闸）。
+       * 分包策略：**按入口形态分开**。
        *
-       * 一个脚本 = 一个文件：酒馆脚本是单个 .json 里的单段代码，
-       * `import()` 拆出来的 chunk 在酒馆里**永远 404**（没有静态服务器去伺服它）。
-       * 所以插件页面只能静态 import，构建也不许产出任何 chunk。
+       * 脚本入口（一个脚本 = 一个文件）：一刀切关掉。
+       *   酒馆脚本是单个 .json 里的单段代码，`import()` 拆出的 chunk 在酒馆里**永远 404**
+       *   （没有静态服务器去伺服它）。所以插件页面只能静态 import，构建也不许产出任何 chunk。
+       *   上面的 LimitChunkCountPlugin({maxChunks:1}) 单独用不够稳：它只在**超限时合并**，
+       *   配合 cacheGroups 仍可能留着异步 chunk 的加载器 —— 直接关掉 splitChunks 才干净。
+       *   门禁：`Get-ChildItem dist -Recurse -Filter *.chunk.js` 必须为空。
        *
-       * 上面那个 LimitChunkCountPlugin({maxChunks:1}) 单独用不够稳：
-       * 它只在**超限时合并**，配合 splitChunks 的 cacheGroups 仍可能留着异步 chunk 的加载器。
-       * 直接把 splitChunks 关掉，从源头上不产生分包。
-       * 门禁：`Get-ChildItem dist -Recurse -Filter *.chunk.js` 必须为空。
+       * 扩展入口（stage 3.5 决策 7）：**撤销这个妥协**。
+       *   扩展的 dist 目录由酒馆的静态服务器伺服，chunk 拿得到，分包是纯收益：
+       *   底座初始化不用等整个 Vue 应用；插件页可以动态 import（顺带补上
+       *   「插件 = 自包含目录」在 UI 层的破洞）。
+       *   ⚠️ chunk 是 contenthash 文件名 —— 发布必须**原子**，index.js 与 chunk 同批上线，
+       *      否则就是「更新后白屏」（旧 index.js 引用的 chunk 已经不在了）。
        */
-      splitChunks: false,
+      splitChunks: entry.extension
+        ? {
+            chunks: 'async',
+            /**
+             * ⚠️ 所有 CSS 必须合并成**一个** chunk（落到 index.css）。
+             *
+             * 为什么：manifest.json 的 `css` 字段只能指定一个样式表，酒馆只加载它。
+             * 而我们用 `await import()` 动态加载界面 —— 这会顺带拆出一个异步 CSS chunk。
+             * 那个 chunk 的文件名虽然也叫 index.css（上面 filename === chunkFilename），
+             * 但**两个 chunk 抢同一个文件名**，webpack 直接报
+             * 「Conflict: Multiple chunks emit assets to the same filename」。
+             *
+             * 正解：让 splitChunks 把所有 **样式模块** 都归进同一个 cacheGroup，
+             * 于是只产出一份 CSS。JS 仍然照常异步分包（那才是我们要的收益）。
+             */
+            cacheGroups: {
+              styles: {
+                name: 'styles',
+                type: 'css/mini-extract',
+                chunks: 'all',
+                enforce: true,
+              },
+              // 关掉默认的 vendors/default，避免它们再把 CSS 拆走
+              defaultVendors: false,
+              default: false,
+            },
+          }
+        : false,
     },
     externals: ({ context, request }, callback) => {
       if (!context || !request) {
@@ -548,6 +708,14 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
         yaml: 'YAML',
         zod: 'z',
       };
+      // ⚠️ 扩展入口**不许**走宿主全局变量这条路。
+      // 脚本形态能这么写，是因为酒馆助手的 iframe 里预先把 Vue/z 挂在 window 上；
+      // 扩展是直接跑在酒馆页面里的，那里**没有** Vue / z 全局，
+      // 照搬会得到一个运行时 undefined。扩展一律自己打包依赖。
+      if (entry.extension) {
+        const cdn = { sass: 'https://jspm.dev/sass' };
+        return callback(null, 'module-import ' + (cdn[request as keyof typeof cdn] ?? `https://testingcf.jsdelivr.net/npm/${request}/+esm`));
+      }
       if (request in global) {
         return callback(null, 'var ' + global[request as keyof typeof global]);
       }

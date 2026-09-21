@@ -6,7 +6,7 @@
  *
  * 会话（记录）相关取数用 core/types.ts 的官方实现：pickActiveSession / toSessionMeta / sessionTitle。
  */
-import type { ToolOverride, ToolOverrideMap } from '../core/ports.ts';
+import type { SettingsSchema, ToolOverride, ToolOverrideMap } from '../core/ports.ts';
 import type { RootData, Turn } from '../core/types.ts';
 
 /** 立绘页的角色行 */
@@ -62,6 +62,13 @@ export interface UiTool {
   readonly?: boolean;
   source?: 'builtin' | 'external';
   origin?: string;
+  /**
+   * 这个工具自己的声明式设置（阶段 4）。
+   *
+   * 有它 → 工具详情页第 5 块渲染 SettingsForm；没有 → 还是那句「这个工具没有专属设置」。
+   * 字段形状是通用契约（core/ports.ts 的 SettingsSchema），本文件不认识里面任何键。
+   */
+  settings?: SettingsSchema;
   /**
    * 来源标签：'底座' 或插件名（由 App.vue 用 plugins/registry.ts 的 toolOwnerLabel 填）。
    * 页签名字不再由界面手写（TAB_LABELS 已删），页面标题来自页面注册表。

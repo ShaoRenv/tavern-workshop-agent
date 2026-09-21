@@ -9,6 +9,7 @@ const { DraftStore } = await import(base + 'draft.ts');
 const { createRegistry } = await import(base + 'registry.ts');
 const { createTransport } = await import(base + 'transport.ts');
 const { runAgentLoop } = await import(base + 'loop.ts');
+const { setHostBridge } = await import('../../src/苍玄助手/core/host.ts');
 
 function entry(uid, name, content) {
   return {
@@ -64,7 +65,7 @@ function makePort(seed) {
   return port;
 }
 
-test('端到端：文本通道 → 检索 → 草稿改条目 → submit → 落地 writeAll', async () => {
+test('端到端：文本通道 → 检索 → 草稿改条目 → submit → 落地 writeAll', async t => {
   const port = makePort({ 天枢阁: [entry('42', '天枢阁', '天枢阁总部在苍梧山，掌门为凌霄真人')] });
   const drafts = new DraftStore();
   const registry = createRegistry(port);
@@ -88,7 +89,11 @@ test('端到端：文本通道 → 检索 → 草稿改条目 → submit → 落
     return '总部位置补清楚了。<SystemQuery>{"name":"submit","args":{"summary":"补了天枢阁总部位置"}}</SystemQuery>';
   };
 
-  const transport = createTransport({ generateRawImpl });
+  // 宿主能力只从**唯一一条链**注入：generateRaw 走 setHostBridge（第 1 层），
+  // 不再有 createTransport({ generateRawImpl }) 这个第二条解析链。
+  setHostBridge({ generateRaw: generateRawImpl });
+  t.after(() => setHostBridge(null));
+  const transport = createTransport({});
   const ctx = {
     // 阶段 3：世界书端口经 ctx 注入（ToolContext.wb 必填）
     wb: port,

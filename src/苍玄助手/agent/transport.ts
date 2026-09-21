@@ -8,9 +8,12 @@
  *          返回的 LlmReply.via='text'，UI 可以据此提示「这次是文本标记模式」。
  * 多模态：只有 ApiSettings.send_images 开着，才把图片塞进请求。
  *
- * 说明：本文件的全局函数（generateRaw / substitudeMacros / stopGenerationById）都从宿主拿，
- * 不 import 任何新依赖；测试里可以用 deps 注入假实现。
+ * 说明：本文件用到的宿主函数（generateRaw / substitudeMacros / stopGenerationById / fetch）
+ * **一律走 core/host.ts 的唯一一条 provider chain**，本文件里不再有第二条解析链、
+ * 也不再保留 generateRaw / substitudeMacros 的 deps 后门。
+ * 要注入假实现：setHostBridge({ generateRaw: ... }) 或 globalThis.generateRaw，两者是同一条链上的层。
  */
+import { hostFn } from '../core/host.ts';
 import type { ApiSettings } from '../core/types.ts';
 import type { LlmMessage, LlmPort, LlmReply, LlmRequest, LlmToolCall, ToolSpec, ToolSupport } from '../core/ports.ts';
 
@@ -32,12 +35,19 @@ export interface FetchResponseLike {
 
 export type FetchLike = (url: string, init: Record<string, unknown>) => Promise<FetchResponseLike>;
 
+/**
+ * 传输层可调项。
+ *
+ * ⚠️ 这里**没有** generateRaw / substituteMacros 的注入口 —— 那两个后门（老字段
+ * `generateRawImpl` / `substituteMacrosImpl`）已经删掉。原因：它们构成**第二条解析链**，
+ * 「链 + 后门」只会让同一个接口有两种解析结果（审计结论）。
+ * 现在 generateRaw / substitudeMacros / stopGenerationById 一律走 core/host.ts 的
+ * 唯一一条 provider chain；要注入假实现，用 setHostBridge({ generateRaw: ... })
+ * 或 globalThis.generateRaw，两条都是**同一条链**上的层。
+ */
 export interface TransportDeps {
+  /** 自定义 fetch；不传就走 provider chain 的 fetch（原生适配器 → 宿主 fetch） */
   fetchImpl?: FetchLike;
-  /** 酒馆 generateRaw；不传就从 globalThis / TavernHelper 找 */
-  generateRawImpl?: (config: Record<string, unknown>) => Promise<unknown>;
-  /** 酒馆宏替换 substitudeMacros（官方就是拼错的）；不传就自己找，找不到就原样返回 */
-  substituteMacrosImpl?: (text: string) => string;
   onNotice?: (notice: TransportNotice) => void;
 }
 
@@ -161,25 +171,6 @@ function withTimeout(external: AbortSignal | undefined, ms: number): TimeoutGuar
       external?.removeEventListener('abort', onAbort);
     },
   };
-}
-
-function globalFunction<T>(name: string): T | undefined {
-  const host = globalThis as unknown as Record<string, unknown>;
-  try {
-    const helper = host.TavernHelper as Record<string, unknown> | undefined;
-    if (helper && typeof helper[name] === 'function')
-      return (helper[name] as (this: unknown) => unknown).bind(helper) as T;
-  } catch {
-    /* 宿主没给就算了 */
-  }
-  if (typeof host[name] === 'function') return (host[name] as (this: unknown) => unknown).bind(globalThis) as T;
-  try {
-    const win = host.window as Record<string, unknown> | undefined;
-    if (win && typeof win[name] === 'function') return (win[name] as (this: unknown) => unknown).bind(win) as T;
-  } catch {
-    /* ignore */
-  }
-  return undefined;
 }
 
 /* ============================ native 请求体 ============================ */
@@ -445,9 +436,9 @@ export class LlmTransport implements LlmPort {
     return this.route;
   }
 
-  /** 酒馆宏替换（官方拼写就是 substitudeMacros） */
+  /** 酒馆宏替换（官方拼写就是 substitudeMacros）—— 走唯一一条链，没有 deps 后门 */
   substituteMacros(text: string): string {
-    const fn = this.deps.substituteMacrosImpl ?? globalFunction<(text: string) => string>('substitudeMacros');
+    const fn = hostFn('substitudeMacros');
     if (typeof fn !== 'function') return text;
     try {
       const out = fn(text);
@@ -489,10 +480,14 @@ export class LlmTransport implements LlmPort {
     }
   }
 
+  /**
+   * 取 fetch：显式注入的 deps.fetchImpl 优先（那是**调用方**传进来的，不是第二条链），
+   * 否则走 provider chain 的 fetch —— 不再裸读 globalThis.fetch。
+   */
   private fetchImpl(): FetchLike | undefined {
     if (this.deps.fetchImpl) return this.deps.fetchImpl;
-    const host = globalThis as unknown as Record<string, unknown>;
-    return typeof host.fetch === 'function' ? (host.fetch as unknown as FetchLike) : undefined;
+    const fromChain = hostFn('fetch');
+    return fromChain ? (fromChain as unknown as FetchLike) : undefined;
   }
 
   /** 原生通道：自己 fetch，带 tools */
@@ -622,8 +617,8 @@ export class LlmTransport implements LlmPort {
 
   /** 文本通道：走 generateRaw，工具说明进提示词 */
   async chatText(req: LlmRequest): Promise<LlmReply> {
-    const generateRaw =
-      this.deps.generateRawImpl ?? globalFunction<(config: Record<string, unknown>) => Promise<unknown>>('generateRaw');
+    // 晚绑定：每次调用都重新走链（老代码在这里会 .bind() 把函数固定住）
+    const generateRaw = hostFn('generateRaw');
     if (typeof generateRaw !== 'function') {
       throw new Error('文本通道不可用：当前环境没有酒馆助手的 generateRaw');
     }
@@ -649,7 +644,7 @@ export class LlmTransport implements LlmPort {
       };
     }
 
-    const stop = globalFunction<(id: string) => void>('stopGenerationById');
+    const stop = hostFn('stopGenerationById');
     const onAbort = () => {
       try {
         stop?.(generationId);

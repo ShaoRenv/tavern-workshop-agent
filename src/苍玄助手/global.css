@@ -5,8 +5,15 @@
  *  - 类名统一 cx-*，变量统一 --qx-*（青玉），避免和酒馆宿主 / 别的脚本界面撞车
  *  - 整个界面只有分隔线（.cx-blk 的 border-top），没有卡片外框
  *  - 药丸分段器 / 幽灵键 + 实心键 / 方形开关
- *  - 前端界面是「自适应高度的 iframe」：不用 vh、不给整页锁高度、不做自己的滚动容器
- *  - 弹窗 = 固定的暗色底幕（只负责变暗）+ 文档流里的 .cx-sheet（用户滚到哪就弹在哪）
+ *  - 面板是「酒馆页面里的常驻浮层」（阶段 3.5 定案，宿主 #extensions_settings2 是普通 div，
+ *    不是 iframe；见 src/extension/index.ts 的 mountTarget() 与 mount.ts 的 app.mount(container)），
+ *    所以窗口单位、高度锁、自己的滚动容器都可以用：
+ *      · 外壳 .cx-pw = 悬浮浮层（max-height 约束），滚动交给 AppShell 的 .cx-pane
+ *      · 悬浮球 .cx-ball / 浮层 .cx-pw 都用 position:fixed，参照系是酒馆视口
+ *  - 弹窗 = 固定的暗色底幕 + fixed 居中的 .cx-sheet（有 max-height，自己能滚）
+ *
+ * ⚠️ 这份注释原来写的是「前端界面是自适应高度的 iframe：不用 vh、不给整页锁高度、
+ *    不做自己的滚动容器」—— 那条假设已被推翻，别再照着它写样式。
  */
 
 :root {
@@ -66,6 +73,9 @@ body {
   flex-direction: column;
   background: var(--qx-panel);
   color: var(--qx-ink);
+  /* 面板是浮层，高度由 .cx-pw 给出；这里撑满它，超出的部分交给 .cx-pane 滚 */
+  height: 100%;
+  min-height: 0;
 }
 
 .cx-bar {
@@ -203,11 +213,27 @@ body {
   opacity: 0.55;
 }
 
-/* 内容区：跟着文档流长 */
+/* 内容区。常驻浮层下它不再自己滚：滚动由外层 .cx-pane 统一承担 */
 .cx-body {
   flex: 1;
   overflow-x: hidden;
   padding-bottom: 6px;
+}
+
+/*
+ * 面板的滚动视口。**整个界面唯一的滚动容器**。
+ *
+ * ⚠️ 这条是阶段 3.5 之后新加的，也是推翻 iframe 假设的核心一条：
+ * AppShell 原来明说「不要在这外面再套一层滚动容器」，那是给自适应高度的 iframe 定的
+ * （iframe 里锁高度 = 内容被裁）。现在宿主是普通 div + 浮层，不给约束反而会顶出面板。
+ * min-height:0 必须写：flex 子项默认 min-height:auto，会撑破父级而不触发滚动。
+ */
+.cx-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* 块：没有卡片框，只有一条分隔线 */
@@ -1126,8 +1152,166 @@ body {
   cursor: not-allowed;
 }
 
+/* ==================== 声明式设置表单（task-18） ==================== */
+
+/*
+ * 只补真正缺的三个 class。壳 / 块 / 行 / 控件全部复用既有 cx-*：
+ *   .cx-blk .cx-blkh .cx-t .cx-n .cx-hint .cx-spacer .cx-f .cx-lab .cx-frow .cx-sw-lab .cx-grow
+ * 也就是说这里**不重画表单样式**，只补三样确实没有的东西：
+ *   1. .cx-sf      —— 表单根（本身不画任何东西，只当作用域与 growAll 的查找起点）
+ *   2. .cx-sf-badge —— 块头标题旁的角标（「N 字」）。既有 .cx-n 是右对齐的灰色小字，
+ *                     角标必须贴着标题，所以要单独一条
+ *   3. .cx-sf-note —— type:'note' 的只读一行（「来源：NovelAI」）
+ *   4. .cx-sf-code —— code 控件在 .cx-grow 基础上再多一点等宽正文的味道
+ */
+
+/* 表单根 .cx-sf 故意不带样式：块自己就有 .cx-blk 的分隔线，再加一层会多一个框 */
+
+/* 块头角标：紧贴标题的实心小药丸 */
+.cx-sf-badge {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--qx-accent-dim);
+  color: var(--qx-accent);
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* note：只读一行。不摆控件，所以也不用 .cx-lab 的标签样式 */
+.cx-sf-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--qx-muted);
+}
+
+/* code：等宽正文（textarea），跟着内容长 */
+.cx-sf-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+/* ==================== 悬浮球 + 弹出面板（task-15） ==================== */
+
+/*
+ * 右下角常驻悬浮球。
+ *
+ * z-index 取 2147483000：酒馆自己的固定元素（下边栏、输入框那一排）量级远低于它，
+ * 必须压在上面才点得到。数值对齐 tavern_script/panel.js 里那段的老做法，别改小。
+ *
+ * bottom 抬到 96px：酒馆底部那条（输入框 + 快捷回复栏）大致占 60~90px，
+ * 球再往上留一档，既不遮输入框也不遮发送键；手机端在此基础上再加安全区。
+ */
+.cx-ball {
+  position: fixed;
+  right: 18px;
+  bottom: 96px;
+  z-index: 2147483000;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--qx-hair);
+  background: var(--qx-panel);
+  color: var(--qx-accent);
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+}
+
+.cx-ball:hover {
+  border-color: var(--qx-accent);
+}
+
+.cx-ball.on {
+  background: var(--qx-accent-dim);
+  border-color: var(--qx-accent);
+}
+
+.cx-ball-i {
+  font-size: 24px;
+  font-weight: 700;
+  /* ∞ 这个字形本身带一点上下的光学偏移，往下压 1px 看着才居中 */
+  transform: translateY(-1px);
+}
+
+/* 跑着的提示点：静止、不闪。设计稿要的是「不要花哨动画」 */
+.cx-ball-r {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qx-faint);
+  display: none;
+}
+
+.cx-ball-r.on {
+  display: block;
+  background: var(--qx-accent);
+}
+
+/* 球上的文字只给读屏用 */
+.cx-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * 弹出面板：从悬浮球正下方往左上展开的浮层。
+ *
+ * 关键约束（用户验收点）：**不占文档流、不把酒馆页面撑长**。
+ * position:fixed 天然满足 —— 它连父级的宽高都不参与，挂载点 #cx-root-mount 是
+ * display:contents，整条链路上没有任何元素被它撑开。
+ *
+ * 高度上限三条兜底一起用，哪个宿主都对：
+ *   · 86vh        —— 视口高度（扩展宿主：视口 = 酒馆视口，准）
+ *   · 100% - 24px —— 宿主容器高度（酒馆助手面板 iframe 那条路：vh 是 iframe 的，多半算不准）
+ *   · 560px       —— 再高的屏幕也别铺满
+ * 注意 vh 在 iframe 宿主里会被酒馆助手重写成它自己的视口高度（替代值就是 TH-viewport-height），
+ * 所以这里**不写 min-height: Xvh**（会被改），只用 max-height。
+ */
+.cx-pw {
+  position: fixed;
+  right: 18px;
+  bottom: 96px;
+  z-index: 2147483001;
+  width: min(420px, calc(100vw - 36px));
+  max-height: min(86vh, calc(100% - 24px), 560px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--qx-panel);
+  color: var(--qx-ink);
+  border: 1px solid var(--qx-hair);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.62);
+}
+
 /* ==================== 弹窗 ==================== */
 
+/*
+ * ⚠️ 阶段 3.5 翻案：原来是「fixed 暗幕 + **文档流里**的 .cx-sheet（用户滚到哪弹在哪）」。
+ * 那条是为「自适应高度 iframe」写的 —— iframe 会把 body.scrollHeight 全量量给父级，
+ * 文档流里的弹窗于是「跟着页面长」。常驻 DOM 下没有这回事，fixed 居中才是正确做法：
+ *   · 参照系是酒馆视口（宿主是 #extensions_settings2），居中稳定
+ *   · 长内容不再撑破面板：靠 max-height + 内部滚动兜住
+ */
 .cx-backdrop {
   position: fixed;
   inset: 0;
@@ -1137,10 +1321,14 @@ body {
 }
 
 .cx-sheet {
-  position: relative;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 100;
   width: min(600px, 92vw);
-  margin: 14px auto 18px;
+  /* 视口高度兜底 + 面板自身的可用高度取小者：两种宿主（扩展浮层 / 酒馆助手面板 iframe）都对 */
+  max-height: min(84vh, calc(100% - 24px));
   background: var(--qx-panel);
   border: 1px solid var(--qx-hair);
   border-radius: 16px;
@@ -1155,6 +1343,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 0 auto;
 }
 
 .cx-sheet .cx-sh .cx-ttl {
@@ -1163,11 +1352,16 @@ body {
   font-weight: 700;
 }
 
+/* 弹窗正文：内容长了自己滚（头尾固定），不要顶穿 max-height */
 .cx-sheet .cx-sb {
   padding: 0 18px 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .cx-sheet .cx-sf {
@@ -1176,6 +1370,7 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 0 0 auto;
 }
 
 .cx-code {
@@ -1742,9 +1937,16 @@ body {
     font-size: 14.5px;
   }
 
+  /* 手机端：桌面那套「居中 + 固定宽度」在窄屏上很挤，改成贴边铺满 */
   .cx-sheet {
+    top: 8px;
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
     width: auto;
-    margin: 10px 8px 14px;
+    max-width: none;
+    max-height: none;
+    transform: none;
   }
 
   .cx-sheet .cx-sf {
@@ -1795,6 +1997,18 @@ body {
     width: 40px;
     height: 40px;
     font-size: 15px;
+  }
+
+  /* 手机端：悬浮球抬到输入框与安全区之上，面板铺得更满一些 */
+  .cx-ball,
+  .cx-pw {
+    right: 12px;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .cx-pw {
+    width: min(440px, calc(100vw - 24px));
+    max-height: min(80vh, calc(100% - 16px));
   }
 
   /* 手机端：紧凑多选 / 跳转行也保证 40px+ 点击区 */

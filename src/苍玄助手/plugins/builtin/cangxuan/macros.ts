@@ -49,7 +49,13 @@ export function cangxuanMacros(): PluginMacro[] {
     {
       name: '图片提示词',
       scopes: ['tavern', 'preset'],
-      desc: '当前立绘里抽出的图片提示词（角色卡与预设都能用）',
+      /*
+       * 面板内用 {{图片提示词}}（我们自己的渲染器，中文名没问题）；
+       * 角色卡里必须用 {{cx_image_prompt}} —— 酒馆的宏名只能是 ASCII。
+       * 详见 plugins/types.ts 的 tavernAlias 注释。
+       */
+      tavernAlias: 'image_prompt',
+      desc: '当前立绘里抽出的图片提示词（面板里写 {{图片提示词}}；角色卡里写 {{cx_image_prompt}}）',
       render: renderPortraitPrompt,
     },
     {

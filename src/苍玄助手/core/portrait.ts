@@ -13,15 +13,32 @@
  */
 import { hostFn } from './storage.ts';
 
-/** 通过宿主桥取酒馆助手的脚本树（旧代码直接调全局，这里收口成一处） */
+/**
+ * 通过宿主桥取**脚本树**（酒馆助手专有概念）。
+ *
+ * ⚠️ 阶段 3.5 定案：`getScriptTrees` 在 ST 原生接口里**没有对应**。
+ * 它是酒馆助手（JS-Slash-Runner）独有的抽象 —— 用于枚举「状态栏」这类脚本内嵌的图库。
+ *
+ * 所以扩展形态下分两种情况：
+ *  - 用户**同时装了**酒馆助手 → 链的第 3 层能取到，功能照旧；
+ *  - 没装 → 这里返回空数组，**明确记一次失败原因**，由 Capability 层在界面上显示
+ *    「立绘图库：不可用（缺 getScriptTrees）」。
+ *
+ * 注释保留这段是因为：这是底座 17 个宿主依赖里**唯一一个真正需要自建/降级**的，
+ * 别看到返回 [] 就以为「只是没数据」。
+ */
 function getScriptTreesViaHost(option: { type: string }): any[] {
   const fn = hostFn('getScriptTrees');
-  if (!fn) return [];
+  if (!fn) {
+    // 明确说清「不是没数据，是这个宿主没这个能力」，别让上层以为是空图库
+    console.warn('[苍玄助手] 当前宿主没有 getScriptTrees（ST 原生无此能力，需装酒馆助手），脚本树图库不可用');
+    return [];
+  }
   try {
     const trees = fn(option);
     return Array.isArray(trees) ? trees : [];
   } catch (error) {
-    console.warn('[苍玄助手] 读取酒馆助手脚本树失败', error);
+    console.warn('[苍玄助手] 读取脚本树失败', error);
     return [];
   }
 }
@@ -1114,29 +1131,25 @@ export function normalizeImageUrl(value: unknown): string {
   return /^(https?:|data:image\/|blob:)/i.test(url) ? url : '';
 }
 
-/** 取得宿主页面的 localStorage（脚本与前端界面均与酒馆同源） */
+/**
+ * 取得宿主的 localStorage。
+ *
+ * ⚠️ 阶段 3.5 修正：这里原来有 parent → top → self 的**三级兜底**，
+ * 那是为「面板被塞在 iframe 里、可能跨域」写的。扩展形态下**面板直接跑在酒馆页面里**，
+ * parent === top === self，三级兜底是纯粹的误导性复杂度（而且每一级都要 try/catch）。
+ *
+ * 现在只取自身 localStorage —— 扩展与酒馆同源同窗口，这是唯一正确答案。
+ * 仍然返回 null 而不是抛错：隐私模式 / 存储被禁时 localStorage 访问会抛，
+ * 调用方（readStoredRoles）按「读不到」处理即可，别把立绘页整个炸掉。
+ */
 function hostStorage(): Storage | null {
-  const candidates: unknown[] = [];
   try {
-    candidates.push(window.parent?.localStorage);
-  } catch {
-    /* 跨域时忽略 */
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch (error) {
+    // ⚠️ 不静默吞：读不到存储要说得出原因
+    console.warn('[苍玄助手] localStorage 不可用（隐私模式？），立绘图库这次读不到', error);
+    return null;
   }
-  try {
-    candidates.push(window.top?.localStorage);
-  } catch {
-    /* 跨域时忽略 */
-  }
-  try {
-    candidates.push(localStorage);
-  } catch {
-    /* 不可用时忽略 */
-  }
-
-  for (const candidate of candidates) {
-    if (candidate && typeof (candidate as Storage).getItem === 'function') return candidate as Storage;
-  }
-  return null;
 }
 
 /** 从 localStorage 读一个角色数组，容错任何异常 */

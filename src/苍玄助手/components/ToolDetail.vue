@@ -121,12 +121,29 @@
       </div>
     </div>
 
-    <!-- 5 工具自己的设置：声明式表单（ToolSettingsField）下一轮做，这里先占位 -->
-    <div class="cx-blk">
+    <!--
+      5 工具自己的设置（阶段 4 起**声明式**）。
+
+      工具在 `ToolDef.settings` 里**声明字段**，宿主 `SettingsForm` 负责画 —— 与插件设置同一份契约、
+      同一个组件（这也是为什么这份声明必须挂在 ToolDef 上：外部工具装载后同样变成 ToolDef 进注册表）。
+
+      没有声明 `settings` 的工具照旧走原来那句说明，**逐字不变**（本轮只是拿掉了「后面做」标签）。
+      真实数据下走到这一支是正常的：生图那套设置属于**生图插件**（在「能力 · 插件」页改），
+      它贡献的工具 `gen_image` 自己不该再有一份。
+    -->
+    <SettingsForm
+      v-if="toolSettings"
+      :fields="toolSettings.fields"
+      :groups="toolSettings.groups"
+      :values="override?.config ?? {}"
+      :reset-confirm="toolSettings.resetConfirm"
+      @patch="onSettingsPatch"
+      @reset="onSettingsReset"
+    />
+    <div v-else class="cx-blk">
       <div class="cx-blkh">
         <span class="cx-t">工具自己的设置</span>
         <span class="cx-spacer"></span>
-        <span class="cx-tag">后面做</span>
       </div>
       <div class="cx-placeholder">
         {{
@@ -158,7 +175,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
-import type { ToolOverride } from '../core/ports.ts';
+import type { SettingsSchema, ToolOverride } from '../core/ports.ts';
+import SettingsForm from './SettingsForm.vue';
 import Sw from './Sw.vue';
 import type { UiTool, UiToolParam } from './ui_types.ts';
 import { overrideEdited, textToValue, toolGroupLabel, toolParamList, valueToText } from './ui_types.ts';
@@ -195,6 +213,8 @@ const paramError = ref<Record<string, string>>({});
 
 const params = computed(() => toolParamList(props.tool.parameters));
 const groupLabel = computed(() => toolGroupLabel(props.tool));
+/** 这个工具声明的设置（阶段 4）；没声明就是 undefined → 第 5 块走原来那句说明 */
+const toolSettings = computed<SettingsSchema | undefined>(() => props.tool.settings);
 const isImage = computed(() => props.tool.group === 'image' || /image|生图/i.test(props.tool.name));
 const isExternal = computed(() => props.tool.source === 'external');
 /**
@@ -349,6 +369,24 @@ function onTimeoutChange() {
 function clearTimeout() {
   timeoutDraft.value = props.tool.timeout_ms === undefined ? '' : String(props.tool.timeout_ms);
   emit('patch', { timeout_ms: undefined });
+}
+
+/* ---------- 工具自己的设置（声明式表单，阶段 4） ---------- */
+
+/**
+ * SettingsForm 只 emit「改了什么」，这里把它并进**整份** `config` 再交出去。
+ *
+ * ⚠️ 为什么必须并成整份、不能只传增量：写路径尽头的 `store.setToolOverride` 是
+ * **浅合并**（`{...旧, ...patchClean}`），只传增量会把 `config` 里别的键**整个覆盖掉**。
+ * 所以这里读当前 `override.config`、铺开、再盖上本次改动。
+ */
+function onSettingsPatch(patch: Record<string, unknown>): void {
+  emit('patch', { config: { ...(props.override?.config ?? {}), ...patch } });
+}
+
+/** 设置区那个「恢复默认」：只清这份专属配置（提示词 / 参数 / 超时走底部那个总重置） */
+function onSettingsReset(): void {
+  emit('patch', { config: {} });
 }
 
 /* ---------- 恢复默认 ---------- */

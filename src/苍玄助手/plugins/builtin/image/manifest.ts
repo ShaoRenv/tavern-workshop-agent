@@ -1,13 +1,18 @@
 /**
  * 生图插件 · 清单。
  *
- * 自包含目录：manifest（本文件）+ tools.ts（gen_image）+ nai.ts（NovelAI 适配层）+ options.ts（选项表）。
+ * 自包含目录：manifest（本文件）+ tools.ts（gen_image）+ nai.ts（NovelAI 适配层）+ options.ts（选项表）
+ * + settings.ts（它的设置声明）。
  * 依赖方向单向：plugins/builtin/image → core / agent，**插件之间零 import**。
  *
  * 默认 **关**（defaultEnabled: false）：生图 API 没配好时开着只会诱导模型乱调、白烧钱，
  * 用户要自己在「能力 · 插件」里打开。status() 告诉界面它现在缺什么。
+ *
+ * 阶段 4：它的设置整页改成**声明式** —— `contributes.settings` 是 `SettingsSchema`（字段 + 块），
+ * 宿主 `components/SettingsForm.vue` 负责画。**加一个字段只改 settings.ts**，界面不用动。
  */
 import type { PluginManifest } from '../../types.ts';
+import { IMAGE_SETTINGS } from './settings.ts';
 import { createImageTools } from './tools.ts';
 
 export const manifest: PluginManifest = {
@@ -20,6 +25,8 @@ export const manifest: PluginManifest = {
   defaultEnabled: false,
   contributes: {
     tools: createImageTools(),
+    // 声明式设置：字段 + 块合在一个 SettingsSchema 里（P4-1 契约），字段与它的块一起搬家
+    settings: IMAGE_SETTINGS,
   },
   status: config => {
     const bag = (config ?? {}) as Record<string, unknown>;

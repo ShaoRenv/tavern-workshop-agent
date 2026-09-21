@@ -15,6 +15,7 @@
  * 运行时工具（liveToolDefs）、宏（这里）。
  */
 import { registerPluginMacroNames, registerPluginMacroSource, type MacroData } from '../core/macros.ts';
+import { withMacroPrefix } from '../core/native.ts';
 import { hostFn } from '../core/storage.ts';
 import { PLUGIN_MANIFESTS, enabledPlugins } from '../plugins/registry.ts';
 import type { PluginMacro, PluginStateHost } from '../plugins/types.ts';
@@ -96,12 +97,37 @@ export function syncTavernMacros(state: PluginStateHost = {}): void {
   for (const manifest of enabledPlugins(state)) {
     for (const macro of manifest.contributes.macros ?? []) {
       if (!macro.scopes.includes('tavern')) continue;
-      const regex = macroTokenRegex(macro.name);
+
+      /*
+       * ⚠️ 酒馆宏名**必须 ASCII**（词法器 MacroLexer.js:17 只认 /^[a-zA-Z][\w-]*$/）。
+       * 中文名注册上去「不报错但永远不替换」，所以这里强制要求 tavern 宏声明 ASCII 别名。
+       * 面板内的中文名不受影响：那条路走我们自己的渲染器（scopes 含 'preset'），
+       * 不经过酒馆词法器。
+       */
+      /*
+       * ⚠️ 前缀也要加在别名上。
+       *
+       * 别名解决的是「ASCII 合法性」，前缀解决的是「别撞上酒馆 131 个内置宏」——
+       * 两件事彼此独立。直接拿别名去注册的话，一个起名叫 image_prompt 的插件宏
+       * 会和酒馆/别的扩展的同名宏撞车（撞了是对方赢，我们静默不生效）。
+       * 所以：tavernAlias 只提供 ASCII 词根，前缀由这里统一补。
+       */
+      const tavernName = withMacroPrefix(macro.tavernAlias ?? macro.name);
+      if (!/^[a-zA-Z][\w-]*$/.test(tavernName)) {
+        console.warn(
+          '[苍玄助手] 插件宏「' + macro.name + '」声明了 tavern 作用域，但名字不是 ASCII，' +
+            '酒馆的宏词法器认不出来（永远不会被替换），已跳过注册。' +
+            '请给这个 PluginMacro 加一个 tavernAlias（ASCII 名字，例如 image_prompt）。',
+        );
+        continue;
+      }
+
+      const regex = macroTokenRegex(tavernName);
       try {
         register(regex, () => macroValue(macro.name));
-        registeredTavernMacros.set(macro.name, regex);
+        registeredTavernMacros.set(tavernName, regex);
       } catch (err) {
-        console.warn('[苍玄助手] 注册酒馆宏失败：' + macro.name, err);
+        console.warn('[苍玄助手] 注册酒馆宏失败：' + tavernName, err);
       }
     }
   }

@@ -17,6 +17,18 @@ const { DraftStore, lineDiff, diffStat, formatDiff, changedLines, applyChangesTo
 const { createRegistry, TOOL_NAMES } = registryMod;
 const { createTransport } = transportMod;
 const { runAgentLoop, turnsToMessages, toToolSpecs } = loopMod;
+const { setHostBridge } = await import(core + 'host.ts');
+
+/**
+ * 注入假 generateRaw。
+ *
+ * 宿主能力只有**唯一一条链**（core/host.ts），generateRaw 只能从链的第 1 层进，
+ * 所以这里用 setHostBridge —— 不再有 createTransport({ generateRawImpl }) 那种第二条解析链。
+ * setHostBridge 是进程级的：调用方负责在用例结束时 setHostBridge(null)。
+ */
+function injectGenerateRaw(fn) {
+  setHostBridge({ generateRaw: fn });
+}
 
 /* ---------------- 假世界书 ---------------- */
 
@@ -425,7 +437,7 @@ test('transport: native 通道发 tools 并解析 tool_calls', async () => {
   assert.equal(transport.supportsTools(), 'yes');
 });
 
-test('transport: native 400 不支持 tools → 自动降级 text 且 via=text', async () => {
+test('transport: native 400 不支持 tools → 自动降级 text 且 via=text', async t => {
   const { impl } = fetchOnce({
     ok: false,
     status: 400,
@@ -434,12 +446,13 @@ test('transport: native 400 不支持 tools → 自动降级 text 且 via=text',
     json: async () => ({}),
   });
   let prompts = null;
-  const generateRawImpl = async config => {
+  injectGenerateRaw(async config => {
     prompts = config.ordered_prompts;
     return '好，我来查。<SystemQuery>{"name":"wb_read","args":{"uid":"42"}}</SystemQuery>';
-  };
+  });
+  t.after(() => setHostBridge(null));
   const notices = [];
-  const transport = createTransport({ fetchImpl: impl, generateRawImpl, onNotice: n => notices.push(n) });
+  const transport = createTransport({ fetchImpl: impl, onNotice: n => notices.push(n) });
   const reply = await transport.chat({
     messages: [{ role: 'system', content: 'sys' }, { role: 'user', content: '读 42' }],
     tools: [{ name: 'wb_read', description: '读条目', parameters: { type: 'object', properties: { uid: { type: 'string' } } } }],
@@ -458,21 +471,22 @@ test('transport: native 400 不支持 tools → 自动降级 text 且 via=text',
   assert.match(prompts[0].content, /wb_read/);
   // 第二次直接走 text，不再打接口
   let called = 0;
-  const transport2 = createTransport({ fetchImpl: async () => { called++; throw new Error('不该再走 native'); }, generateRawImpl });
+  const transport2 = createTransport({ fetchImpl: async () => { called++; throw new Error('不该再走 native'); } });
   transport2.markToolsUnsupported();
   const reply2 = await transport2.chat({ messages: [{ role: 'user', content: 'x' }], tools: [], settings: settings() });
   assert.equal(reply2.via, 'text');
   assert.equal(called, 0);
 });
 
-test('transport: 酒馆路线直接走 text，不 fetch', async () => {
+test('transport: 酒馆路线直接走 text，不 fetch', async t => {
   let fetched = false;
+  injectGenerateRaw(async () => '纯文本回复');
+  t.after(() => setHostBridge(null));
   const transport = createTransport({
     fetchImpl: async () => {
       fetched = true;
       throw new Error('不该 fetch');
     },
-    generateRawImpl: async () => '纯文本回复',
   });
   const reply = await transport.chat({ messages: [{ role: 'user', content: 'hi' }], settings: settings({ route: 'tavern' }) });
   assert.equal(reply.via, 'text');
@@ -528,14 +542,14 @@ test('transport: native 流式 SSE 拼文本和 tool_calls', async () => {
   assert.deepEqual(reply.tool_calls[0].args, { a: 1 });
 });
 
-test('transport: 文本通道把 SystemQuery 抠干净，assistant 历史转成标记文本', async () => {
+test('transport: 文本通道把 SystemQuery 抠干净，assistant 历史转成标记文本', async t => {
   let prompts = null;
-  const transport = createTransport({
-    generateRawImpl: async config => {
-      prompts = config.ordered_prompts;
-      return '收到';
-    },
+  injectGenerateRaw(async config => {
+    prompts = config.ordered_prompts;
+    return '收到';
   });
+  t.after(() => setHostBridge(null));
+  const transport = createTransport({});
   await transport.chat({
     messages: [
       { role: 'system', content: 'sys' },

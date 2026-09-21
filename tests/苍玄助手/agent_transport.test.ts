@@ -25,6 +25,18 @@ const {
   abortError,
   SYSTEM_QUERY_TAG,
 } = await import(agent + 'transport.ts');
+const { setHostBridge } = await import('../../src/苍玄助手/core/host.ts');
+
+/**
+ * 注入假 generateRaw。
+ *
+ * 宿主能力只有**唯一一条链**（core/host.ts），generateRaw 只能从链的第 1 层进，
+ * 所以这里用 setHostBridge —— 不再有 createTransport({ generateRawImpl }) 那种第二条解析链。
+ * setHostBridge 是进程级的：调用方负责在用例结束时 setHostBridge(null)。
+ */
+function injectGenerateRaw(fn) {
+  setHostBridge({ generateRaw: fn });
+}
 
 function settings(over = {}) {
   return { route: 'custom', url: 'https://api.test/v1', key: 'sk-1', model: 'm', stream: false, send_images: false, timeout_sec: 30, ...over };
@@ -46,17 +58,18 @@ function tools() {
 
 /* ============================ 双通道选择 / 降级 ============================ */
 
-test('transport: 走酒馆路线永远 text；plannedRoute 只看设置和已知能力', async () => {
+test('transport: 走酒馆路线永远 text；plannedRoute 只看设置和已知能力', async t => {
   let fetched = 0;
   let generated = 0;
+  injectGenerateRaw(async () => {
+    generated++;
+    return '文本回复';
+  });
+  t.after(() => setHostBridge(null));
   const transport = createTransport({
     fetchImpl: async () => {
       fetched++;
       return responseOf({});
-    },
-    generateRawImpl: async () => {
-      generated++;
-      return '文本回复';
     },
   });
   const reply = await transport.chat({ messages: [{ role: 'user', content: 'x' }], settings: settings({ route: 'tavern' }) });
@@ -90,11 +103,13 @@ test('transport: native 成功 → supportsTools=yes，走 native 不再 fetch',
   assert.equal(fetched, 1);
 });
 
-test('transport: 没填接口地址 / 没填模型名 / 环境没 fetch → 自动降级 text（各记一次提醒）', async () => {
+test('transport: 没填接口地址 / 没填模型名 / 环境没 fetch → 自动降级 text（各记一次提醒）', async t => {
   const cases = [
     { over: { url: '' }, label: '没填 url' },
     { over: { model: '' }, label: '没填 model' },
   ];
+  injectGenerateRaw(async () => '降级回复');
+  t.after(() => setHostBridge(null));
   for (const item of cases) {
     let fetched = 0;
     const notices = [];
@@ -103,7 +118,6 @@ test('transport: 没填接口地址 / 没填模型名 / 环境没 fetch → 自�
         fetched++;
         return responseOf({});
       },
-      generateRawImpl: async () => '降级回复',
       onNotice: notice => notices.push(notice),
     });
     const reply = await transport.chat({ messages: [{ role: 'user', content: 'x' }], tools: tools(), settings: settings(item.over) });
@@ -115,10 +129,13 @@ test('transport: 没填接口地址 / 没填模型名 / 环境没 fetch → 自�
     assert.match(notices[0].message, /不支持原生 tools/);
   }
 
+  // 「环境没 fetch」：删掉全局 fetch，链的第 4 层重新解引用就摸不到了 → 降级 text。
+  // （晚绑定的好处：删了全局立刻生效，不像老代码那样可能已经 .bind() 固定住。）
   const previousFetch = globalThis.fetch;
   delete globalThis.fetch;
   try {
-    const transport = createTransport({ generateRawImpl: async () => '没有 fetch 也能跑' });
+    injectGenerateRaw(async () => '没有 fetch 也能跑');
+    const transport = createTransport({});
     const reply = await transport.chat({ messages: [{ role: 'user', content: 'x' }], tools: tools(), settings: settings() });
     assert.equal(reply.via, 'text');
     assert.equal(reply.text, '没有 fetch 也能跑');
@@ -127,7 +144,7 @@ test('transport: 没填接口地址 / 没填模型名 / 环境没 fetch → 自�
   }
 });
 
-test('transport: 降级判定只看 400/404/405/415/422/501 + 明确提到 tool；其他错误原样抛', async () => {
+test('transport: 降级判定只看 400/404/405/415/422/501 + 明确提到 tool；其他错误原样抛', async t => {
   const cases = [
     { status: 400, body: '{"error":{"message":"tools is not supported"}}', degrade: true },
     { status: 422, body: 'function call not supported', degrade: true },
@@ -136,8 +153,13 @@ test('transport: 降级判定只看 400/404/405/415/422/501 + 明确提到 tool�
     { status: 401, body: 'unsupported tools', degrade: false },
     { status: 404, body: 'model not found', degrade: false },
   ];
+  t.after(() => setHostBridge(null));
   for (const item of cases) {
     let generated = 0;
+    injectGenerateRaw(async () => {
+      generated++;
+      return '文本';
+    });
     const transport = createTransport({
       fetchImpl: async () => ({
         ok: false,
@@ -146,10 +168,6 @@ test('transport: 降级判定只看 400/404/405/415/422/501 + 明确提到 tool�
         text: async () => item.body,
         json: async () => ({}),
       }),
-      generateRawImpl: async () => {
-        generated++;
-        return '文本';
-      },
     });
     const promise = transport.chat({ messages: [{ role: 'user', content: 'x' }], tools: tools(), settings: settings() });
     if (item.degrade) {
@@ -173,15 +191,16 @@ test('transport: 降级判定只看 400/404/405/415/422/501 + 明确提到 tool�
   assert.equal(isToolsUnsupportedError(new Error('网络炸了')), false);
 });
 
-test('transport: markToolsUnsupported 幂等（只提醒一次），之后不再打 native 接口', async () => {
+test('transport: markToolsUnsupported 幂等（只提醒一次），之后不再打 native 接口', async t => {
   let fetched = 0;
   const notices = [];
+  injectGenerateRaw(async () => '文本');
+  t.after(() => setHostBridge(null));
   const transport = createTransport({
     fetchImpl: async () => {
       fetched++;
       return responseOf({});
     },
-    generateRawImpl: async () => '文本',
     onNotice: notice => notices.push(notice),
   });
   transport.markToolsUnsupported();
@@ -192,16 +211,16 @@ test('transport: markToolsUnsupported 幂等（只提醒一次），之后不再
   assert.equal(fetched, 0);
 });
 
-test('transport: 中止的信号 → 抛 AbortError，不吞成降级', async () => {
+test('transport: 中止的信号 → 抛 AbortError，不吞成降级', async t => {
   const controller = new AbortController();
   controller.abort();
   let generated = 0;
-  const textTransport = createTransport({
-    generateRawImpl: async () => {
-      generated++;
-      return '不该用到';
-    },
+  injectGenerateRaw(async () => {
+    generated++;
+    return '不该用到';
   });
+  t.after(() => setHostBridge(null));
+  const textTransport = createTransport({});
   await assert.rejects(
     textTransport.chat({ messages: [{ role: 'user', content: 'x' }], settings: settings({ route: 'tavern' }), signal: controller.signal }),
     error => {
@@ -214,16 +233,17 @@ test('transport: 中止的信号 → 抛 AbortError，不吞成降级', async ()
   assert.equal(isAbortError(new Error('普通错误')), false);
 });
 
-test('transport: native 400 不支持 tools 时降级，并把 tools 说明拼进文本提示词', async () => {
+test('transport: native 400 不支持 tools 时降级，并把 tools 说明拼进文本提示词', async t => {
   let prompts = null;
   let config = null;
+  injectGenerateRaw(async value => {
+    config = value;
+    prompts = value.ordered_prompts;
+    return '先读一下。<SystemQuery>{"name":"wb_read","args":{"uid":"42"}}</SystemQuery>';
+  });
+  t.after(() => setHostBridge(null));
   const transport = createTransport({
     fetchImpl: async () => ({ ok: false, status: 400, statusText: 'Bad Request', text: async () => 'tools not supported', json: async () => ({}) }),
-    generateRawImpl: async value => {
-      config = value;
-      prompts = value.ordered_prompts;
-      return '先读一下。<SystemQuery>{"name":"wb_read","args":{"uid":"42"}}</SystemQuery>';
-    },
   });
   const reply = await transport.chat({ messages: [{ role: 'system', content: '系统' }, { role: 'user', content: '读 42' }], tools: tools(), settings: settings() });
   assert.equal(reply.via, 'text');
@@ -245,11 +265,15 @@ test('transport: 文本通道没有 generateRaw 时明确报错；回复是对�
   const previousGenerate = globalThis.generateRaw;
   delete globalThis.generateRaw;
   try {
+    // 链上四处来源（注入 / 原生适配器 / TavernHelper / globalThis）都没有 generateRaw
+    // → 必须明确报错，而不是悄悄降级成别的东西。
+    setHostBridge(null);
     await assert.rejects(
       transport.chat({ messages: [{ role: 'user', content: 'x' }], settings: settings({ route: 'tavern' }) }),
       /文本通道不可用/,
     );
-    const withObject = createTransport({ generateRawImpl: async () => ({ content: [{ type: 'text', text: '数组内容' }] }) });
+    injectGenerateRaw(async () => ({ content: [{ type: 'text', text: '数组内容' }] }));
+    const withObject = createTransport({});
     const reply = await withObject.chat({ messages: [{ role: 'user', content: 'x' }], settings: settings({ route: 'tavern' }) });
     assert.equal(reply.text, '数组内容');
     assert.deepEqual(reply.tool_calls, []);

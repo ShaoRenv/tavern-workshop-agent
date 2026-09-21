@@ -6,6 +6,9 @@ dist/
 # 数据快照（设置页「导出全部」的 JSON、迁移前的备份）
 backups/
 
+# 扩展开发参考资料（本地离线副本，~60MB，都是别人的仓库，见 docs/README.md）
+docs/
+
 .DS_Store
 Thumbs.db
 

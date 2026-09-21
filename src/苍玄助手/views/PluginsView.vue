@@ -3,7 +3,7 @@
   <PluginDetail
     v-if="openDef"
     :def="openDef"
-    :config="configOf(openDef)"
+    :config="configBag(openDef.id)"
     :enabled="enabledOf(openDef)"
     :status="statusOf(openDef)"
     @back="openId = ''"
@@ -42,7 +42,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { GenImageConfigSchema, RootDataSchema, type GenImageConfig, type RootData } from '../core/types.ts';
+import { RootDataSchema, type RootData } from '../core/types.ts';
 import PluginDetail from '../components/PluginDetail.vue';
 import Sw from '../components/Sw.vue';
 import { PLUGIN_MANIFESTS, pluginEnabled, pluginStatus } from '../plugins/registry.ts';
@@ -86,15 +86,6 @@ const openDef = computed<PluginManifest | null>(
 function configBag(id: string): Record<string, unknown> {
   const bag = props.data.plugins as unknown as Record<string, Record<string, unknown> | undefined>;
   return bag[id] ?? {};
-}
-
-/**
- * 详情页表单吃的是生图那份有真 schema 的设置；非生图插件现在还没有自己的字段
- * （详情页不画表单，只画「它加了什么」）。
- */
-const EMPTY_IMAGE_CONFIG = GenImageConfigSchema.parse({});
-function configOf(def: PluginManifest): GenImageConfig {
-  return def.id === 'image' ? props.data.plugins.image : EMPTY_IMAGE_CONFIG;
 }
 
 /** 开关的唯一读法：plugin_state 里有就听它的，没有就用 manifest.defaultEnabled */

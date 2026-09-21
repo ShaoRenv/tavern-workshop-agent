@@ -9,18 +9,18 @@
  * 所有「已启用的插件给了什么」都从这份表现算，不缓存 —— 关插件立刻消失，没有第二个真相源。
  */
 import { mergePages, tabbarPages, type PageEntry } from '../core/pages.ts';
-import type { ToolDef } from '../core/ports.ts';
+import type { SettingsField, SettingsSchema, ToolDef } from '../core/ports.ts';
 import type {
   PluginId,
   PluginMacro,
   PluginManifest,
   PluginPresetRef,
-  PluginSettingField,
   PluginSkillRef,
   PluginStateHost,
   PluginStatus,
 } from './types.ts';
 import { BUILTIN_MANIFESTS } from './builtin/index.ts';
+import { evaluatePluginCapabilities } from '../core/capability.ts';
 
 /** 全部插件清单（内置目录汇总；阶段 6 外部装载也并进这里） */
 export const PLUGIN_MANIFESTS: PluginManifest[] = BUILTIN_MANIFESTS;
@@ -49,12 +49,113 @@ export function enabledPlugins(state: PluginStateHost): PluginManifest[] {
   return PLUGIN_MANIFESTS.filter(manifest => pluginEnabled(state, manifest.id));
 }
 
+/* ==================== 能力闸：缺必需能力的插件**不注册**（P0-C） ==================== */
+
+/**
+ * 一个插件被能力闸挡下来的记录。
+ *
+ * `reason` 是**人话**，可以直接显示在插件列表行 / 设置页上 —— 这是本任务的
+ * 核心验收项：能力缺失时插件被跳过，且原因不是「加载失败」这种没有信息量的文案。
+ */
+export interface PluginSkip {
+  id: PluginId;
+  /** 列表里显示的名字（插件自己的 name） */
+  name: string;
+  /** 一句话人话原因，如「缺少必需能力：读世界书（getWorldbook）」 */
+  reason: string;
+  /** 逐条明细（缺哪个能力、ST 原生对应是什么），可多行 */
+  detail: string;
+  /** 缺失且必需的能力名 */
+  missing: string[];
+}
+
+/**
+ * 让已启用插件过一遍**能力闸**。
+ *
+ * 口径（与 core/capability.ts 的 evaluatePluginCapabilities 同源）：
+ *   - 插件在 manifest.contributes.requires 里声明自己需要哪些能力；
+ *   - **required 的缺失 → 该插件被跳过**（页面 / 工具 / 宏 / 技能 / 预设全都不出）；
+ *   - 只缺可选能力 → 照常装载（降级由能力自己的 degrade 负责）。
+ *
+ * ⚠️ 这个函数**故意不缓存**探测结果：ST 上下文是晚就绪的（实测 APP_READY
+ * 556ms~24050ms），缓存住会把「启动时还没就绪」永久固化成「不可用」。
+ * 探测本身很便宜（就是几次属性查找）。
+ *
+ * ⚠️ 探测**绝不抛**：任何异常都当成「不可用」，否则界面挂载会白屏。
+ */
+export function pluginCapabilitySkips(state: PluginStateHost): PluginSkip[] {
+  const out: PluginSkip[] = [];
+  // ⚠️ 这里必须走 enabledPlugins（只看开关），**不能**走 loadablePlugins ——
+  // loadablePlugins 靠本函数的结论做过滤，改回去就是无限递归。
+  for (const manifest of enabledPlugins(state)) {
+    let verdict: ReturnType<typeof evaluatePluginCapabilities>;
+    try {
+      verdict = evaluatePluginCapabilities(manifest.contributes.requires);
+    } catch (error) {
+      // 探测本身崩了 = 这个插件不可信，直接跳过（不能让一个插件的探测拖垮整张表）
+      out.push({
+        id: manifest.id,
+        name: manifest.name,
+        reason: '能力探测失败，已跳过该插件：' + (error instanceof Error ? error.message : String(error)),
+        detail: '',
+        missing: [],
+      });
+      continue;
+    }
+    if (verdict.ok) continue;
+    out.push({
+      id: manifest.id,
+      name: manifest.name,
+      reason: verdict.reason,
+      detail: verdict.detail,
+      missing: verdict.missingRequired.map(status => status.name),
+    });
+  }
+  return out;
+}
+
+/** 被能力闸挡下来的插件 id 集合（内部用得快查） */
+function skippedIds(state: PluginStateHost): Set<PluginId> {
+  return new Set(pluginCapabilitySkips(state).map(skip => skip.id));
+}
+
+/**
+ * **真正装载**的插件：开着 + 过了能力闸。
+ *
+ * 全底座的「已启用插件给了什么」都必须走这个函数，而不是 pluginEnabled 那套 ——
+ * 否则缺能力的插件还是会往页面 / 工具 / 宏里塞东西，就回到「跑起来炸半路」了。
+ * enabledPlugins 保留原语义（只看开关），给「插件管理页列表」这类需要
+ * 显示「它开着但不可用」的界面用。
+ */
+export function loadablePlugins(state: PluginStateHost): PluginManifest[] {
+  const blocked = skippedIds(state);
+  return enabledPlugins(state).filter(manifest => !blocked.has(manifest.id));
+}
+
+/**
+ * 插件状态标签（能力口径）。
+ *
+ * 优先级：未启用 > 缺必需能力（能力闸拦下）> 插件自己说的（缺配置 / 出错）> 已启用。
+ * 与 pluginStatus 的区别：这个会**现探能力**，代价是几次属性查找，
+ * 换来的是「插件列表能直接显示『它开着但这台机器跑不了』」。
+ */
+export function pluginStatusWithCapabilities(
+  state: PluginStateHost,
+  id: PluginId,
+  config: unknown,
+): PluginStatus {
+  if (!pluginEnabled(state, id)) return { label: '未启用', kind: '' };
+  const skip = pluginCapabilitySkips(state).find(item => item.id === id);
+  if (skip) return { label: '缺能力', kind: 'dang' };
+  return pluginStatus(state, id, config);
+}
+
 /* ============================ 页面 ============================ */
 
 /** 已启用插件贡献的页面（带 owner，便于调试与「它加了什么」） */
 export function pluginPages(state: PluginStateHost): PageEntry[] {
   const out: PageEntry[] = [];
-  for (const manifest of enabledPlugins(state)) {
+  for (const manifest of loadablePlugins(state)) {
     for (const page of manifest.contributes.pages ?? []) {
       out.push({ id: page.id, title: page.title, order: page.order, inTabbar: page.inTabbar !== false, owner: manifest.id });
     }
@@ -77,7 +178,7 @@ export function availablePages(state: PluginStateHost): PageEntry[] {
 /** 已启用插件的工具定义（**活的**：关插件就没有） */
 export function pluginToolDefs(state: PluginStateHost): ToolDef[] {
   const out: ToolDef[] = [];
-  for (const manifest of enabledPlugins(state)) {
+  for (const manifest of loadablePlugins(state)) {
     for (const def of manifest.contributes.tools ?? []) out.push(def);
   }
   return out;
@@ -100,7 +201,7 @@ export function pluginAllTools(state: PluginStateHost): string[] {
 
 function collectToolNames(state: PluginStateHost, onlyDefault: boolean): string[] {
   const out: string[] = [];
-  for (const manifest of enabledPlugins(state)) {
+  for (const manifest of loadablePlugins(state)) {
     for (const def of manifest.contributes.tools ?? []) {
       if (onlyDefault && !toolDefaultOn(def)) continue;
       if (!out.includes(def.name)) out.push(def.name);
@@ -133,7 +234,7 @@ export function toolOwnerLabel(name: string): string {
 /** 已启用插件贡献的宏（关插件即消失 → 渲染退回空串） */
 export function pluginMacros(state: PluginStateHost): PluginMacro[] {
   const out: PluginMacro[] = [];
-  for (const manifest of enabledPlugins(state)) {
+  for (const manifest of loadablePlugins(state)) {
     for (const macro of manifest.contributes.macros ?? []) out.push(macro);
   }
   return out;
@@ -142,7 +243,7 @@ export function pluginMacros(state: PluginStateHost): PluginMacro[] {
 /** 已启用插件贡献的技能 */
 export function pluginSkills(state: PluginStateHost): PluginSkillRef[] {
   const out: PluginSkillRef[] = [];
-  for (const manifest of enabledPlugins(state)) {
+  for (const manifest of loadablePlugins(state)) {
     for (const skill of manifest.contributes.skills ?? []) out.push(skill);
   }
   return out;
@@ -156,15 +257,26 @@ export function pluginSkills(state: PluginStateHost): PluginSkillRef[] {
  */
 export function pluginPresets(state: PluginStateHost): PluginPresetRef[] {
   const out: PluginPresetRef[] = [];
-  for (const manifest of enabledPlugins(state)) {
+  for (const manifest of loadablePlugins(state)) {
     for (const preset of manifest.contributes.presets ?? []) out.push(preset);
   }
   return out;
 }
 
-/** 某个插件的设置字段（阶段 4 声明式表单用；不依赖开关，配置界面总要看得到） */
-export function pluginSettingFields(id: PluginId): PluginSettingField[] {
-  return pluginManifest(id).contributes.settings ?? [];
+/**
+ * 某个插件的设置声明（阶段 4 声明式表单用）。
+ *
+ * ⚠️ **不依赖开关**：插件关着的时候用户也要能进去把 Key 填好再打开。
+ * 这也意味着「声明了却没人消费的字段」会直接变成一个点不动的死控件 ——
+ * 所以声明前先确认插件真的读它（苍玄助手那三个字段就是反例，见 config.ts 的说明）。
+ */
+export function pluginSettings(id: PluginId): SettingsSchema {
+  return pluginManifest(id).contributes.settings ?? { fields: [] };
+}
+
+/** 只要字段清单（大部分调用方不关心分块） */
+export function pluginSettingFields(id: PluginId): SettingsField[] {
+  return pluginSettings(id).fields;
 }
 
 /* ============================ 状态 ============================ */

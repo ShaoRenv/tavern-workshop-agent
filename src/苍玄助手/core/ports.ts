@@ -229,6 +229,16 @@ export interface ToolDef {
   source?: 'builtin' | 'external';
   /** 外部工具的来源地址（显示与更新用） */
   origin?: string;
+  /**
+   * 这个工具自己的声明式设置（阶段 4）。
+   *
+   * 工具详情页第 5 块按它渲染 SettingsForm，值存在 `ToolOverride.config` 里。
+   * 与 `ExternalToolManifest.settings` 是**同一个形状**：内置工具与外部工具走同一条路，
+   * 这也是为什么这个字段必须在 **ToolDef** 上（外部工具装载后也是变成 ToolDef 进注册表的）。
+   *
+   * 顺带说明为什么不是写死的一堆 prop：外部工具没有 DOM，只能声明字段由宿主画。
+   */
+  settings?: SettingsSchema;
   run(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
 
@@ -287,32 +297,145 @@ export interface ToolOverride {
 /** 工具名 → 覆盖项 */
 export type ToolOverrideMap = Record<string, ToolOverride | undefined>;
 
-/* ==================== 工具专属设置（声明式表单；内置与外部工具通用） ==================== */
+/* ==================== 声明式设置字段（内置插件 / 外部工具共用一份契约） ==================== */
 
 /**
- * 工具详情页第 5 块「这个工具自己的设置」里能出现的控件。
- * 外部工具**不许自带 HTML/JS 渲染**（沙箱里没有 DOM），只能声明字段，宿主负责画。
+ * 设置表单的**唯一**字段契约（阶段 4 冻结）。
+ *
+ * 为什么非要有它：外部插件 / 外部工具跑在沙箱里，**没有 DOM**，想让自己有设置项
+ * 唯一的路就是「声明字段、宿主负责画」。内置插件也走同一条路 —— 否则两套形状早晚分叉：
+ * 阶段 3 就真的分叉过，`ToolSettingsField`（8 控件、布尔叫 `boolean`）与
+ * `PluginSettingField`（7 控件、布尔叫 `switch`）并存，导致写不出一个能同时画
+ * 插件设置和工具设置的 `SettingsForm`。现在只有这一份。
+ *
+ * 每个控件与每个可选属性都对应**真实界面上的一行**，不许加「以后可能有用」的东西
+ * （判据是生图插件的设置页，它是最全的那张表单）：
+ *   - 9 种控件：逐行倒推出来的；`note` 是那个只读的「来源：NovelAI」行；
+ *   - `group` / `SettingsGroup`：那 5 个 `.cx-blk` 块（接口 / 固定提示词 / 生成参数 / 高级 / 出图）；
+ *   - `hintOf` / `group.hintOf` / `group.badgeOf`：块头角标，以及「当前模型会追加的质量词：…」这类预览；
+ *   - `visibleIf`：`v-if="isV3"` / `straightAlphaOk` / `site==='proxy'` 那几处条件显示；
+ *   - `options[].patch` + `valueFrom`：尺寸预设那个**既读两个键、又写两个键**的复合控件；
+ *   - `step`：给 guidance(0.5) / guidance_rescale(0.02) 这种小数用 ——
+ *     以前是界面按字段名特判「这两个不许取整」，现在由声明说清；
+ *   - `variant`：选项不多时画成药丸还是下拉（站点那两个用的是 `'mode'`）。
+ *
+ * 值的来源一律是 `SettingsValues`（宽松袋子）：字段只是**声明**，
+ * 值可能在 `ToolOverride.config` 里，也可能在 `plugins.<id>` 里 —— 契约不该知道它存哪。
  */
-export type ToolFieldType = 'text' | 'password' | 'number' | 'boolean' | 'select' | 'textarea' | 'code' | 'button';
+export type SettingsValues = Record<string, unknown>;
 
-export interface ToolSettingsField {
-  /** 存进 ToolOverride.config 的键名 */
+/** 控件形状。`note` 是只读一行：不是控件，但占一行，所以也进这个联合 */
+export type SettingsFieldType =
+  | 'text'
+  | 'password'
+  | 'number'
+  | 'boolean'
+  | 'select'
+  | 'textarea'
+  | 'code'
+  | 'button'
+  | 'note';
+
+/**
+ * select 的一项。
+ *
+ * `patch` 是「一个控件写多个键」的唯一表达：尺寸预设
+ * `{ value:'832x1216', label:'832x1216 · 竖 13:19', patch:{ width:832, height:1216 } }`。
+ * 没有它就只能给宽高各摆一个输入框，预设下拉框就没了。
+ */
+export interface SettingsFieldOption {
+  value: string;
+  label: string;
+  /** 选了这一项顺带写掉的键；不写 = 只写字段自己的 key */
+  patch?: SettingsValues;
+}
+
+export interface SettingsField {
+  /** 落盘用的键名：存进 ToolOverride.config，或 plugins.<id> */
   key: string;
   label: string;
-  type: ToolFieldType;
-  /** 控件下面的小字说明 */
+  type: SettingsFieldType;
+  /** 控件下面那句静态小字 */
   hint?: string;
+  /** 动态小字：值一变就重算。给了就优先于 hint */
+  hintOf?: (values: SettingsValues) => string;
   placeholder?: string;
-  /** 默认值；用户改了就以 config 为准 */
+  /** 默认值；用户改过就以实际值为准 */
   default?: unknown;
   /** type='select' 的选项 */
-  options?: { value: string; label: string }[];
+  options?: SettingsFieldOption[];
   /** type='number' 的范围 */
   min?: number;
   max?: number;
+  /** type='number' 的步长。**< 1 时不许取整**（guidance 0.5 / guidance_rescale 0.02） */
   step?: number;
-  /** type='button'：点一下让工具跑一次名为 action 的动作 */
+  /** 落在哪个块（对应 SettingsGroup.id）；没写就进默认块 */
+  group?: string;
+  /** 条件显示：返回 false 就不画这个控件 */
+  visibleIf?: (values: SettingsValues) => boolean;
+  /**
+   * select 的当前值怎么推出来（默认读 values[key]）；配 options[].patch 反向还原用。
+   *
+   * ⚠️ **故意不叫 `valueOf`**：那是 `Object.prototype.valueOf`，对象字面量上叫这个名字会让
+   * TS 在做结构比较时把继承来的 `valueOf(): Object` 也算进来 → 整个 `SettingsField`
+   * 直接赋值不上（实测报「The types returned by 'valueOf(...)' are incompatible」）。
+   * 顺带也避开了「所有对象都有 valueOf」这个经典的运行时坑。
+   */
+  valueFrom?: (values: SettingsValues) => string;
+  /** type='button'：点一下发出去的动作名。阶段 4 只负责 emit，**还没有消费者** */
   action?: string;
+  /**
+   * select 且选项不多时想画成药丸，而不是下拉框（复用 SegBar）。
+   *
+   * ⚠️ 两个取值是**两种不同的药丸**，别弄混 —— 旧界面两种都在用：
+   *   - `'mode'` = `.cx-modebar`：「Agent｜聊天」「System｜User｜AI」那种**内联选择**。
+   *     站点（官网直连｜反代 / 中转）用的就是这个 —— 一个块里的二选一。
+   *   - `'seg'`  = `.cx-seg`：**顶栏页签**那种（对话 / 世界书 / 设置）。
+   * 拿 `'seg'` 去画块内的二选一，会画出一条像页签的东西 —— 是肉眼可见的观感退化。
+   */
+  variant?: 'seg' | 'mode';
+}
+
+/**
+ * 字段分块：标题 / 说明 / 角标 —— 对应界面上的一个 .cx-blk。
+ *
+ * ⚠️ **这里故意没有「组级 visibleIf」（整块隐藏）**：契约里不留没有使用者的可选属性。
+ * 生图那张最全的表单里**一个真实用例都没有** —— 我原本以为「高级」块要在非 v3 时整块隐藏，
+ * 旧代码证明不是：旧界面只是**块内部底部**多出一段「SMEA / SMEA DYN / 减少伪影 是 v3 的字段…」的说明，
+ * 块本身照常在。那段话现在由 `label: ''` 的 `note` 字段 + **字段级** `visibleIf` 表达
+ * （note 与 label 为空时的行为见 `components/SettingsForm.vue` 的注释）。
+ *
+ * 真需要整块隐藏时再加回来 —— 那时它会有使用者，也就有取舍依据了。
+ */
+export interface SettingsGroup {
+  id: string;
+  title: string;
+  /** 块头右侧的静态小字 */
+  hint?: string;
+  /** 块头右侧的动态小字（优先于 hint） */
+  hintOf?: (values: SettingsValues) => string;
+  /** 块头标题旁的角标（生图「固定提示词」那块显示「N 字」） */
+  badgeOf?: (values: SettingsValues) => string;
+}
+
+/**
+ * 一份完整的设置声明：字段 + 块。
+ *
+ * 合成一个对象、而不是「字段数组 + 块数组」两个平行字段，是为了**字段和它的块一起搬家** ——
+ * 两份平行数组早晚出现「字段指了个没人登记的 group」这种漂移。
+ */
+export interface SettingsSchema {
+  fields: SettingsField[];
+  groups?: SettingsGroup[];
+  /**
+   * 点「恢复默认」前的确认文案（不给 = 不弹确认）。
+   *
+   * ⚠️ **插件有凭据类设置（API Key / Token）时一定要给**：恢复默认会把它一起清掉，
+   * 用户找不回来。旧的手写表单里有一句「把「生图」的设置全部恢复成内置默认？（含 API Key）」，
+   * 改成声明式之后这句必须由**插件自己**提供 —— 只有插件知道这页里什么值钱，宿主编不出来。
+   * 下面那句通用的「恢复默认会把这一页的设置全部清回内置默认值。」由宿主统一画。
+   */
+  resetConfirm?: string;
 }
 
 /* ==================== 外部导入工具 ==================== */
@@ -346,8 +469,8 @@ export interface ExternalToolManifest {
   desc?: string;
   /** 声明要哪些能力；没声明的宿主一律不提供 */
   permissions: ExternalToolPermission[];
-  /** 工具详情页第 5 块的声明式表单 */
-  settings?: ToolSettingsField[];
+  /** 工具详情页第 5 块的声明式表单（字段 + 块） */
+  settings?: SettingsSchema;
   /** 单次调用预算（毫秒） */
   timeoutMs?: number;
 }

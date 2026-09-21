@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const core = '../../src/苍玄助手/core/';
-const { resolveScriptId, scriptScope, exportAll, importAll, setHostBridge, defaultRootData, loadData, saveData } =
+const { resolveScriptId, scriptScope, exportAll, importAll, setHostBridge, defaultRootData, loadData, saveData, resetDataScope, resetLoadOutcome } =
   await import(core + 'storage.ts');
 const { GLOBAL_KEY, RootDataSchema } = await import(core + 'types.ts');
 
@@ -243,20 +243,54 @@ test('io: importAll 只解析不落盘（落盘要调用方自己 saveData）', 
   }
 });
 
-test('io: 读入口走脚本变量（loadData 不碰 global 作用域）', () => {
-  const scopes = [];
+test('io: 读入口**按形态选作用域**（脚本形态走 script，扩展形态走 global）', () => {
+  // ⚠️ P4-10 改：本条原名「读入口走脚本变量（loadData 不碰 global 作用域）」——
+  // 那个名字与现在的契约**正好相反**（扩展形态必须碰 global 才读得回来），
+  // 所以连用例名一起改。一个名字与断言相反的测试比没有测试更坏。
+  const saved = {
+    scriptId: globalThis.__CX_SCRIPT_ID__,
+    helper: globalThis.TavernHelper,
+    bare: globalThis.getScriptId,
+  };
   try {
+    // ---- 形态一：脚本形态（有 __CX_SCRIPT_ID__）→ 必须用带 script_id 的脚本作用域 ----
+    delete globalThis.TavernHelper;
+    delete globalThis.getScriptId;
+    globalThis.__CX_SCRIPT_ID__ = 'sid-read';
+    resetDataScope();
+    resetLoadOutcome();
+    const scriptScopes = [];
     setHostBridge({
       getVariables: scope => {
-        scopes.push(scope);
-        // 历史数据里存的页签名：阶段 2 起 'skills'（老「能力」页）读出来要落到 'settings'
+        scriptScopes.push(scope);
+        return { [GLOBAL_KEY]: { active_tab: 'skills' } };
+      },
+    });
+    // 历史数据里存的页签名：阶段 2 起 'skills'（老「能力」页）读出来要落到 'settings'
+    assert.equal(loadData().active_tab, 'settings');
+    assert.deepEqual(scriptScopes, [{ type: 'script', script_id: 'sid-read' }], '脚本形态：老数据原地读，作用域不变');
+
+    // ---- 形态二：扩展形态（两者都无）→ 必须用 global，否则真机读不回来 ----
+    delete globalThis.__CX_SCRIPT_ID__;
+    resetDataScope();
+    resetLoadOutcome();
+    const extScopes = [];
+    setHostBridge({
+      getVariables: scope => {
+        extScopes.push(scope);
         return { [GLOBAL_KEY]: { active_tab: 'skills' } };
       },
     });
     assert.equal(loadData().active_tab, 'settings');
-    assert.deepEqual(scopes, [{ type: 'script' }]);
+    assert.deepEqual(extScopes, [{ type: 'global' }], '扩展形态：必须走 global（P4-10 数据丢失的根因）');
   } finally {
     setHostBridge(null);
+    if (saved.scriptId === undefined) delete globalThis.__CX_SCRIPT_ID__;
+    else globalThis.__CX_SCRIPT_ID__ = saved.scriptId;
+    if (saved.helper !== undefined) globalThis.TavernHelper = saved.helper;
+    if (saved.bare !== undefined) globalThis.getScriptId = saved.bare;
+    resetDataScope();
+    resetLoadOutcome();
   }
 });
 
@@ -272,20 +306,87 @@ function sourceFiles(dir) {
   return out;
 }
 
-test('源码级: src/苍玄助手 下不存在 type: \'global\' 作用域（防回归）', () => {
-  const files = sourceFiles('src/苍玄助手');
-  assert.ok(files.length > 20, '源码文件数不对：' + files.length);
+/**
+ * 作用域字面量的**唯一合法去处**。
+ *
+ * P4-10 之前这条闸是「源码里不许出现 global 作用域」—— 那是「存储只走脚本变量」时代的口径。
+ * P4-10 要求扩展形态用 global（否则真机读不回来、每刷新丢一次数据），旧口径**方向反了**。
+ * 现在改成「作用域字面量只能出现在这两个文件的**作用域解析处**」，闸继续保留其价值：
+ * 防止以后有人在别处裸写作用域（那正是「读一处写另一处」这类 bug 的温床）。
+ */
+const SCOPE_LITERAL_ALLOWED = ['src/苍玄助手/core/native.ts', 'src/苍玄助手/core/storage.ts'];
+
+/** 一行里有没有作用域字面量（script / global / chat 三档都算） */
+function scopeLiteralOn(line) {
+  return /type\s*:\s*['"](script|global|chat)['"]/.test(line);
+}
+
+/**
+ * 判定一组 {file, text} 里有没有「不该出现的作用域字面量」。
+ *
+ * 抽成纯函数是为了**能对假源码跑**：下面专门有一条用例喂违规片段，
+ * 确认这套判定真的会报警（写不出反例的断言只会给人虚假安全感）。
+ */
+function findScopeLiteralOffenders(files) {
   const offenders = [];
   for (const file of files) {
-    const text = readFileSync(file, 'utf8');
-    text.split(/\r?\n/).forEach((line, index) => {
-      if (/type\s*:\s*['"]global['"]/.test(line)) offenders.push(file + ':' + (index + 1) + ': ' + line.trim());
+    const norm = file.path.replace(/\\/g, '/');
+    if (SCOPE_LITERAL_ALLOWED.some(allowed => norm.endsWith(allowed.replace('src/苍玄助手/', '')))) continue;
+    file.text.split(/\r?\n/).forEach((line, index) => {
+      // 注释里提到作用域不算违规（本文件 / storage / native 的注释里有大量说明）
+      const code = line.replace(/^\s*\*.*$/, '').replace(/^\s*\/\/.*$/, '');
+      if (scopeLiteralOn(code)) offenders.push(norm + ':' + (index + 1) + ': ' + line.trim());
     });
   }
-  assert.deepEqual(offenders, [], '变量作用域必须一律用脚本作用域');
+  return offenders;
+}
 
-  const storage = readFileSync('src/苍玄助手/core/storage.ts', 'utf8');
-  assert.match(storage, /type: 'script'/);
-  assert.match(storage, /__CX_SCRIPT_ID__/);
-  assert.match(storage, /script_id/);
+test('源码级: 作用域字面量只出现在 core/native.ts 与 core/storage.ts（P4-10 新口径）', () => {
+  const files = sourceFiles('src/苍玄助手');
+  assert.ok(files.length > 20, '源码文件数不对：' + files.length);
+  const offenders = findScopeLiteralOffenders(
+    files.map(file => ({ path: file, text: readFileSync(file, 'utf8') })),
+  );
+  assert.deepEqual(offenders, [], '作用域字面量只许出现在 core/native.ts / core/storage.ts 的作用域解析处');
+
+});
+/*
+ * ⚠️ 上面那条闸**必须能失败** —— 本项目的既定要求：
+ * 「写不出反例的断言只会给人虚假安全感」。
+ * 这里喂三段假源码给同一套判定，确认它真的会报警 / 真的会放行。
+ */
+
+test('源码级: 作用域闸**能失败**（喂违规片段确认报警）', () => {
+  // ① 在别处裸写 global → 必须报
+  const bad = [{ path: 'src/苍玄助手/components/SomeView.vue', text: "const scope = { type: 'global' };" }];
+  assert.equal(findScopeLiteralOffenders(bad).length, 1, '别处裸写 global 必须被闸抓到');
+
+  // ② 在别处裸写 script → 同样必须报（闸管的是「位置」，不是「哪一档」）
+  const badScript = [{ path: 'src/苍玄助手/stores/app.ts', text: "getVariables({ type: 'script' });" }];
+  assert.equal(findScopeLiteralOffenders(badScript).length, 1, '别处裸写 script 也要报');
+
+  // ③ 在别处裸写 chat → 也要报
+  const badChat = [{ path: 'src/苍玄助手/core/worldbook.ts', text: "const s = { type: 'chat' };" }];
+  assert.equal(findScopeLiteralOffenders(badChat).length, 1);
+
+  // ④ 合法位置（两个文件的相对路径形态）→ 放行
+  const good = [
+    { path: 'C:/x/src/苍玄助手/core/native.ts', text: "return { type: 'global' };" },
+    { path: 'C:/x/src/苍玄助手/core/storage.ts', text: "const scope = { type: 'script', script_id: 'x' };" },
+  ];
+  assert.deepEqual(findScopeLiteralOffenders(good), [], '允许位置不该误报');
+
+  // ⑤ 注释里提到作用域不算违规
+  const commented = [{ path: 'src/苍玄助手/core/ports.ts', text: " * 扩展形态下 type: 'global' 才是对的" }];
+  assert.deepEqual(findScopeLiteralOffenders(commented), [], '注释不算违规');
+});
+
+test('源码级: 两个允许文件**确实**还在用作用域字面量（闸没被架空）', () => {
+  const native = readFileSync('src/苍玄助手/core/native.ts', 'utf8');
+  assert.match(native, /type: 'global'/, 'native.ts 的 dataScope 要给出 global（扩展形态）');
+  assert.match(native, /type: 'script'/, 'native.ts 要保留 script（脚本形态）');
+  const storageText = readFileSync('src/苍玄助手/core/storage.ts', 'utf8');
+  assert.match(storageText, /type: 'script'/, 'storage.ts 保留脚本作用域');
+  assert.match(storageText, /__CX_SCRIPT_ID__/, 'storage.ts 仍认面板注入的脚本 id');
+  assert.match(storageText, /script_id/, 'storage.ts 仍传 script_id');
 });

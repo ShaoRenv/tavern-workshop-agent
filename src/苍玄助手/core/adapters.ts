@@ -11,7 +11,7 @@
  */
 import type { ApiSettings } from './types.ts';
 import type { UiEntry, UiRole, UiTool, UiWorld } from '../components/ui_types.ts';
-import type { WbEntry } from './ports.ts';
+import type { SettingsSchema, WbEntry } from './ports.ts';
 import { collectCharacters, describePortraitResult, readPortraitMetaFromFile, type RoleSource } from './portrait.ts';
 import { createWorldbookPort } from './worldbook.ts';
 import { hostFn, isPlainRecord } from './storage.ts';
@@ -154,6 +154,8 @@ export interface ToolCatalogLike {
   readonly?: boolean;
   source?: 'builtin' | 'external';
   origin?: string;
+  /** 工具自己的声明式设置（阶段 4）；内核没给就保持 undefined */
+  settings?: SettingsSchema;
 }
 
 export function toUiTools(rows: ToolCatalogLike[]): UiTool[] {
@@ -176,6 +178,7 @@ export function toUiTools(rows: ToolCatalogLike[]): UiTool[] {
     if (r.readonly !== undefined) tool.readonly = r.readonly;
     if (r.source !== undefined) tool.source = r.source;
     if (r.origin !== undefined) tool.origin = r.origin;
+    if (r.settings !== undefined) tool.settings = r.settings;
     return tool;
   });
 }
