@@ -79,6 +79,16 @@ McpServer = { id, name, url, headers, transport, enabled, disabled_tools, last_e
 反例自检都做了：断 A 不抹 B（对照「整批替换会把 B 抹掉」）、撞名被拒不误报、
 失败矩阵闸真的会拒裸 `TypeError`、`catalog` 名单外工具「没注册时不该出现」。
 
+## 5.1 交付与发布
+
+| 位置 | 内容 |
+|---|---|
+| `main` · commit **4281a2e** | 全部源码 + 测试 + 本报告（已 push：`5d494fa..4281a2e`） |
+| `extension` 分支 · commit **d5f2fcc** | 只放可安装产物（`manifest.json` / `index.js` / `index.css` / `index.<hash>.chunk.js` / `README.md`），已 push |
+
+用户侧的安装/更新路径不变：酒馆「扩展 → 安装扩展」贴仓库地址 + 分支填 `extension`；
+已装过的可以直接点「更新」拉本次产物（**拉到的就是上面这份真机验过的构建**）。
+
 ## 6. 遗留与下一轮
 
 1. **task-36（世界书写路径真机端到端）仍押后** —— 用户口径「先做后续，校验留后面」；执行方案保留在任务描述里。
