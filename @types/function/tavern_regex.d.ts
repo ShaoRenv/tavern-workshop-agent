@@ -43,6 +43,7 @@ type TavernRegex = {
     ai_output: boolean;
     slash_command: boolean;
     world_info: boolean;
+    reasoning: boolean;
   };
 
   destination: {
@@ -67,12 +68,12 @@ type TavernRegexOptionGlobal = {
 type TavernRegexOptionCharacter = {
   /** 对角色卡局部 (`'character'`) 进行操作 */
   type: 'character';
-  name?: string | 'current';
+  name?: TypeFest.LiteralUnion<'current', string | `${string}.png`>;
 };
 type TavernRegexOptionPreset = {
   /** 对预设正则 (`'preset'`) 进行操作 */
   type: 'preset';
-  name?: string | 'in_use';
+  name?: TypeFest.LiteralUnion<'in_use', string>;
 };
 type TavernRegexOption = TavernRegexOptionGlobal | TavernRegexOptionCharacter | TavernRegexOptionPreset;
 
