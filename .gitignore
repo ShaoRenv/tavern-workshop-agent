@@ -1,5 +1,6 @@
 node_modules
 
+<<<<<<< HEAD
 # 构建产物（pnpm build / build:dev 生成）
 dist/
 
@@ -9,6 +10,8 @@ backups/
 # 扩展开发参考资料（本地离线副本，~60MB，都是别人的仓库，见 docs/README.md）
 docs/
 
+=======
+>>>>>>> 4a9344276d925a83e32726c58b9b05debdf4a8ad
 .DS_Store
 Thumbs.db
 
