@@ -5,6 +5,85 @@
  * 免得一个 helper 把多份契约糊成一份、挂了不知道是哪条契约破了。
  */
 
+/* ==================== 宿主能力夹具（P4-11） ==================== */
+
+/**
+ * 装上「**能力齐全的宿主**」，返回一个 restore 函数。
+ *
+ * ## 为什么需要它
+ *
+ * task-22 给内置插件补了 `contributes.requires`，于是 `loadablePlugins` 的能力闸**活了**：
+ * 必需能力缺失 → 该插件整个不注册（页面 / 工具 / 宏 / 技能 / 预设全都不出）。
+ * 而测试进程里**没有酒馆上下文**，什么都探不到 —— 「断言插件正常装载」的那一族会成片红。
+ * 根因不是产品 bug，是**闸按设计生效了**；缺的是测试侧这个夹具。
+ *
+ * ## ⚠️ 为什么必须**显式调用**（不要做成 import 即生效的全局副作用）
+ *
+ * 能力闸的意义正是「缺能力时该被拦」。如果夹具在 import 时自动生效，
+ * 「该被拦」的那些测试就会**悄悄失去意义** —— 不再是「测了拦截」，
+ * 而是「测了个永远不会发生的场景」，而且**看起来还是绿的**。
+ * 所以这里只导出函数，由用例自己决定装不装、什么时候摘。
+ *
+ * ## ⚠️ 为什么「只装 resolver」还不够
+ *
+ * `pluginCapabilitySkips` 开头有一句 `if (!hostIsPresent()) return []` ——
+ * 「宿主还没接上」时**故意不拦**（晚绑定原则：免得扩展 activate 早于 ST 就绪时把插件判死）。
+ * 所以**光换 resolver 是不生效的**：必须同时让宿主「看起来存在」，能力闸才会真正跑起来。
+ * 这就是下面两个函数的分工 —— 要测「正常装载」用前者，要测「闸真的会拦」必须用后者。
+ *
+ * ## 用法
+ *
+ * ```ts
+ * test('插件正常装载时 …', t => {
+ *   const restore = installCapabilityGateHost();   // 能力齐全 + 宿主在位
+ *   t.after(restore);
+ *   // …断言页面 / 工具 / 宏都在…
+ * });
+ *
+ * test('必需能力缺失 → 整个插件不注册', t => {
+ *   const restore = installCapabilityGateHost(name => name !== 'getWorldbook');
+ *   t.after(restore);
+ *   // …断言 worldbook 不在 loadablePlugins、页面与 7 个工具都没了…
+ * });
+ * ```
+ *
+ * ⚠️ resolver 与宿主桥都是**进程级**全局状态，`node --test` 同进程跑多文件时可能互相污染。
+ * 所以**必须**配 `t.after(restore)`。
+ *
+ * @param available 判定单条能力是否可用（默认全可用）
+ * @returns restore 函数（还原 resolver + 宿主桥）
+ */
+export function installCapabilityGateHost(available: (name: string) => boolean = () => true): () => void {
+  const previous = getHostBridgeFn();
+  installResolverFn(name => (available(name) ? 'native' : 'none'));
+  setHostBridgeFn({ getVariables: () => ({}) });
+  return () => {
+    installResolverFn(null);
+    setHostBridgeFn(previous ?? null);
+  };
+}
+
+/**
+ * 只装 resolver（**不**让宿主看起来存在）。
+ *
+ * ⚠️ 单独用它**测不到「缺能力 → 拦」** —— 会被 `hostIsPresent()` 短路放行。
+ * 它存在的意义是覆盖「宿主的宿主桥还没接上」那条路（晚绑定），
+ * 以及给需要「能力齐全但宿主不可见」的场景用。
+ */
+export function installCapableHost(available: (name: string) => boolean = () => true): () => void {
+  installResolverFn(name => (available(name) ? 'native' : 'none'));
+  return () => installResolverFn(null);
+}
+
+/* --- 进程内单例模块的绑定（顶层动态 import，与各测试文件同一套 ESM 写法） --- */
+
+const capability = await import('../../src/苍玄助手/core/capability.ts');
+const storageMod = await import('../../src/苍玄助手/core/storage.ts');
+
+const installResolverFn = capability.installCapabilityResolver as (next: ((name: string) => string) | null) => void;
+const setHostBridgeFn = storageMod.setHostBridge as (bridge: unknown) => void;
+const getHostBridgeFn = storageMod.getHostBridge as () => unknown;
+
 /** 换行统一成 \n，免得 Windows 的 \r 干扰行级正则 */
 export function normalize(text: string): string {
   return text.replace(/\r\n?/g, '\n');
@@ -114,4 +193,47 @@ export function resolveWithinBuiltin(root: string, specifier: string): string | 
   }
   const rest = parts.slice(prefix.length);
   return rest.length ? rest.join('/') : null;
+}
+/* ==================== 能力名静态闸（P5-5） ==================== */
+
+/**
+ * 剥掉 `requires` 里可选的 `?` 后缀。
+ *
+ * `?` 是「可选能力」的唯一表达法（见 core/capability.ts 的 evaluatePluginCapabilities），
+ * 判定名字合法性时要先剥掉它。**只剥末尾一个** —— 中间带 `?` 是非法写法，
+ * 由另一条闸（`?` 只能在末尾）单独管，不在这里顺手容错。
+ */
+export function bareCapabilityName(raw: string): string {
+  return String(raw).replace(/\?$/, '');
+}
+
+/**
+ * **能力名静态闸**：返回 `requires` 里那些**不在 `known` 里**的名字（人话列表）。
+ *
+ * 为什么要有这条闸：必需能力**写错名字** = 该插件在此环境中**整个不注册**
+ * （页面 / 工具 / 宏全没），而且**只在真机宿主就绪时才发作** —— 测不出来、很难查。
+ * 典型形态就是 `getWorldbooks`（多了个 s）。
+ *
+ * ⚠️ `known` 刻意做成**参数**，而不是在本函数里 import 能力表：
+ * 这样调用方可以喂一张「**挖掉某个名字**的能力表副本」进去，
+ * 从而证明这条闸**真的会因为缺名字而报错**。
+ * 若在内部 import，就构造不出反例 —— 那是一条永远绿的闸，等于没有。
+ * （本项目反复踩过这个坑：写不出反例的断言只给人虚假安全感。）
+ *
+ * 抽到 `_helpers.ts` 而不是留在某个 .test.ts 里，是因为**两份测试要共用它**：
+ *   · `plugin_registry.test.ts` 用它扫真实插件清单；
+ *   · `capability.test.ts` 用它验证「登记 fetch 之后声明它不再被拒」。
+ * 各写一份副本就变成「我以为在测它，其实在测我自己的副本」。
+ */
+export function capabilityNameOffenders(
+  requires: readonly unknown[],
+  known: Iterable<string>,
+): string[] {
+  const names = new Set(known);
+  const bad: string[] = [];
+  for (const raw of requires) {
+    const name = bareCapabilityName(String(raw));
+    if (!names.has(name)) bad.push(String(raw));
+  }
+  return bad;
 }

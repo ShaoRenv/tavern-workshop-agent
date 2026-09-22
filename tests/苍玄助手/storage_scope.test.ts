@@ -41,6 +41,12 @@ const scriptScope = storage.scriptScope;
 const GLOBAL_KEY = (await import(core + 'types.ts')).GLOBAL_KEY;
 const isExtensionRuntime = native.isExtensionRuntime;
 const dataScope = native.dataScope;
+const installNativeAdapters = native.installNativeAdapters;
+const declareNativeKey = native.declareNativeKey;
+const declaredNativeKeys = native.declaredNativeKeys;
+const resetDeclaredNativeKeys = native.resetDeclaredNativeKeys;
+const registerNativeAdapters = (await import(core + 'host.ts')).registerNativeAdapters;
+const hostFn = storage.hostFn;
 
 /* ============================ 脚手架 ============================ */
 
@@ -587,5 +593,153 @@ test('可见性: 环境**连写入接口都没有**时，报的是根因不是�
     setHostBridge(null);
     freshState();
     restore();
+  }
+});
+/* ==================== 6. P4-10b：冷启动必须读得到（真机丢数据的根因） ==================== */
+
+/**
+ * 造一个「真 ST 形态」的 variables：**按 key 读得到、但不能枚举**。
+ *
+ * 这正是真机实测的形状：
+ *   ctx.variables.global.get('cx_assistant_v1') → 完整数据 ✅
+ *   ctx.variables.global.has('cx_assistant_v1') → true ✅
+ *   Object.keys(ctx.variables.global) → ['get','set','del','add','inc','dec','has']  ← 只有方法
+ */
+function stNativeVariables(initial = {}) {
+  const store = new Map(Object.entries(initial));
+  return {
+    scope: {
+      get: key => store.get(key),
+      set: (key, value) => store.set(key, value),
+      has: key => store.has(key),
+      del: key => store.delete(key),
+    },
+    store,
+  };
+}
+
+/**
+ * 起一个「扩展形态 + 真 ST 变量」的环境，并把原生适配器装进 provider chain。
+ * 返回 { restore, store }（store 是真 ST 侧的数据，用来核对读到了什么）。
+ */
+function bootExtensionWithSt({ seed = {}, register = true } = {}) {
+  const saved = {
+    st: globalThis.SillyTavern,
+    helper: globalThis.TavernHelper,
+    scriptId: globalThis.__CX_SCRIPT_ID__,
+    bare: globalThis.getScriptId,
+  };
+  delete globalThis.TavernHelper;
+  delete globalThis.__CX_SCRIPT_ID__;
+  delete globalThis.getScriptId;
+
+  const fake = stNativeVariables(seed);
+  const ctx = { variables: { local: fake.scope, global: fake.scope } };
+  globalThis.SillyTavern = { getContext: () => ctx };
+
+  resetDataScope();
+  resetLoadOutcome();
+  resetUserTouchedData();
+
+  if (register) {
+    registerNativeAdapters(installNativeAdapters(ctx, { global: [GLOBAL_KEY] }));
+  }
+
+  return {
+    store: fake.store,
+    restore: () => {
+      registerNativeAdapters(null);
+      if (saved.st === undefined) delete globalThis.SillyTavern;
+      else globalThis.SillyTavern = saved.st;
+      if (saved.helper !== undefined) globalThis.TavernHelper = saved.helper;
+      if (saved.scriptId !== undefined) globalThis.__CX_SCRIPT_ID__ = saved.scriptId;
+      if (saved.bare !== undefined) globalThis.getScriptId = saved.bare;
+      resetDataScope();
+      resetLoadOutcome();
+      resetUserTouchedData();
+    },
+  };
+}
+
+test('P4-10b: 冷启动（新进程 / 清单为空）+ ST 侧有数据 → **必须读得到**', () => {
+  // 这条就是真机事故：以前 knownKeys 只记「本进程写过什么」，冷启动为空 → 读 {} → 丢数据。
+  const env = bootExtensionWithSt({ seed: { [GLOBAL_KEY]: { version: 5, active_tab: 'chat' } } });
+  try {
+    // 什么都没写过 —— 纯冷启动
+    assert.equal(getLastLoadOutcome(), null, '还没读过');
+    const raw = readStoredRootData();
+    assert.ok(raw, '冷启动必须读到数据（旧实现在这里返回 null → 丢数据）');
+    assert.equal(raw.active_tab, 'chat');
+    assert.equal(getLastLoadOutcome(), 'ok');
+    assert.equal(loadData().active_tab, 'chat');
+  } finally {
+    env.restore();
+  }
+});
+
+test('P4-10b: getVariables 靠**应用声明的种子键**工作，不靠「本进程写过什么」', () => {
+  const env = bootExtensionWithSt({ seed: { [GLOBAL_KEY]: { version: 5 } } });
+  try {
+    const table = hostFn('getVariables')({ type: 'global' });
+    assert.deepEqual(Object.keys(table), [GLOBAL_KEY], '种子键必须被读到');
+  } finally {
+    env.restore();
+  }
+});
+
+test('P4-10b: ST 侧**确实没有**该键 + 不能枚举 → 记 failed 而不是 empty（不许当「空存储」覆盖）', () => {
+  // 真 ST 不能枚举，所以「按已知键读不到」分不清「没有数据」还是「没读到」→ 必须按读失败处理。
+  const env = bootExtensionWithSt({ seed: {} });
+  try {
+    const raw = readStoredRootData();
+    assert.equal(raw, null);
+    assert.equal(
+      getLastLoadOutcome(),
+      'failed',
+      '不能枚举时读不到 ≠ 存储为空 —— 记 empty 会让保护失效、默认值被写回',
+    );
+  } finally {
+    env.restore();
+  }
+});
+
+test('P4-10b: 上面那种情况**必须拦住写入**（这是数据丢失的最后一环）', () => {
+  const env = bootExtensionWithSt({ seed: {} });
+  const writes = [];
+  try {
+    setHostBridge({ insertOrAssignVariables: payload => writes.push(payload) });
+    const data = loadData();
+    assert.equal(shouldBlockWrite(data), true, '读不到 + 没动过 → 必须拦');
+    assert.throws(() => saveData(data), /已阻止写入/);
+    assert.equal(writes.length, 0, '一次写都不许发生');
+  } finally {
+    setHostBridge(null);
+    env.restore();
+  }
+});
+
+test('P4-10b: 种子键可重复声明、跨多次建表累积（外壳早调 + storage 晚声明都要认）', () => {
+  const saved = globalThis.SillyTavern;
+  resetDeclaredNativeKeys();
+  try {
+    declareNativeKey('global', 'a');
+    declareNativeKey('global', 'b');
+    declareNativeKey('global', 'a'); // 幂等
+    assert.deepEqual(declaredNativeKeys('global').sort(), ['a', 'b']);
+
+    // 再声明一个，后面建的适配器表也要认得到
+    declareNativeKey('global', 'c');
+    const fake = stNativeVariables({ c: 42 });
+    const ctx = { variables: { global: fake.scope } };
+    globalThis.SillyTavern = { getContext: () => ctx };
+    const table = installNativeAdapters(ctx);
+    assert.equal(table.getVariables({ type: 'global' }).c, 42, '晚声明的键也要能读到');
+  } finally {
+    resetDeclaredNativeKeys();
+    if (saved === undefined) delete globalThis.SillyTavern;
+    else globalThis.SillyTavern = saved;
+    registerNativeAdapters(null);
+    declareNativeKey('global', GLOBAL_KEY);
+    declareNativeKey('local', GLOBAL_KEY);
   }
 });

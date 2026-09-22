@@ -44,7 +44,30 @@ import { NO_NATIVE_EQUIVALENT, NATIVE_PATHS, probeNativeCapabilities, getStConte
 /* ============================ 契约 ============================ */
 
 /** 能力来源：谁提供了这个能力 */
-export type CapabilityProvider = 'native' | 'tavern-helper' | 'injected' | 'none';
+/**
+ * 能力来源。
+ *
+ *  - 'native'         ST 原生 getContext() 直接给的；
+ *  - 'tavern-helper'  酒馆助手（JS-Slash-Runner）给的 —— 兼容老环境；
+ *  - 'platform'       **运行时平台自带**的（例如 fetch）；
+ *  - 'injected'       测试 / 覆盖注入的假实现；
+ *  - 'none'           这台机器上谁都给不了。
+ *
+ * ⚠️ 为什么必须有 'platform' 这一档（不是给 fetch 打的一次性补丁）：
+ *
+ * 兜底解析走的是 `lookupCompat()`，它把「globalThis 上任意同名函数」一律标成
+ * 'tavern-helper'。对真正的酒馆助手接口那是对的，但对**平台内置**的东西就是**误标**：
+ * 最典型的是 `fetch` —— 浏览器本来就有，标成 'tavern-helper' 会让人以为
+ * 「装了酒馆助手才有网络」，而事实是没装也有。
+ *
+ * 于是「三档」的必要性在于：**来源不同，含义就不同** ——
+ *   · native / tavern-helper：依赖某个宿主的导出，换环境可能没有；
+ *   · platform：**不依赖任何宿主**，所以不存在「没装就没」这回事。
+ * 界面与排查都要靠这个区别说人话（「这份能力是酒馆给的，还是本来就有的」）。
+ * 将来任何「运行时自带、不经过宿主」的能力（例如 localStorage / WebSocket）
+ * 都该用这一档，而不是让 lookupCompat 把它们误标成酒馆助手的。
+ */
+export type CapabilityProvider = 'native' | 'tavern-helper' | 'platform' | 'injected' | 'none';
 
 /**
  * 一条能力的描述符（lead 定稿的契约，字段名别改）。
@@ -125,6 +148,24 @@ export const CAPABILITIES: ReadonlyArray<Omit<Capability, 'provider'>> = [
   { name: 'getRequestHeaders', label: '取酒馆请求头（CSRF）', required: false },
   { name: 'triggerSlash', label: '执行斜杠命令', required: false },
   { name: 'stopGenerationById', label: '中止生成', required: false },
+  // ---- 网络 ----
+  //
+  // ⚠️ `fetch` 与表里其他条目**语义不同**，别按 `required: false` 的老眼光读它：
+  //   其他条目是「这台机器**可能没有**这个宿主能力」（缺了要降级 / 拦插件）；
+  //   而 fetch 在浏览器里**总是存在** —— 真正会变的是「**是谁的 fetch**」：
+  //   酒馆可能在沙箱里换过它，所以底座要求走 core/host.ts 的 hostFetch()（provider chain），
+  //   而不是裸读 globalThis.fetch（那会形成第二、第三条链 —— 审计出来的老毛病）。
+  //
+  // 因此这里的口径是：
+  //   · `required: false` —— 它几乎不会让插件「跑不起来」，写 true 会让插件在
+  //     任何探测意外时被整个拦掉，代价远大于收益（网络失败本来就该由插件自己处理）；
+  //   · 但它**必须登记在表里**，否则：
+  //     ① 能力表不再是「这台机器有哪些宿主能力」的完整真相源；
+  //     ② test-author 的静态名字闸会把 `requires: ['fetch']` 判成 typo，
+  //        导致一个**合法需要网络**的插件（尤其二期外部插件）整个装载失败。
+  //
+  // 一句话：它更像「**总是可用、但来源可能被换过**」，而不是「可能缺失」。
+  { name: 'fetch', label: '网络请求', required: false },
   // ---- 工具调用 ----
   { name: 'isToolCallingSupported', label: '原生工具调用探测', required: false },
   // ---- 明确不可用的三个（ST 原生没有对应）----
@@ -190,6 +231,26 @@ const defaultResolver: CapabilityResolver = (name: string) => {
     return lookupCompat('getVariables');
   }
 
+  if (name === 'fetch') {
+    // fetch **不按 hostFn 的普通口径判**，理由（写清楚，免得以后有人「顺手统一」掉）：
+    //
+    // 1. `fetch` 是**平台内置**（浏览器就有），不是酒馆给的宿主能力。
+    //    走通用的 lookupCompat() 会把它标成 'tavern-helper' —— 那是**错的**，
+    //    会让人以为「装了酒馆助手才有网络」，而事实是没装也有。
+    // 2. 它**总是可用**，真正常变的是「**是谁的 fetch**」：
+    //    酒馆可能在沙箱里换过它，所以底座要求走 hostFetch()（provider chain），
+    //    而不是裸读 globalThis.fetch。这条差异不影响「能不能发请求」的判定。
+    //
+    // 所以：只要有 fetch 函数就用，来源按**实际在哪找到**如实标。
+    const scope = typeof globalThis === 'undefined' ? null : (globalThis as unknown as Record<string, unknown>);
+    if (!scope) return 'none';
+    // 链的第一层（注入假实现）—— 测试 / 覆盖时算 'injected'
+    const helper = scope.TavernHelper as Record<string, unknown> | undefined;
+    if (helper && typeof helper.fetch === 'function') return 'tavern-helper';
+    if (typeof scope.fetch === 'function') return 'platform';
+    // 三条都没有：那是极端情形（没有 fetch 的运行时），如实说不可用
+    return 'none';
+  }
   try {
     if (probeNativeCapabilities(getStContext()).includes(name)) return 'native';
   } catch {

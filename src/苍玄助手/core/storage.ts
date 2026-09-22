@@ -50,6 +50,22 @@ import { getHostBridge as getInjectedBridge, hostFn, setHostBridge as setInjecte
 import type { HostProviderTable } from './host.ts';
 import { dataScope as nativeDataScope, declareNativeKey } from './native.ts';
 
+/*
+ * ⚠️ P4-10b（**冷启动读不到数据**的根因）——
+ *
+ * ST 原生变量**不能枚举**（只有按 key 的 get/set）。core/native.ts 的
+ * getVariables 是按一张「已知键清单」逐个 get 拼出来的，所以**那张清单必须有内容**，
+ * 否则冷启动（刚刷新）时清单为空 → 返回 {} → 上层读不到 GLOBAL_KEY → 用默认值
+ * → 紧接着写回默认值 → **用户数据被覆盖**。
+ *
+ * 所以这里在**模块加载时**就把「我们要读哪个键」声明出去（静态事实，冷启动即成立），
+ * 而不是等运行期「写过什么」再记（那是运行期副产品，冷启动必然为空）。
+ *
+ * 层次：native.ts 不认识任何业务键名，键由 storage 注入 —— 依赖方向仍是 storage → native。
+ */
+declareNativeKey('global', GLOBAL_KEY);
+declareNativeKey('local', GLOBAL_KEY);
+
 /* ============================ 宿主接口：转发 core/host.ts 的唯一一条链 ============================ */
 
 /**
@@ -374,6 +390,9 @@ const BLOCK_KEYS = [
   'session',
   'drafts',
   'artifacts',
+  // ⚠️ 新块必须登记在这张表里：不在表里的键会在「逐块恢复」时被丢掉 =
+  // 刷新一次世界书备份就全没了（跟当初「冷启动读不到数据」是同一类坑）。
+  'wb_backups',
 ] as const;
 type BlockKey = (typeof BLOCK_KEYS)[number];
 

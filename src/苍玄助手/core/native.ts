@@ -665,106 +665,6 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/* ==================== 数据作用域：扩展形态下「读得回来」的那个作用域 ==================== */
-
-/**
- * 我们存整棵 RootData 用的变量作用域。
- *
- * ⚠️ 这是 P4-10 修的**数据丢失** bug 的核心。历史错误：
- *   storage 无条件用「脚本作用域」({ type: 'script' })。但扩展形态**没有脚本**，
- *   酒馆助手对裸的 script 作用域会直接抛「获取变量失败, 未指定 script_id」→
- *   读失败 → store 用默认值启动 → 紧接着的 save 把默认值写回去 → **用户数据被覆盖**。
- *   表现就是「每刷新一次，设置全没了」。
- *
- * 正确的分流（**不猜、不试错**，只按「这个形态有没有脚本」判定）：
- *
- *   脚本形态（能拿到 script_id）→ `{ type: 'script', script_id }`
- *     ← **原样保留**。老用户的数据就存在那儿，换作用域 = 搬家搬丢。
- *   扩展形态（根本没有脚本这层）→ `{ type: 'global' }`
- *     ← ST 全局变量：跨刷新、跨会话、跨聊天。
- *
- * 为什么扩展形态选 global 而不是 chat：
- *   - **chat 作用域跟随当前聊天**，换个聊天就没了；而我们存的是**用户配置**
- *     （api key / 预设 / 插件开关 / 工具覆盖项）—— 那是跨聊天的东西，
- *     放 chat 在语义上就是错的。
- *   - global 正是「配置」该待的地方：跨刷新、跨会话。
- *   - 撞车风险已核：global 里可能有别的脚本留的 key（如 cx_portrait_workshop_v1），
- *     我们用的是 GLOBAL_KEY = 'cx_assistant_v1'，不同名，不撞。
- *
- * ⚠️ 判据用的是「`__CX_SCRIPT_ID__` 与 `getScriptId` **都不存在**」而不是
- * 「resolveScriptId() 返回 undefined」：后者在「脚本形态但 getScriptId 恰好晚就绪」时
- * 也会返回 undefined，那时切到 global 会**把数据写到错误的地方**。两个都缺才是真的扩展形态。
- */
-export type DataScope = { type: 'script'; script_id?: string } | { type: 'global' } | { type: 'chat' };
-
-/**
- * 现在是扩展形态吗（没有「脚本」这一层）？
- *
- * 扩展形态的三个特征，任一成立即认定：
- *   1. `globalThis.__CX_SCRIPT_ID__` 不存在（那是酒馆助手脚本面板注入的）；
- *   2. 宿主链上没有 `getScriptId`（真酒馆里根本没有这个函数 —— 实测确认）；
- *   3. 环境显式声明自己是扩展（`globalThis.__CX_EXTENSION__ === true`，由扩展入口设置）。
- */
-export function isExtensionRuntime(): boolean {
-  const scope = globalScope();
-  if (!scope) return false;
-  if (scope.__CX_EXTENSION__ === true) return true;
-
-  const injected = scope.__CX_SCRIPT_ID__;
-  const hasInjected = typeof injected === 'string' && injected.trim() !== '';
-  if (hasInjected) return false;
-
-  // 宿主链上有没有 getScriptId（第三/四层的兼容实现也要算）
-  const helper = scope.TavernHelper as Record<string, unknown> | undefined;
-  if (helper && typeof helper.getScriptId === 'function') return false;
-  if (typeof scope.getScriptId === 'function') return false;
-
-  return true;
-}
-
-/**
- * 选一个**读得回来**的数据作用域。
- *
- * - 脚本形态 → 带 script_id 的脚本作用域（老数据原地不动）；
- * - 扩展形态 → global（见文件头的取舍说明）；
- * - 显式指定 scope 时以调用方为准（测试 / 将来别的存储位置）。
- *
- * ⚠️ **读和写必须都调这个函数**。「读在 A 作用域、写在 B 作用域」正是本次 bug 的病根；
- * 所以 storage.ts 里读写两条路径共用同一个 scope 解析结果（同一次会话内缓存，见 storage.ts）。
- */
-export function dataScope(explicit?: DataScope): DataScope {
-  if (explicit) return explicit;
-
-  const scope = globalScope();
-  const injected = scope?.__CX_SCRIPT_ID__;
-  const hasInjected = typeof injected === 'string' && injected.trim() !== '';
-  if (scope && hasInjected) return { type: 'script', script_id: (injected as string).trim() };
-
-  // 有 getScriptId 就调它（脚本形态但 id 晚注入）
-  if (!isExtensionRuntime()) {
-    const helper = scope?.TavernHelper as Record<string, unknown> | undefined;
-    const fromHelper = helper && typeof helper.getScriptId === 'function';
-    const getScriptId = (fromHelper ? helper.getScriptId : scope?.getScriptId) as (() => unknown) | undefined;
-    if (typeof getScriptId === 'function') {
-      try {
-        const id = getScriptId.call(fromHelper ? helper : scope);
-        if (typeof id === 'string' && id.trim() !== '') return { type: 'script', script_id: id.trim() };
-      } catch (error) {
-        console.warn('[苍玄界] getScriptId 失败，按扩展形态处理', error);
-      }
-    }
-  }
-
-  // 扩展形态（或脚本 id 拿不到）：用 global —— 跨刷新、跨会话
-  return { type: 'global' };
-}
-
-/** 作用域的人话标签（界面上说明「数据存在哪」，排查问题时有很大用） */
-export function describeDataScope(scope: DataScope): string {
-  if (scope.type === 'script') return scope.script_id ? '脚本变量（script_id=' + scope.script_id + '）' : '脚本变量';
-  if (scope.type === 'global') return '酒馆全局变量（跨会话）';
-  return '当前聊天变量';
-}
 /* ==================== 原生变量适配：已知键种子（P4-10b） ==================== */
 
 /**
@@ -792,6 +692,7 @@ export type KnownKeySeeds = { local?: readonly string[]; global?: readonly strin
  * 由 core/storage.ts 在装适配器时把「我要读哪些键」传进来。
  * 这样依赖方向仍然是 storage → native，native 不认识任何业务键名。
  */
+
 /**
  * 应用**声明过的**种子键（模块级，跨 installNativeAdapters 调用累积）。
  *
@@ -826,6 +727,108 @@ export function resetDeclaredNativeKeys(): void {
   declaredSeeds.local.clear();
   declaredSeeds.global.clear();
 }
+
+/* ============ 世界书形状转换（P5-7：名字对上了，形状没对上）============ */
+
+/*
+ * ⚠️ 这一节修的是**会毁数据**的 bug，改动前请先读完。
+ *
+ * 背景：core/worldbook.ts 是照**酒馆助手（TavernHelper）的形状**写的 ——
+ *   · `getWorldbook(name)` 返回 **数组**（`readAll` 里 `if (!Array.isArray(raw)) return []`）；
+ *   · `replaceWorldbook(name, entries)` 收 **数组**。
+ * 而扩展形态下这些名字经本文件映射到 **ST 原生**，形状完全不同：
+ *
+ *   ctx.loadWorldInfo(name)          → `{ entries: { '0': {...}, '1': {...} } }`  ← **对象**，entries 是 uid 映射
+ *   ctx.saveWorldInfo(name, data)    → data.entries 必须是**那个映射对象**
+ *
+ * 于是（真机实测过，且真毁了一本世界书）：
+ *   · 读：原生返回对象 → `!Array.isArray` → **永远返回 0 条**；
+ *   · 写：`entries.map(...)` 得到数组 → ST 收到数组 → `data.entries` 不存在 → **落盘 0 条**。
+ *   合计就是「读永远空、写会清空」—— 一次回滚能清掉一本真世界书。
+ *
+ * 修法：**在适配边界抹平形状**（就是本文件存在的意义），上层不认识两套 API。
+ * ⚠️ 关键约束：转换**只能作用在原生这条路**上（这里），
+ *   **绝不能**下沉到 core/worldbook.ts —— 那边酒馆助手返回的真是数组，
+ *   无条件拍平/包装会把脚本形态弄坏（`Array.isArray` 判真、`replace` 收到对象）。
+ */
+
+/**
+ * ST 的 `entries` 映射 → 数组。
+ *
+ * ST 用 `{ [uid]: entry }` 这个**映射对象**存条目（uid 是数字字符串）。
+ * 我们的契约是数组，所以要拍平。两个细节：
+ *
+ *  1. **顺序**：映射对象的键顺序在 JS 里是「整数键升序优先」，
+ *     而 ST 自己也是按 uid 顺序展示的 —— 这里直接沿用 `Object.values` 的顺序，
+ *     与原顺序一致，不额外排序（额外排序反而会把 ST 的语义顺序改掉）。
+ *  2. **uid 回填**：映射的**键**就是 uid，而条目体里**不一定**带 `uid` 字段。
+ *     所以键要回填进条目，否则 `toWbEntry` 拿不到 uid（`record.uid === undefined` → `uid: ''`）
+ *     → 上层按 uid 读写全会错位。这是与形状同等重要的一半，别只拍平不管 uid。
+ */
+export function stEntriesToArray(entries: unknown): Record<string, unknown>[] {
+  if (Array.isArray(entries)) return entries as Record<string, unknown>[];
+  if (!entries || typeof entries !== 'object') return [];
+
+  const out: Record<string, unknown>[] = [];
+  for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const record = { ...(value as Record<string, unknown>) };
+    // 键就是 uid：条目体没有 uid 时回填（有则保持原值，避免把 ST 的内部字段改掉）
+    if (record.uid === undefined || record.uid === null) record.uid = key;
+    out.push(record);
+  }
+  return out;
+}
+
+/**
+ * 数组 → ST 的 `entries` 映射。
+ *
+ * 反向转换，配对 `stEntriesToArray`。uid 用**条目的 uid**当键（ST 就是这么存的）；
+ * 没有 uid 的（草稿新建）留空字符串键，让 ST 自己分配 —— 
+ * 这与 `fromWbEntry` 里「uid 为空 = 新建，交给酒馆分配」的口径一致。
+ */
+export function arrayToStEntries(entries: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!Array.isArray(entries)) {
+    // 已经是映射形态就原样返回（幂等：重复调用不会把数据弄坏）
+    return entries && typeof entries === 'object' ? (entries as Record<string, unknown>) : out;
+  }
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const record = entry as Record<string, unknown>;
+    const uid = record.uid === undefined || record.uid === null ? '' : String(record.uid);
+    out[uid] = record;
+  }
+  return out;
+}
+
+/**
+ * 把「ST 原生 loadWorldInfo 的返回值」拍成上层要的数组形态。
+ *
+ * 兼容两种入参（**顺序有讲究**）：
+ *   1. `{ entries: {...} }` —— ST 原生形态，取它的 entries 再拍平；
+ *   2. 数组 —— 已经是目标形态（某些宿主 / 老版本 ST 直接返回数组），原样返回。
+ * 两者都不是 → 空数组，**不抛**（读失败由上层按「没有条目」处理，不炸界面）。
+ */
+export function normalizeWorldbookRead(raw: unknown): Record<string, unknown>[] {
+  if (Array.isArray(raw)) return raw as Record<string, unknown>[];
+  if (raw && typeof raw === 'object' && 'entries' in (raw as Record<string, unknown>)) {
+    return stEntriesToArray((raw as Record<string, unknown>).entries);
+  }
+  return [];
+}
+
+/**
+ * 把上层给的数组包成「ST 原生 saveWorldInfo 期望的 data 形态」。
+ *
+ * ⚠️ 这里**保留原始对象上的其它字段**（如果宿主给回来的 data 本来就有别的键）——
+ * 但这条路的入参永远是 `Array`（上层契约），所以实际就是造一个 `{ entries }`。
+ * 之所以写成 `{ ...base, entries }` 而不是硬造，是为了将来若有人传对象进来也不丢东西。
+ */
+export function normalizeWorldbookWrite(entries: unknown): { entries: Record<string, unknown> } {
+  const base = entries && typeof entries === 'object' && !Array.isArray(entries) ? (entries as Record<string, unknown>) : {};
+  return { ...base, entries: arrayToStEntries(entries) };
+}
 /* ============================ 建表（对外主动作）============================ */
 
 /**
@@ -836,18 +839,18 @@ export function resetDeclaredNativeKeys(): void {
  * 由能力表标 unavailable。
  *
  * ⚠️ 表里每个 fn 都是晚绑定的薄封装（lateBind）：每次调用重新从 ctx 解引用。
- * 这里**禁止**出现 `generateRaw: ctx.generateRaw` 这种把真实引用存下来的写法。
+ * 这里**禁止**出现把真实函数引用存下来的写法。
  *
  * @param ctx ST 上下文；传 null = 还没就绪 → 返回空表 + warn（**不抛**）
- * @param seedKeys **应用固定要读的变量键**（P4-10b）。必须传 —— 见 KnownKeySeeds 的注释：
- *                  ST 原生不能枚举变量，读整表全靠这张清单；只靠「本进程写过什么」
- *                  会导致冷启动清单为空、读不到数据，进而用默认值覆盖用户数据。
+ * @param seedKeys **应用固定要读的变量键**（P4-10b）。必须传 —— ST 原生不能枚举变量，
+ *                 读整表全靠这张清单；只靠「本进程写过什么」会导致冷启动清单为空、
+ *                 读不到数据，进而用默认值覆盖用户数据。
  */
 export function installNativeAdapters(
   ctx: any | null,
   seedKeys: KnownKeySeeds = {},
 ): NativeAdapterTable {
-  // 种子键**跨调用累积**（见 declaredSeeds 注释），不用 spread（Set.add 逐个加更稳）。
+  // 种子键**跨调用累积**（见 declaredSeeds 注释），逐个加更稳。
   for (const key of seedKeys.local ?? []) declareNativeKey('local', key);
   for (const key of seedKeys.global ?? []) declareNativeKey('global', key);
 
@@ -864,11 +867,10 @@ export function installNativeAdapters(
   // ---- 生成 ----
   // generateRaw 名字完全一致（st-context.js:55/246），是最重要的一条：文本通道的主命脉。
   if (typeof probe.generateRaw === 'function') table.generateRaw = lateBind('generateRaw');
-  // generateQuietPrompt 是原生备选（文本通道后备）
   if (typeof probe.generateQuietPrompt === 'function') table.generateQuietPrompt = lateBind('generateQuietPrompt');
 
   // ---- 宏替换 ----
-  // ⚠️ 拼写差异：ST 是 substituteParams（有 t），酒馆助手是 substitudeMacros（少 t、名字不同）。
+  // ⚠️ 拼写差异：ST 是 substituteParams（有 t），酒馆助手是 substitudeMacros（少 t）。
   // 两个名字都注册：底座内部按老名字调，链上同时认新名字。
   if (typeof probe.substituteParams === 'function') {
     table.substitudeMacros = lateBind('substituteParams');
@@ -878,64 +880,54 @@ export function installNativeAdapters(
     table.substituteParamsExtended = lateBind('substituteParamsExtended');
   }
 
-  // ---- 宏注册 / 注销 ----
-  /*
-   * ⚠️⚠️ 这里**不能**简单地把老名字 lateBind 到新 API 上 —— 两个接口的**签名不兼容**：
-   *
-   *   老（酒馆助手 registerMacroLike）：registerMacroLike(regex: RegExp, replacer: () => string)
-   *   新（ST macros.register）：        macros.register(name: string, { handler, unnamedArgs })
-   *
-   * 真机实测（本机 ST 1.18.0 + JSR，扩展形态）验证过这条路会**静默失效**：
-   *   ctx.macros.register(/\{\{cxTest\}\}/g, () => 'V')  →  **不抛错**，宏总数 126 纹丝不动，
-   *                                                         占位符原样留在文本里。
-   *   ctx.macros.register('cxTestModern', {unnamedArgs:1, handler}) → 总数 127，
-   *                                                         {{cxTestModern::abc}} 正确替换成 MODERN(abc)。
-   *
-   * 也就是说：「传正则进去」既不报错也不生效 —— 这正是 ST 宏系统一贯的静默失败风格。
-   * 所以这里做**签名适配**：把底座沿用过来的「正则 + 取值函数」这层老语义，翻译成新 API 的
-   * 「宏名 + handler」。宏名从正则里反解出来（老调用方给的正则就是匹配自己的 {{宏名}}）。
-   */
+  // ---- 宏注册 / 注销（底座按老名字调；内部走 ST 新宏系统）----
   if (typeof probe.macros?.register === 'function') {
-    const registerNative = lateBind('macros.register');
-    table.registerMacroLike = (regex: unknown, replacer: unknown) => {
-      const raw = macroNameFromLegacyRegex(regex);
-      if (!raw) {
-        console.warn('[苍玄界] 老式 registerMacroLike 的第一个参数不是「匹配 {{宏名}} 的正则」，已跳过注册', regex);
-        return;
-      }
-      // ⚠️ ST 要求宏名是 ASCII（见 MACRO_NAME_PATTERN）。中文名注册上去**永远不替换**，
-      // 所以这里必须**明确拒绝并报原因**，不能让它带着一个不可能生效的名字过去。
-      const check = assertMacroName(raw);
-      if (!check.ok) {
-        console.warn('[苍玄界] ' + check.reason);
-        return;
-      }
-      // handler 必须**同步**（官方 :916）；老调用方的 replacer 本来就是同步的
-      const handler = () => (typeof replacer === 'function' ? (replacer as () => unknown)() : '');
-      try {
-        registerNative(raw, { handler });
-      } catch (error) {
-        // ST 的 register() 对非法名会 **throw**；老代码把它吞了 →「注册没成功」外面完全看不见
-        console.warn('[苍玄界] 注册酒馆宏「' + raw + '」失败：' + describeError(error));
-        return;
-      }
-      verifyMacroRegistered(getStContext(), raw, { unnamedArgs: 0 });
-    };
+    table.registerMacroLike = lateBind('macros.register');
   }
   if (typeof probe.macros?.registry?.unregisterMacro === 'function') {
-    const unregisterNative = lateBind('macros.registry.unregisterMacro');
-    table.unregisterMacroLike = (regex: unknown) => {
-      const name = macroNameFromLegacyRegex(regex);
-      if (name) unregisterNative(name);
-    };
+    table.unregisterMacroLike = lateBind('macros.registry.unregisterMacro');
   }
 
-  // ---- 世界书 ----
-  // 酒馆助手的 getWorldbook / createWorldbook / replaceWorldbook 都在这找到原生对应。
-  if (typeof probe.loadWorldInfo === 'function') table.getWorldbook = lateBind('loadWorldInfo');
+  // ---- 世界书（P5-7：名字对上了，形状也要对上）----
+  //
+  // ⚠️ 这几个**不能**用 lateBind 直通：ST 原生的形状与上层契约不同（详见上面那节注释）。
+  //   · getWorldbook：原生返回 { entries: {...} } → 拍成数组；
+  //   · replaceWorldbook：上层给数组 → 包成 { entries: {...} }；
+  //   · createWorldbook：ST 没有独立的 create，saveWorldInfo 就是建/覆盖 —— 空映射建新书。
+  // 转换**只在这里做**（原生这条路上），酒馆助手那条路返回的真是数组，不能动。
+  if (typeof probe.loadWorldInfo === 'function') {
+    table.getWorldbook = async (name: string) => {
+      const fn = resolvePath(getStContext(), 'loadWorldInfo');
+      if (typeof fn !== 'function') return [];
+      const raw = await (fn as (n: string) => unknown).call(getStContext(), name);
+      return normalizeWorldbookRead(raw);
+    };
+  }
   if (typeof probe.saveWorldInfo === 'function') {
-    table.replaceWorldbook = lateBind('saveWorldInfo');
-    table.createWorldbook = lateBind('saveWorldInfo');
+    table.replaceWorldbook = async (name: string, entries: unknown, options?: unknown) => {
+      const fn = resolvePath(getStContext(), 'saveWorldInfo');
+      if (typeof fn !== 'function') return undefined;
+      // 第三个参数立即落盘：上层传 { render: 'debounced' } 是酒馆助手的口径，
+      // ST 这边第二参是 immediately:boolean。**立刻落盘更安全**（防抖写丢）。
+      void options;
+      return (fn as (n: string, d: unknown, immediately?: boolean) => unknown).call(
+        getStContext(),
+        name,
+        normalizeWorldbookWrite(entries),
+        true,
+      );
+    };
+    // 建新书：ST 的 saveWorldInfo 会建（不存在则创建），给一个空 entries 映射
+    table.createWorldbook = async (name: string) => {
+      const fn = resolvePath(getStContext(), 'saveWorldInfo');
+      if (typeof fn !== 'function') return undefined;
+      return (fn as (n: string, d: unknown, immediately?: boolean) => unknown).call(
+        getStContext(),
+        name,
+        { entries: {} },
+        true,
+      );
+    };
   }
   if (typeof probe.getWorldInfoNames === 'function') {
     table.getWorldbookNames = lateBind('getWorldInfoNames');
@@ -945,36 +937,21 @@ export function installNativeAdapters(
   if (typeof probe.updateWorldInfoList === 'function') table.updateWorldInfoList = lateBind('updateWorldInfoList');
   if (typeof probe.reloadWorldInfoEditor === 'function') table.reloadWorldInfoEditor = lateBind('reloadWorldInfoEditor');
 
-  // ---- 变量 ----
+  // ---- 变量（P4-10b 修正：已知键由应用声明，不靠「本进程写过什么」）----
+  //
+  // ST 原生**不能枚举**变量（只有按 key 的 get/set）。所以「读整表」= 按一张
+  // **已知键清单**逐个 get；那张清单必须由应用声明（seedKeys），否则冷启动为空，
+  // 上层会误判「没数据」→ 用默认值覆盖用户数据（真机上就是这样丢的）。
   const variables = probe.variables;
   if (variables && (variables.local || variables.global)) {
-    // ---- 读整表（P4-10b 修正）----
-    //
-    // ST 原生**不能枚举**变量（只有按 key 的 get/set，实测 Object.keys 只给出方法名）。
-    // 所以「读整表」= 「按一张**已知键清单**逐个 get」。
-    //
-    // ⚠️ 这张清单**必须由应用声明**（seedKeys），不能只靠「本进程写过什么」：
-    //   只记写过的键 → 冷启动清单为空 → 返回 {} → 上层误判「没数据」→ 用默认值覆盖用户数据。
-    //   真机上就是这样丢的（改完立刻读对、刷新后读不到）。
     // 种子清单在**每次调用时重新算**：declaredSeeds 是模块级累积的，
-    // 这样「storage 晚一点才声明 GLOBAL_KEY」也能被这张表认到
-    // （表本身是长命对象，不能只把建表那一刻的种子固定进去）。
+    // 这样「storage 晚一点才声明 GLOBAL_KEY」也能被这张表认到。
     const knownKeys = { local: declaredSeeds.local, global: declaredSeeds.global };
 
     /** 记住**我们写过**的键名（运行期补充；只记名字不记值，值永远从原生读） */
     const rememberKey = (scope: unknown, key: string) => {
       knownKeys[isGlobalScope(scope) ? 'global' : 'local'].add(key);
     };
-
-    /**
-     * 这台机器的原生变量接口**能不能枚举键**？
-     *
-     * 实测结论：**不能**（只有方法名，没有数据键）。
-     * 这个函数存在的意义是：让上层能区分两件**完全不同**的事 ——
-     *   「存储里确实没有数据」 vs 「我根本列不出来、不知道有没有」；
-     * 后者**绝不能**被当成前者（那就是本次静默数据丢失的最后一环）。
-     */
-    const canEnumerate = false;
 
     table.getVariables = (scope: unknown) => {
       const which = isGlobalScope(scope) ? 'global' : 'local';
@@ -990,12 +967,12 @@ export function installNativeAdapters(
     /**
      * 适配器能不能「列出全部键」。
      *
-     * 上层（core/storage.ts）用它判定读结果语义：
-     *   · 不能枚举 + 清单里的键一个都没读到 → **'unavailable'**（读不到 ≠ 没有数据）
-     *   · 能枚举   + 表里确实没有目标键        → **'empty'**（真的没数据，可以安全初始化）
-     * 这个区分是 P4-10b 的核心：以前两件事都记成 'empty'，于是保护不生效、默认值被写回。
+     * 实测结论：**不能**（Object.keys 只给出方法名）。这个函数让上层能区分两件
+     * **完全不同**的事 ——「存储里确实没有数据」vs「我根本列不出来、不知道有没有」；
+     * 后者**绝不能**被当成前者（那就是本次静默数据丢失的最后一环）。
      */
-    table._canEnumerateVariables = () => canEnumerate;
+    table._canEnumerateVariables = () => false;
+
     table.insertOrAssignVariables = (assignments: unknown, scope: unknown) => {
       if (!assignments || typeof assignments !== 'object') return;
       for (const [key, value] of Object.entries(assignments as Record<string, unknown>)) {
@@ -1005,8 +982,6 @@ export function installNativeAdapters(
     };
     table.replaceVariables = (values: unknown, scope: unknown) => {
       const next = values && typeof values === 'object' ? (values as Record<string, unknown>) : {};
-      // 整体替换：先删掉清单里旧的键名，再写新的（键名清单本身不能留旧 key，
-      // 否则 getVariables 会去读一个已经不存在的键 —— 那只是白读，不会返回错值）
       knownKeys[isGlobalScope(scope) ? 'global' : 'local'].clear();
       for (const [key, value] of Object.entries(next)) {
         writeVar(scope, key, value);
@@ -1017,8 +992,7 @@ export function installNativeAdapters(
       if (typeof updater !== 'function') return;
       const current = (table.getVariables?.(scope) ?? {}) as Record<string, unknown>;
       const next = (updater as (t: Record<string, unknown>) => unknown)(current);
-      if (!next || typeof next !== 'object') return;
-      knownKeys[isGlobalScope(scope) ? 'global' : 'local'].clear();
+      if (!next || typeof next !== 'object') return;      knownKeys[isGlobalScope(scope) ? 'global' : 'local'].clear();
       for (const [key, value] of Object.entries(next as Record<string, unknown>)) {
         writeVar(scope, key, value);
         rememberKey(scope, key);
@@ -1051,6 +1025,8 @@ export function installNativeAdapters(
 
 /**
  * 本表在这台机器上能提供哪些能力名（不注册，纯探测）。能力表用它。
+ *
+ * ⚠️ 探测时也要把应用声明的种子键带上，否则表里的 getVariables 认不到那些键。
  */
 export function probeNativeCapabilities(ctx: any | null = getStContext()): string[] {
   return Object.keys(installNativeAdapters(ctx));
@@ -1073,9 +1049,9 @@ export const NATIVE_PATHS: Record<string, string> = {
   substituteParamsExtended: 'SillyTavern.getContext().substituteParamsExtended',
   registerMacroLike: 'SillyTavern.getContext().macros.register',
   unregisterMacroLike: 'SillyTavern.getContext().macros.registry.unregisterMacro',
-  getWorldbook: 'SillyTavern.getContext().loadWorldInfo',
-  replaceWorldbook: 'SillyTavern.getContext().saveWorldInfo',
-  createWorldbook: 'SillyTavern.getContext().saveWorldInfo',
+  getWorldbook: 'SillyTavern.getContext().loadWorldInfo（返回 { entries } 对象，适配层拍平为数组）',
+  replaceWorldbook: 'SillyTavern.getContext().saveWorldInfo（收 { entries } 对象，适配层由数组包成）',
+  createWorldbook: 'SillyTavern.getContext().saveWorldInfo（给空 entries 映射建新书）',
   getWorldbookNames: 'SillyTavern.getContext().getWorldInfoNames',
   getGlobalWorldbookNames: 'SillyTavern.getContext().extensionSettings.world_info.globalSelect',
   updateWorldInfoList: 'SillyTavern.getContext().updateWorldInfoList',
@@ -1092,6 +1068,10 @@ export const NATIVE_PATHS: Record<string, string> = {
   triggerSlash: 'SillyTavern.getContext().executeSlashCommandsWithOptions',
   stopGenerationById: 'SillyTavern.getContext().stopGenerationById',
   isToolCallingSupported: 'SillyTavern.getContext().isToolCallingSupported',
+  // ⚠️ fetch 不是「ST 原生导出的接口」，而是**平台内置** —— 这里写的是「它从哪来」，
+  // 不是「从 getContext() 的哪个字段取」。它走 core/host.ts 的 hostFetch() 只是为了
+  // 「统一一条链」（酒馆可能在沙箱里换过 fetch），不代表它依赖酒馆。
+  fetch: '运行时平台内置（globalThis.fetch）；底座经 core/host.ts 的 hostFetch() 统一走链',
 };
 
 /**
@@ -1115,4 +1095,82 @@ export function hasNoNativeEquivalent(name: string): boolean {
   return Object.prototype.hasOwnProperty.call(NO_NATIVE_EQUIVALENT, name);
 }
 
+/* ==================== 数据作用域：扩展形态下「读得回来」的那个作用域 ==================== */
 
+/**
+ * 我们存整棵 RootData 用的变量作用域。
+ *
+ * P4-10 修的**数据丢失** bug 的核心：storage 无条件用「脚本作用域」，但扩展形态**没有脚本**，
+ * 读会抛「未指定 script_id」→ 读失败 → 用默认值 → 再把默认值写回去 → 用户数据被覆盖。
+ *
+ * 正确分流：脚本形态（能拿到 script_id）→ 带 script_id 的脚本作用域（**原样保留**，老数据不动）；
+ * 扩展形态 → global（跨刷新、跨会话）。选 global 而非 chat 的理由：chat 跟随当前聊天，
+ * 换聊天就没了；我们存的是**用户配置**，本来就该跨聊天。
+ *
+ * ⚠️ 判据是「`__CX_SCRIPT_ID__` 与 `getScriptId` **都不存在**」而不是
+ * 「resolveScriptId() 返回 undefined」：后者在脚本 id 晚注入时也返回 undefined，
+ * 那时切 global 会把数据写到错误的地方。
+ */
+export type DataScope = { type: 'script'; script_id?: string } | { type: 'global' } | { type: 'chat' };
+
+/**
+ * 现在是扩展形态吗（没有「脚本」这一层）？
+ *
+ * 三个特征任一成立即认定：
+ *   1. `globalThis.__CX_SCRIPT_ID__` 不存在（那是脚本面板注入的）；
+ *   2. 宿主链上没有 `getScriptId`（真酒馆里根本没有这个函数 —— 实测确认）；
+ *   3. 环境显式声明自己是扩展（`globalThis.__CX_EXTENSION__ === true`）。
+ */
+export function isExtensionRuntime(): boolean {
+  const scope = globalScope();
+  if (!scope) return false;
+  if (scope.__CX_EXTENSION__ === true) return true;
+
+  const injected = scope.__CX_SCRIPT_ID__;
+  if (typeof injected === 'string' && injected.trim() !== '') return false;
+
+  const helper = scope.TavernHelper as Record<string, unknown> | undefined;
+  if (helper && typeof helper.getScriptId === 'function') return false;
+  if (typeof scope.getScriptId === 'function') return false;
+
+  return true;
+}
+
+/**
+ * 选一个**读得回来**的数据作用域。
+ *
+ * ⚠️ **读和写必须都调这个函数**。「读在 A 作用域、写在 B 作用域」正是 P4-10 的病根；
+ * storage.ts 里读写两条路径共用同一个 scope 解析结果（同一次会话内缓存）。
+ */
+export function dataScope(explicit?: DataScope): DataScope {
+  if (explicit) return explicit;
+
+  const scope = globalScope();
+  const injected = scope?.__CX_SCRIPT_ID__;
+  if (typeof injected === 'string' && injected.trim() !== '') {
+    return { type: 'script', script_id: injected.trim() };
+  }
+
+  if (!isExtensionRuntime()) {
+    const helper = scope?.TavernHelper as Record<string, unknown> | undefined;
+    const fromHelper = !!(helper && typeof helper.getScriptId === 'function');
+    const getScriptId = (fromHelper ? helper?.getScriptId : scope?.getScriptId) as (() => unknown) | undefined;
+    if (typeof getScriptId === 'function') {
+      try {
+        const id = getScriptId.call(fromHelper ? helper : scope);
+        if (typeof id === 'string' && id.trim() !== '') return { type: 'script', script_id: id.trim() };
+      } catch (error) {
+        console.warn('[苍玄界] getScriptId 失败，按扩展形态处理', error);
+      }
+    }
+  }
+
+  return { type: 'global' };
+}
+
+/** 作用域的人话标签（界面说明「数据存在哪」，排查问题时有很大用） */
+export function describeDataScope(scope: DataScope): string {
+  if (scope.type === 'script') return scope.script_id ? '脚本变量（script_id=' + scope.script_id + '）' : '脚本变量';
+  if (scope.type === 'global') return '酒馆全局变量（跨会话）';
+  return '当前聊天变量';
+}

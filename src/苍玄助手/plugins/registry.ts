@@ -21,6 +21,7 @@ import type {
 } from './types.ts';
 import { BUILTIN_MANIFESTS } from './builtin/index.ts';
 import { evaluatePluginCapabilities } from '../core/capability.ts';
+import { hostFn } from '../core/host.ts';
 
 /** 全部插件清单（内置目录汇总；阶段 6 外部装载也并进这里） */
 export const PLUGIN_MANIFESTS: PluginManifest[] = BUILTIN_MANIFESTS;
@@ -83,8 +84,36 @@ export interface PluginSkip {
  *
  * ⚠️ 探测**绝不抛**：任何异常都当成「不可用」，否则界面挂载会白屏。
  */
+/*
+ * ⚠️ 宿主未就绪时**不拦**（P4-7 的 requires 撞上本闸时暴露出来的洞）。
+ *
+ * 「宿主整个不存在」与「宿主在、但这台机器缺某个能力」是**两件完全不同的事**：
+ *   - 后者：真缺，该拦 —— 用户能在设置页看到「缺能力」并知道缺什么；
+ *   - 前者：不是「缺」，是「**还没接上**」。单测里 setHostBridge 随时注入；
+ *     真机上扩展 activate 早于 getContext 就绪（实测 APP_READY 556ms~24050ms）。
+ *
+ * 把前者也拦掉会出两种事故：
+ *   1. 单测环境所有宿主相关插件集体消失（worldbook 的 7 个工具全没 → 一片红）；
+ *   2. **真机上插件被永久判死** —— 恰恰违反本底座到处贯彻的「晚绑定」原则：
+ *      能力晚就绪不要紧，运行时再拿；而不是启动时探一次没有就一辈子不装载。
+ *
+ * 判据用 hostFn('getVariables')（= provider chain 四层里任意一层能给出宿主变量接口）。
+ * 全都没有 ⇒ 这台机器上根本还没有宿主 ⇒ 放行，交给运行时。
+ * 有宿主之后再缺具体能力 ⇒ 正常拦。
+ */
+function hostIsPresent(): boolean {
+  try {
+    return typeof hostFn('getVariables') === 'function';
+  } catch {
+    // 连探测链都拿不到 = 没有宿主，按「未就绪」放行
+    return false;
+  }
+}
 export function pluginCapabilitySkips(state: PluginStateHost): PluginSkip[] {
   const out: PluginSkip[] = [];
+  // 宿主压根还没接上（单测 / 扩展还没 activate）→ 不拦，交给运行时按晚绑定去拿。
+  if (!hostIsPresent()) return out;
+
   // ⚠️ 这里必须走 enabledPlugins（只看开关），**不能**走 loadablePlugins ——
   // loadablePlugins 靠本函数的结论做过滤，改回去就是无限递归。
   for (const manifest of enabledPlugins(state)) {

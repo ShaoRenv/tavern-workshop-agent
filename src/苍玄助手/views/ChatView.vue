@@ -134,7 +134,12 @@
   <!-- 记录：记录页不再占顶栏（阶段 2），整份收进这张 Sheet；
        会话动作还是走 App.vue → store，Sheet 里不直接改数据 -->
   <Sheet v-if="recordsOpen" title="记录" @close="recordsOpen = false">
-    <RecordsView :data="data" @session-action="emit('session-action', $event)" />
+    <RecordsView
+      :data="data"
+      :rollback-result="rollbackResult"
+      @session-action="emit('session-action', $event)"
+      @rollback="emit('rollback', $event)"
+    />
     <template #footer>
       <span class="cx-spacer"></span>
       <button class="cx-ghost" type="button" @click="recordsOpen = false">关闭</button>
@@ -145,6 +150,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, toRef, watch } from 'vue';
 
+import type { RollbackResult } from '../agent/draft.ts';
 import {
   pickActiveSession,
   RootDataSchema,
@@ -171,10 +177,22 @@ import RecordsView from './RecordsView.vue';
  *  - 右上角 ⋯ = 记录（原「记录」页整段塞进 Sheet：记录不再占顶栏）
  */
 const props = withDefaults(
-  defineProps<{ data?: RootData; assistantName?: string }>(),
+  defineProps<{
+    data?: RootData;
+    assistantName?: string;
+    /**
+     * 最近一次回滚的结果（P5-6）。由 App.vue 从 store 传下来 → 原样交给 RecordsView。
+     *
+     * 为什么走 props 而不是 RecordsView 的 `defineExpose` + ref：记录页住在
+     * `<Sheet v-if="recordsOpen">` 里，Sheet 一关组件就卸载了；回滚是异步的（读整本 + 写整本），
+     * 结果回来时 ref 多半已是 null，那条「不可撤销」红色警报会被**静默丢掉**。
+     */
+    rollbackResult?: RollbackResult | null;
+  }>(),
   {
     data: () => RootDataSchema.parse({}),
     assistantName: '苍玄 · 助手',
+    rollbackResult: null,
   },
 );
 const emit = defineEmits<{
@@ -186,6 +204,11 @@ const emit = defineEmits<{
   'retry-image': [call: ToolCall];
   /** 会话动作（新建 / 切换 / 改名 / 删除 / 导出）：数据层在 store，这里只转发给 App.vue */
   'session-action': [payload: { action: string; id: string }];
+  /**
+   * 回滚一份世界书备份（P5-6）：**只转发，不写回** —— 写路径唯一在 App.vue → store，
+   * 跟上面 session-action 同一个口径。
+   */
+  rollback: [payload: { id: string }];
   /** 换预设 */
   'preset-change': [id: string];
   /** 切 Agent｜聊天：写路径归 store.setMode（界面不再直接改 session.mode） */

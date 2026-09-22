@@ -11,7 +11,7 @@
  *   2) 兼容 add()：create 把条目字段 JSON 塞进 before、after 放正文；meta 把新字段 JSON 塞进 after。
  * 两种接法落进 DraftStore 后形状一致，apply() 只认 payload。
  */
-import { nowMs, uid, type DraftChange, type DraftKind } from '../core/types.ts';
+import { nowMs, uid, type DraftChange, type DraftKind, type WbBackup } from '../core/types.ts';
 import type { WbEntry, WorldbookPort } from '../core/ports.ts';
 
 /* ============================ diff ============================ */
@@ -161,6 +161,63 @@ function decodeJsonObject(raw: string): Record<string, unknown> {
   return {};
 }
 
+
+/* ============================ 写回前自动备份（P5-2） ============================ */
+
+/**
+ * 备份原因：记录页直接显示这两个文案。
+ */
+export const BACKUP_REASON_APPLY = '写回前自动备份';
+export const BACKUP_REASON_ROLLBACK = '回滚前自动备份';
+
+/**
+ * 备份钩子。
+ *
+ * ⚠️ 为什么不直接依赖 store / storage：
+ *   `agent/draft.ts` 是可单测的纯逻辑层。备份要落进 `RootData.wb_backups`（那是 store 的地盘），
+ *   直接 import 会让 agent 层依赖 store + storage，单测就得先起 pinia + 宿主编译。
+ *   所以这里只认一个**注入式接口**：谁装配谁把它接上（界面 / runner 装配时注入真实实现）。
+ *   没注入就退化成「不备份 + 一条 warning」—— 见 applyBackup。
+ */
+export interface BackupSink {
+  /**
+   * 对某本世界书打一份快照。
+   *
+   * `entries` 是**写回之前**从宿主读到的**原始**条目（含 `extra`），
+   * **不是**合并草稿之后的结果 —— 备份的意义是「写坏之前长什么样」。
+   *
+   * 实现方要负责限量（例如每本只留最近 3 份），契约不管保留策略。
+   * 允许异步（要落 store / 落盘），但**失败不能抛**（见 applyBackup 的 try/catch）。
+   */
+  snapshot(world: string, entries: WbEntry[], reason: string): void | Promise<void>;
+}
+
+/**
+ * 打一份备份。**失败绝不影响写回**（备份是兜底，不是门禁），
+ * 但必须出一声 + 记一条 warning —— 静默没有兜底 = 假安全感。
+ *
+ * @returns { ok, warning? } —— ok=false 时 warning 是人话，调用方塞进 ApplyReport.warnings
+ */
+async function applyBackup(
+  sink: BackupSink | null | undefined,
+  world: string,
+  entries: WbEntry[],
+  reason: string,
+): Promise<{ ok: boolean; warning?: string }> {
+  if (!sink || typeof sink.snapshot !== 'function') {
+    const warning = world + '：没有接入备份钩子，本次写回**没有兜底**（' + reason + '）';
+    console.warn('[苍玄助手] ' + warning);
+    return { ok: false, warning };
+  }
+  try {
+    await sink.snapshot(world, entries, reason);
+    return { ok: true };
+  } catch (error) {
+    const warning = world + '：备份失败，本次写回**没有兜底**（' + reason + '）—— ' + errorText(error);
+    console.warn('[苍玄助手] ' + warning, error);
+    return { ok: false, warning };
+  }
+}
 /* ============================ 草稿仓 ============================ */
 
 export interface DraftDiff {
@@ -196,9 +253,28 @@ export class DraftStore {
   private seq = 0;
   /** 当前会话（v3）：写入口没给 session_id 就用它盖上 */
   private sessionId = '';
+  /** 备份钩子（P5-2）：装配时注入；没注入就退化成「不备份 + warning」 */
+  private backupSink: BackupSink | null = null;
 
-  constructor(seed: DraftChange[] = []) {
+  constructor(seed: DraftChange[] = [], backupSink: BackupSink | null = null) {
     for (const item of seed) this.items.push(normalizeChange(item));
+    this.backupSink = backupSink;
+  }
+
+  /**
+   * 接上备份钩子（P5-2）。幂等，可以重复接。
+   *
+   * 为什么单独开一个 setter 而不是只走构造函数：草稿仓在早期就被创建（store 初始化时），
+   * 而备份要写进 `RootData.wb_backups`，那时 store 可能还没装配好。
+   * 所以允许晚接 —— 早接晚接都不影响「apply 一定在写回前调它」。
+   */
+  setBackupSink(sink: BackupSink | null): void {
+    this.backupSink = sink;
+  }
+
+  /** 当前有没有接备份钩子（界面可据此提示「这次写回没有兜底」） */
+  hasBackupSink(): boolean {
+    return !!this.backupSink && typeof this.backupSink.snapshot === 'function';
   }
 
   /** runner 每轮开工前调一次：把当前会话 id 盖上，草稿才归属正确 */
@@ -312,13 +388,21 @@ export class DraftStore {
   }
 
   /**
-   * 落地：按世界书分组 → readAll → 套用草稿 → writeAll。
+   * 落地：按世界书分组 → readAll → **备份** → 套用草稿 → writeAll。
    * 只有成功写回的世界书才把对应草稿摘掉；失败的留在仓里，用户可以重试。
+   *
+   * ⚠️ 备份必须打在 `writeAll` **之前**，而且交出去的是 `readAll` 读到的**原始 entries**
+   * （含 extra）——不是合并后的结果。备份的意义是「写坏之前长什么样」，
+   * 合并后的已经是新状态，拿它当备份等于没备。
+   *
+   * ⚠️ 备份失败**不中断**写回（它是兜底不是门禁），但会 warn + 记进 warnings ——
+   * 「这次没有兜底」这件事必须让用户看得到。
    */
   async apply(wb: WorldbookPort, options: { world?: string } = {}): Promise<ApplyReport> {
     const targets = options.world ? [options.world] : unique(this.items.map(item => item.world));
     const worlds: ApplyWorldResult[] = [];
     const warnings: string[] = [];
+    const backedUp: string[] = [];
     const doneIds = new Set<string>();
     for (const world of targets) {
       const changes = this.items.filter(item => item.world === world);
@@ -329,6 +413,12 @@ export class DraftStore {
       }
       try {
         const entries = await wb.readAll(world);
+
+        // ---- 写回前备份（P5-2）：**原始 entries**，不是 merged ----
+        const backup = await applyBackup(this.backupSink, world, entries, BACKUP_REASON_APPLY);
+        if (backup.ok) backedUp.push(world);
+        else if (backup.warning) warnings.push(backup.warning);
+
         const merged = applyChangesToEntries(entries, changes);
         warnings.push(...merged.warnings.map(text => world + '：' + text));
         await wb.writeAll(world, merged.entries);
@@ -341,10 +431,40 @@ export class DraftStore {
     this.items = this.items.filter(item => !doneIds.has(item.id));
     const applied = worlds.reduce((sum, item) => sum + item.applied, 0);
     const failed = worlds.reduce((sum, item) => sum + (item.ok ? 0 : item.total), 0);
-    return { ok: failed === 0, applied, failed, worlds, warnings, remain: this.items.slice() };
+    return { ok: failed === 0, applied, failed, worlds, warnings, backed_up: backedUp, remain: this.items.slice() };
+  }
+
+  /**
+   * 用一份备份**整本写回**（回滚）。
+   *
+   * ⚠️ **回滚前必须先对当前状态再备一次**（P5-1 契约的硬要求）：
+   *   回滚本身也是一次写入。不作这一层备份的话，用户点错一次回滚就再也回不到回滚之前了 ——
+   *   那是「不可撤销」叠「不可撤销」，比不提供回滚还糟（给了假的安心感）。
+   *   所以：先 readAll 当前 → snapshot(reason='回滚前自动备份') → 再 writeAll(备份里的 entries)。
+   *
+   * @returns 回滚结果；ok=false 时 error 是人话。**不抛**。
+   */
+  async rollback(wb: WorldbookPort, backup: Pick<WbBackup, 'world' | 'entries'>): Promise<RollbackResult> {
+    const world = typeof backup?.world === 'string' ? backup.world : '';
+    if (!world) return { ok: false, error: '这份备份没记世界书名，没法回滚' };
+    const entries = Array.isArray(backup.entries) ? (backup.entries as WbEntry[]) : [];
+
+    try {
+      // ① 先读当前状态，并且**再备一次** —— 这是「回滚也可撤销」的唯一保证
+      const current = await wb.readAll(world);
+      const safety = await applyBackup(this.backupSink, world, current, BACKUP_REASON_ROLLBACK);
+      const warnings: string[] = [];
+      if (!safety.ok && safety.warning) warnings.push(safety.warning);
+
+      // ② 把备份里的整本 entries 写回去
+      await wb.writeAll(world, entries);
+
+      return { ok: true, world, restored: entries.length, backed_up_before_rollback: safety.ok, warnings };
+    } catch (error) {
+      return { ok: false, error: errorText(error) };
+    }
   }
 }
-
 export interface ApplyWorldResult {
   world: string;
   ok: boolean;
@@ -359,8 +479,31 @@ export interface ApplyReport {
   failed: number;
   worlds: ApplyWorldResult[];
   warnings: string[];
+  /**
+   * 这次写回**真的备了份**的世界书（P5-2）。
+   *
+   * 记录页据此显示「本次已自动备份 3 本」；界面上更该显示的是**差集** ——
+   * 如果 warnings 里有「没有兜底」，说明这本没备上，那比「备份了」更需要让人看见。
+   */
+  backed_up: string[];
   /** 还没落地的草稿 */
   remain: DraftChange[];
+}
+
+/** 回滚一份备份的结果（P5-2） */
+export interface RollbackResult {
+  ok: boolean;
+  world?: string;
+  /** 回滚回去的条目数 */
+  restored?: number;
+  /**
+   * 回滚前有没有成功对当前状态再备一次。
+   *
+   * ⚠️ false 表示「这次回滚不可撤销」—— 界面必须显示出来，不能让用户以为还能回头。
+   */
+  backed_up_before_rollback?: boolean;
+  warnings?: string[];
+  error?: string;
 }
 
 export function createDraftStore(seed: DraftChange[] = []): DraftStore {

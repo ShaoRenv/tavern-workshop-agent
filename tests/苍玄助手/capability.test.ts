@@ -36,6 +36,13 @@ const { pluginCapabilitySkips, loadablePlugins, enabledPlugins, pluginPages, plu
   await import('../../src/苍玄助手/plugins/registry.ts');
 
 const { PLUGIN_MANIFESTS } = await import('../../src/苍玄助手/plugins/registry.ts');
+const { getHostBridge, setHostBridge } = await import(core + 'storage.ts');
+const { capabilityNameOffenders } = await import('./_helpers.ts');
+
+/** 当前能力表的合法名字集合（供声明判定用） */
+function CAPACITY_NAMES_NOW() {
+  return CAPABILITIES.map(capability => capability.name);
+}
 
 /* ============================ 脚手架 ============================ */
 
@@ -56,6 +63,28 @@ function everythingAvailable() {
 function onlyThese(names) {
   const set = new Set(names);
   installCapabilityResolver(name => (set.has(name) ? 'native' : 'none'));
+}
+
+/**
+ * 造一个「宿主**存在**」的环境（P4-7 撞闸后新增）。
+ *
+ * 为什么需要：能力闸现在只在「宿主在、但缺具体能力」时才拦 ——
+ * 宿主**完全不存在**（单测默认状态 / 扩展还没 activate）时放行，
+ * 因为那不是「缺能力」而是「还没接上」（晚绑定原则）。
+ * 所以要测「缺能力被拦」，先得让宿主看起来是存在的。
+ *
+ * 做法：往注入表里塞一个 getVariables（provider chain 第一层即 injection，
+ * 立刻就"在"），具体能力由各用例的 installCapabilityResolver 决定。
+ * 返回 restore()，**必须**在 finally 里调，否则会污染同进程的其它测试。
+ */
+function withHostPresent(body) {
+  const saved = getHostBridge();
+  setHostBridge({ ...(saved ?? {}), getVariables: () => ({}) });
+  try {
+    return body();
+  } finally {
+    setHostBridge(saved);
+  }
 }
 
 /** 每个用例跑完还原成「默认解析器」（不注入就是内省版，测试环境里基本啥都没有） */
@@ -194,7 +223,101 @@ test('能力表: reportCapabilityTable 给出 total/ok/missing 摘要', () => {
   } finally {
     restore();
   }
-});/* ==================== 2. 插件装载裁决：缺能力 → 不注册 + 人话原因 ==================== */
+});
+/* ==================== fetch 能力（P5-5） ==================== */
+
+/**
+ * `fetch` 是宿主能力（core/host.ts 的 hostFetch() → hostFn('fetch')），
+ * `transport.ts:489` 与 `image/nai.ts:332` 都在用 —— 但它此前**没登记进能力表**。
+ *
+ * 这为什么是真问题：test-author 的静态名字闸「requires 里的名字必须在 CAPABILITIES 里」，
+ * 本意是拦 typo。可 fetch 不在表里时，一个**合法需要网络**的插件声明 'fetch' 会被判成打错，
+ * **整个装载失败**。下面三条把这条堵死。
+ */
+
+/**
+ * ⚠️ 这里**不自己写一份判定**，用 `_helpers.ts` 的共享纯函数 ——
+ * 那份实现同时被 `plugin_registry.test.ts` 的真实清单扫描用着。
+ * 各写一份副本 = 我以为在测那条闸，其实在测我自己的副本。
+ */
+/** 「挖掉 fetch 的能力表副本」—— 反例自检用（不污染真表） */
+function CAPACITIES_WITHOUT_FETCH() {
+  return CAPACITY_NAMES_NOW().filter(name => name !== 'fetch');
+}
+
+function declaredOffenders(requires) {
+  return capabilityNameOffenders(requires, CAPACITY_NAMES_NOW());
+}
+
+
+test('fetch: 登记在能力表里，且 label / required 都有据', () => {
+  const def = CAPABILITIES.find(capability => capability.name === 'fetch');
+  assert.ok(def, 'fetch 必须在 CAPABILITIES 里 —— 否则声明它的插件会被静态闸判成 typo');
+  assert.equal(def.label, '网络请求', 'label 要是人话');
+  // required 的口径：fetch 在浏览器里总是存在，真正常变的是「是谁的 fetch」。
+  // 写 true 会让插件在任何探测意外时被整个拦掉，代价远大于收益。
+  assert.equal(def.required, false, 'fetch 不该是必需能力（它总是可用，不该拦插件）');
+});
+
+test('fetch: 宿主在位时判定可用，且来源是 platform（不是 tavern-helper）', () => {
+  withHostPresent(() => {
+    try {
+      const verdict = evaluatePluginCapabilities(['fetch']);
+      assert.equal(verdict.ok, true, '声明 fetch 的插件不该被拦：' + verdict.reason);
+      assert.deepEqual(verdict.missingRequired, []);
+
+      const status = capabilityStatus('fetch');
+      assert.equal(status.ok, true);
+      // ⚠️ 这条是关键：fetch 是**平台内置**，不是酒馆助手给的。
+      // 通用兜底 lookupCompat() 会因为 globalThis.fetch 存在而把它标成 'tavern-helper' ——
+      // 那会让人误以为「装了酒馆助手才有网络」。所以解析器给它单开了分支。
+      assert.equal(
+        status.provider,
+        'platform',
+        'fetch 必须标成 platform（运行时自带），标成 tavern-helper 会误导用户',
+      );
+      assert.ok(status.nativePath, '要说清它从哪来（排查时用）');
+    } finally {
+      restore();
+    }
+  });
+});
+
+test('⭐静态名字闸：requires 写 \'fetch\' **不再报错**（这条就是被它卡住的）', () => {
+  // 用 _helpers.ts 的共享判定 —— 与 plugin_registry.test.ts 那条闸**同一份实现**
+  assert.deepEqual(declaredOffenders(['fetch']), [], "'fetch' 必须被认成合法能力名");
+  assert.deepEqual(declaredOffenders(['fetch?']), [], '可选写法 fetch? 同样要合法');
+  assert.deepEqual(declaredOffenders(['getWorldbook', 'fetch', 'getScriptTrees?']), [], '混合声明里 fetch 不拖后腿');
+});
+
+test('⭐静态名字闸反例自检：把 fetch 从能力表挖掉 → **必须重新报错**（证明不是恒绿）', () => {
+  // ⚠️ 这条是本次重构的**验收核心**：共享函数把 known 做成参数，
+  // 就是为了能喂一张「挖掉 fetch」的副本进来。
+  // 用**同一份共享实现**跑两次，只有 known 不同 —— 这才是有牙的反例。
+  const withoutFetch = CAPACITIES_WITHOUT_FETCH();
+  assert.equal(withoutFetch.includes('fetch'), false, '副本里确实没有 fetch（否则反例不成立）');
+  assert.equal(CAPACITY_NAMES_NOW().includes('fetch'), true, '真表里有 fetch');
+
+  // ① 没登记 → 必须报错
+  assert.deepEqual(
+    capabilityNameOffenders(['fetch'], withoutFetch),
+    ['fetch'],
+    '没登记时必须报错 —— 否则这条测试恒绿、什么也证明不了',
+  );
+  assert.deepEqual(capabilityNameOffenders(['fetch?'], withoutFetch), ['fetch?'], '可选写法同样要被抓');
+
+  // ② 登记了 → 必须放行（同一份实现，只换 known）
+  assert.deepEqual(capabilityNameOffenders(['fetch'], CAPACITY_NAMES_NOW()), [], '登记后必须放行');
+
+  // ③ 真 typo 仍要有牙（防止「为了放行 fetch 把闸弄松」）
+  assert.deepEqual(
+    capabilityNameOffenders(['fetchh'], CAPACITY_NAMES_NOW()),
+    ['fetchh'],
+    '真 typo 仍要被抓',
+  );
+});
+
+/* ==================== 2. 插件装载裁决：缺能力 → 不注册 + 人话原因 ==================== */
 
 test('裁决: 没声明 requires 的插件 → 一律通过（不受能力表影响）', () => {
   nothingAvailable();
@@ -338,6 +461,7 @@ test('注册表: 缺能力时插件的页面 / 工具 / 宏真的不出（不是
   // 给所有内置插件都安上一个「必需能力」声明，验证闸真的生效
   const saved = PLUGIN_MANIFESTS.map(m => m.contributes.requires);
   nothingAvailable();
+  withHostPresent(() => {
   try {
     for (const manifest of PLUGIN_MANIFESTS) manifest.contributes.requires = ['getWorldbook'];
 
@@ -355,11 +479,13 @@ test('注册表: 缺能力时插件的页面 / 工具 / 宏真的不出（不是
     PLUGIN_MANIFESTS.forEach((m, i) => { m.contributes.requires = saved[i]; });
     restore();
   }
+  });
 });
 
 test('注册表: skip 记录里有人话理由 + 缺的能力名（界面直接可用）', () => {
   const saved = PLUGIN_MANIFESTS.map(m => m.contributes.requires);
   nothingAvailable();
+  withHostPresent(() => {
   try {
     for (const manifest of PLUGIN_MANIFESTS) manifest.contributes.requires = ['getWorldbook'];
     const skips = pluginCapabilitySkips({});
@@ -376,6 +502,7 @@ test('注册表: skip 记录里有人话理由 + 缺的能力名（界面直接�
     PLUGIN_MANIFESTS.forEach((m, i) => { m.contributes.requires = saved[i]; });
     restore();
   }
+  });
 });
 
 test('注册表: 能力齐备时插件照常装载（闸不误伤）', () => {
@@ -397,6 +524,7 @@ test('注册表: 能力齐备时插件照常装载（闸不误伤）', () => {
 test('注册表: pluginStatusWithCapabilities 把「缺能力」显示成 dang 档', () => {
   const saved = PLUGIN_MANIFESTS.map(m => m.contributes.requires);
   nothingAvailable();
+  withHostPresent(() => {
   try {
     const id = PLUGIN_MANIFESTS.find(m => m.defaultEnabled).id;
     for (const manifest of PLUGIN_MANIFESTS) manifest.contributes.requires = ['getWorldbook'];
@@ -411,6 +539,7 @@ test('注册表: pluginStatusWithCapabilities 把「缺能力」显示成 dang �
     PLUGIN_MANIFESTS.forEach((m, i) => { m.contributes.requires = saved[i]; });
     restore();
   }
+  });
 });
 
 test('注册表: 探测抛错时**没有异常逃出去**，插件按「不可用」被明确拦下', () => {
@@ -418,6 +547,7 @@ test('注册表: 探测抛错时**没有异常逃出去**，插件按「不可�
   installCapabilityResolver(() => {
     throw new Error('探测炸了');
   });
+  withHostPresent(() => {
   try {
     for (const manifest of PLUGIN_MANIFESTS) manifest.contributes.requires = ['getWorldbook'];
     const state = {};
@@ -434,7 +564,9 @@ test('注册表: 探测抛错时**没有异常逃出去**，插件按「不可�
     PLUGIN_MANIFESTS.forEach((m, i) => { m.contributes.requires = saved[i]; });
     restore();
   }
+  });
 });
+
 /* ============ 4. 变量两档能力：vars.table（需酒馆助手）vs vars.keyed（原生可用）============ */
 
 test('变量两档: 纯原生环境 → vars.keyed 可用、vars.table **不可用**（这条差异要暴露给用户）', () => {
@@ -521,6 +653,7 @@ test('端到端: 插件自己声明的 requires 从「缺能力被跳过」到�
   const worldbook = PLUGIN_MANIFESTS.find(m => m.id === 'worldbook');
   assert.ok(worldbook, '要有 worldbook 插件');
   const saved = worldbook.contributes.requires;
+  withHostPresent(() => {
   try {
     // ① 插件声明「我需要读世界书」
     worldbook.contributes.requires = ['getWorldbook'];
@@ -544,6 +677,7 @@ test('端到端: 插件自己声明的 requires 从「缺能力被跳过」到�
     worldbook.contributes.requires = saved;
     restore();
   }
+  });
 });
 
 test('端到端: 声明可选（问号后缀）的能力缺失 → 装载不受影响，只记一笔', () => {

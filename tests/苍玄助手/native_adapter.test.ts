@@ -35,6 +35,10 @@ const {
   NATIVE_PATHS,
   NO_NATIVE_EQUIVALENT,
   hasNoNativeEquivalent,
+  stEntriesToArray,
+  arrayToStEntries,
+  normalizeWorldbookRead,
+  normalizeWorldbookWrite,
 } = native;
 
 /* ============================ 测试脚手架 ============================ */
@@ -588,7 +592,10 @@ test('世界书: 原生 loadWorldInfo / saveWorldInfo / getWorldInfoNames 都接
   const { ctx } = fakeSt();
   await withStAsync(ctx, async () => {
     const table = installNativeAdapters(ctx);
-    assert.deepEqual(await table.getWorldbook('甲世界'), { name: '甲世界', entries: {} });
+    // P5-7 起 getWorldbook **不是直通**：ST 返回 { entries: {...} }，
+    // 适配层要拍平成数组（上层 core/worldbook.ts 的契约是数组）。
+    // 这里甲世界是空书 → 拍平后是 []；形状转换的详细用例见下面的 P5-7 那一组。
+    assert.deepEqual(await table.getWorldbook('甲世界'), []);
     assert.deepEqual(await table.getWorldbookNames(), ['甲世界', '乙世界']);
     assert.deepEqual(table.getGlobalWorldbookNames(), ['乙世界'], '全局启用从原生 extensionSettings 读');
   });
@@ -631,4 +638,137 @@ test('probeNativeCapabilities: 空上下文返回空数组；完整上下文返�
   const names = probeNativeCapabilities(ctx);
   assert.ok(names.length > 15, '假 ST 是「全都有」的形态，应该覆盖到十多个接口：' + names.length);
   assert.ok(names.includes('generateRaw'));
+});
+/* ============ 9. 世界书形状转换（P5-7：名字对上了，形状没对上）============ */
+
+/*
+ * ⚠️ 这一组修的是**会毁数据**的 bug（真机实测：读永远 0 条、写会把整本清空）。
+ *
+ * 根因：core/worldbook.ts 是照**酒馆助手**的形状写的（getWorldbook 返回数组、
+ * replaceWorldbook 收数组），而扩展形态下这些名字被映射到 **ST 原生**，形状不同：
+ *   ctx.loadWorldInfo(name)       → { entries: { uid: {...} } }  ← 对象
+ *   ctx.saveWorldInfo(name,data)  → data.entries 必须是那个对象
+ * 适配层必须**在原生这条路上**抹平，且不能影响酒馆助手那条路。
+ */
+
+/** 造一条「ST 形态」的原始条目（数字 uid、comment 标题、ST 扁平字段） */
+function stRawEntry(uid, name, content, over = {}) {
+  return {
+    uid,
+    comment: name,
+    content,
+    disable: false,
+    key: ['甲'],
+    keysecondary: [],
+    selectiveLogic: 0,
+    constant: false,
+    position: 0,
+    depth: 4,
+    order: 100,
+    scanDepth: 4,
+    ...over,
+  };
+}
+
+/** 一个「ST 原生 loadWorldInfo」形状的假实现：返回 { entries: { uid: entry } } */
+function stWorldbookCtx(books) {
+  const calls = [];
+  return {
+    calls,
+    ctx: {
+      loadWorldInfo: name => Promise.resolve(books[name] ? { entries: books[name] } : null),
+      saveWorldInfo: (name, data, immediately) => {
+        calls.push({ name, data, immediately });
+        return Promise.resolve(true);
+      },
+      getWorldInfoNames: () => Object.keys(books),
+    },
+  };
+}
+
+test('P5-7 反例自检①: 喂 { entries: {...} }（对象）必须被**拍成数组**', async () => {
+  // 这就是真机上 readAll 返回 0 条的那个形状
+  const fake = stWorldbookCtx({
+    Eldoria: {
+      0: stRawEntry(0, 'eldoria', '苍梧山的天枢阁'),
+      1: stRawEntry(1, 'shadowfang', '影牙'),
+      2: stRawEntry(2, 'glade', '林间空地'),
+      3: stRawEntry(3, 'power', '力量体系'),
+    },
+  });
+  await withStAsync(fake.ctx, async () => {
+    const table = installNativeAdapters(fake.ctx);
+    const entries = await table.getWorldbook('Eldoria');
+    assert.ok(Array.isArray(entries), 'getWorldbook 必须返回**数组**（上层 readAll 用 isArray 判）');
+    assert.equal(entries.length, 4, '4 条真书必须读回 4 条 —— 旧实现这里返回 0 条');
+    // uid 回填：ST 的 uid 在**映射的键**上，条目体里不一定有
+    assert.deepEqual(entries.map(e => String(e.uid)), ['0', '1', '2', '3'], '键就是 uid，必须回填');
+    assert.deepEqual(entries.map(e => e.content), ['苍梧山的天枢阁', '影牙', '林间空地', '力量体系']);
+  });
+});
+
+test('P5-7 反例自检②: 喂数组必须被**包成 { entries: {...} }**（否则 ST 落盘 0 条）', async () => {
+  const fake = stWorldbookCtx({});
+  await withStAsync(fake.ctx, async () => {
+    const table = installNativeAdapters(fake.ctx);
+    await table.replaceWorldbook('cx-wb-shape-test', [
+      stRawEntry(0, 'A', 'a'),
+      stRawEntry(1, 'B', 'b'),
+    ]);
+    assert.equal(fake.calls.length, 1);
+    const sent = fake.calls[0].data;
+    assert.equal(Array.isArray(sent), false, '绝不能把数组直接交给 ST（真机实测那样会落盘 0 条）');
+    assert.ok(sent && typeof sent.entries === 'object' && !Array.isArray(sent.entries), '必须是 { entries: {...} }');
+    assert.deepEqual(Object.keys(sent.entries).sort(), ['0', '1']);
+    assert.deepEqual(sent.entries['0'].content, 'a');
+  });
+});
+
+test('P5-7: 读→写往返不丢 extra（未知字段一个都不能丢）', async () => {
+  const fake = stWorldbookCtx({
+    Eldoria: { 0: stRawEntry(0, 'eldoria', '正文', { extra_field: '要留着', vectorized: true, probability: 100 }) },
+  });
+  await withStAsync(fake.ctx, async () => {
+    const table = installNativeAdapters(fake.ctx);
+    const entries = await table.getWorldbook('Eldoria');
+    // 原始条目一个字段都不许少（这是「不丢字段」的底稿）
+    assert.equal(entries[0].extra_field, '要留着');
+    assert.equal(entries[0].vectorized, true);
+    assert.equal(entries[0].probability, 100);
+
+    await table.replaceWorldbook('Eldoria', entries);
+    const back = fake.calls[0].data.entries['0'];
+    assert.equal(back.extra_field, '要留着', '写回时未知字段要合并回去');
+    assert.equal(back.vectorized, true);
+    assert.equal(back.content, '正文');
+  });
+});
+
+test('P5-7: 拍平是幂等的（已是数组原样返回；已是映射原样返回）', () => {
+  const arr = [{ uid: '1' }];
+  assert.equal(stEntriesToArray(arr), arr, '数组进数组出，同一引用');
+  const map = { 1: { uid: 1 } };
+  assert.deepEqual(Object.keys(arrayToStEntries(map)), ['1'], '映射进映射出');
+});
+
+test('P5-7: 两种非预期输入都不抛（读失败按「没有条目」处理，不炸界面）', () => {
+  assert.deepEqual(stEntriesToArray(null), []);
+  assert.deepEqual(stEntriesToArray('字符串'), []);
+  assert.deepEqual(stEntriesToArray(42), []);
+  assert.deepEqual(normalizeWorldbookRead(null), []);
+  assert.deepEqual(normalizeWorldbookRead({ 没有entries: 1 }), []);
+  assert.deepEqual(arrayToStEntries(null), {});
+});
+
+test('P5-7: 已经是数组的宿主原样返回（某些 ST 版本直接给数组）', () => {
+  assert.deepEqual(normalizeWorldbookRead([{ uid: '1' }]), [{ uid: '1' }]);
+});
+
+test('P5-7: 写回时第三参传 true（立刻落盘，防抖写丢）', async () => {
+  const fake = stWorldbookCtx({});
+  await withStAsync(fake.ctx, async () => {
+    const table = installNativeAdapters(fake.ctx);
+    await table.replaceWorldbook('x', []);
+    assert.equal(fake.calls[0].immediately, true, 'ST 的第二参是 immediately:boolean，要传 true');
+  });
 });

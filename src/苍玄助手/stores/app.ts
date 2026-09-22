@@ -19,6 +19,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 
+import type { BackupSink, RollbackResult } from '../agent/draft.ts';
 import { loadData, migrateRootData, saveData } from '../core/storage.ts';
 import { allPages, pluginManifest } from '../plugins/registry.ts';
 import type { PluginId } from '../plugins/types.ts';
@@ -52,6 +53,7 @@ import {
   type SessionMeta,
   type Skill,
   type Turn,
+  type WbBackup,
 } from '../core/types.ts';
 
 /* ============================ 导出用的小工具 ============================ */
@@ -131,9 +133,39 @@ export function sessionToMarkdown(session: Session): string {
  */
 export const SAVE_DEBOUNCE_MS = 2500;
 
+/**
+ * 回滚通道：**store 需要的那个最小形状**，刻意与 `Runner.rollback` 的**一参**签名逐字一致。
+ *
+ * 为什么不直接写 `Pick<Runner, 'rollback'>`：那会给 store 多拉一条 `run/runner.ts` 的 import 边，
+ * 而 store 只需要这一个方法。用结构化的小接口表达同一件事，编译期照样挡得住签名不一致。
+ *
+ * ⚠️ **一参**：端口由 runner 内部 `getPort()` 提供（回滚必须落在真实端口上，不能落在草稿视图上）。
+ *
+ * 这个类型存在的唯一理由就是踩过的那个坑：这里曾写成 `Pick<DraftStore, 'rollback'>`（**两参**
+ * `(wb, backup)`），而运行时传进来的是 **runner**（一参）—— 类型与真实对象不是同一个东西，
+ * 于是 `tsc` 全绿、真机一点就炸：`runner.rollback(port, backup)` 把 **port 当成 backup**，
+ * `draft.ts` 读出 `backup.world` 不是字符串 → 「这份备份没记世界书名，没法回滚」。
+ * 教训（本项目第二次「单层都对、合起来炸」）：**跨层注入的对象，参数类型要按「实际会不会传进来」写**。
+ */
+export interface RollbackSource {
+  rollback(backup: Pick<WbBackup, 'world' | 'entries'>): Promise<RollbackResult>;
+}
+
 export const useAppStore = defineStore('cx-assistant', () => {
   /** 初始就做一次迁移，保证 sessions 至少一条、active 指得上 */
   const data = ref<RootData>(migrateRootData(RootDataSchema.parse({})).data);
+
+  /**
+   * 最近一次回滚的结果（P5-6）。
+   *
+   * ⚠️ 为什么放 store、由 props 传下去，而不是让 RecordsView 的 `defineExpose` 被 ref 调用：
+   * 记录页住在 `<Sheet v-if="recordsOpen">` 里 —— Sheet 一关，RecordsView 就被**卸载**了。
+   * 回滚是异步的（读整本 + 写整本），结果回来时用户很可能已经关了 Sheet：
+   * 那时 ref 是 null，调用会**静默丢掉**「这次回滚不可撤销」这条红色警报 —— 而那是本功能里
+   * 最不能丢的一条。放 store 里则跨卸载存活，重开 Sheet 照样看得到。
+   * 顺带也符合本项目「写路径唯一、界面不吃子组件句柄」的口径。
+   */
+  const rollbackResult = ref<RollbackResult | null>(null);
   const ready = ref(false);
   const dirty = ref(false);
 
@@ -752,6 +784,117 @@ export const useAppStore = defineStore('cx-assistant', () => {
     save();
   }
 
+  /* -------------------- 世界书备份与回滚（P5-6 装配） -------------------- */
+
+  /**
+   * 每本世界书**保留几份**备份。
+   *
+   * ⚠️ 这条策略**故意落在这里**（写入方），不在 `agent/draft.ts`：
+   * 那个文件是可单测的纯逻辑层，契约 `BackupSink` 只定形状（`draft.ts:189` 写明「保留策略不管」）。
+   * 整本快照实测过 1.1MB 一本，脚本变量不是无限大的，必须有上限。
+   */
+  const BACKUPS_PER_WORLD = 3;
+
+  /**
+   * 造一份备份钩子（P5-6 第 1 段）。
+   *
+   * 为什么由 store 造、由 App.vue 装：`DraftStore.apply()` 会在写回前调 `snapshot()`，
+   * 而 `snapshot` 要写进 `RootData.wb_backups` + 落盘 —— 只有 store 同时拿得到「数据」和 `save()`。
+   * 但 `DraftStore` 是 runner 的私有状态（`createRunner()` 建一次长期持有），store 拿不到它。
+   * `App.vue` 两边都在作用域里，所以由它把这个 sink 交给 runner：
+   *   `runner.setBackupSink(store.backupSink())`
+   */
+  function backupSink(): BackupSink {
+    return {
+      /**
+       * 写一份快照进 `wb_backups` 并落盘。
+       *
+       * `entries` 是**写回之前的原始条目**（含 extra）—— 备份的意义是「写坏之前长什么样」。
+       */
+      snapshot(world: string, entries: WbBackup['entries'], reason: string): void {
+        const backup: WbBackup = {
+          id: uid('wbk'),
+          world,
+          // taken_at 是裁剪的排序依据（见下），必须在这里落真实时间
+          taken_at: Date.now(),
+          reason,
+          entry_count: Array.isArray(entries) ? entries.length : 0,
+          entries: Array.isArray(entries) ? entries : [],
+        };
+        data.value.wb_backups.push(backup);
+        pruneBackups(world);
+        // 立刻落盘：备份是兜底，晚 2.5 秒落盘就可能来不及（用户下一秒就点了回滚）
+        save(true);
+      },
+    };
+  }
+
+  /**
+   * 限量：每本世界书只留**最近** {@link BACKUPS_PER_WORLD} 份。
+   *
+   * ⚠️ 裁剪排序用 `taken_at`，**不是数组位置** —— 多标签页 / 乱序写入时数组顺序不可靠
+   * （记录页的倒序展示也是按 `taken_at` 排的，两边口径必须一致，否则「列出来的最新那份」
+   * 和「留下的最新那份」会对不上）。
+   */
+  function pruneBackups(world: string): void {
+    const mine = data.value.wb_backups.filter(item => item.world === world);
+    if (mine.length <= BACKUPS_PER_WORLD) return;
+    // 按时间倒序取前 N 份，其余丢掉；用 id 集合做差集（id 由 uid('wbk') 保证唯一）
+    const keep = new Set(
+      mine
+        .slice()
+        .sort((a, b) => (b.taken_at || 0) - (a.taken_at || 0))
+        .slice(0, BACKUPS_PER_WORLD)
+        .map(item => item.id),
+    );
+    data.value.wb_backups = data.value.wb_backups.filter(item => item.world !== world || keep.has(item.id));
+  }
+
+  /**
+   * 回滚：把某一份备份整本写回去（P5-3 的写路径，唯一入口）。
+   *
+   * 三层顺序都不能变：
+   *  1. 按 id 找到那份备份（找不到就直接失败，不猜「最新那份」）；
+   *  2. 交给 runner 的 `rollback()` —— 它内部转给 `DraftStore.rollback()`，
+   *     **先对当前状态再备一次**，再整本写回（「回滚也可撤销」的唯一保证，见 draft.ts:440）；
+   *  3. 结果**回传给界面**（含 `backed_up_before_rollback`）并落盘。
+   *
+   * ## ⚠️ 参数类型必须是 `RollbackSource`，不能是 `Pick<DraftStore, 'rollback'>`
+   *
+   * 这里曾经写成 `Pick<DraftStore, 'rollback'>`（两参：`(wb, backup)`），而**运行时传进来的是 runner**，
+   * `Runner.rollback` 是**一参**（端口由 runner 内部 `getPort()` 提供）。类型与运行时不是同一个东西，
+   * 于是 `tsc` 全绿、真机一点就炸：`runner.rollback(port, backup)` 把 **port 当成 backup**，
+   * `draft.ts` 读出 `backup.world` 不是字符串 → 「这份备份没记世界书名，没法回滚」。
+   *
+   * 教训（本项目第二次「单层都对、合起来炸」）：**跨层注入的对象，参数类型要按「实际会不会传进来」写**。
+   * 端口不在这里取 —— runner 自己拿 `getPort()`，store 不该再掺一脚（那正是两边签名分叉的起点）。
+   */
+  async function rollbackBackup(source: RollbackSource | null | undefined, id: string): Promise<RollbackResult> {
+    const backup = data.value.wb_backups.find(item => item.id === id);
+    if (!backup) {
+      return { ok: false, error: '找不到这份备份（可能已被后来的备份挤掉）' };
+    }
+    if (!source || typeof source.rollback !== 'function') {
+      return { ok: false, world: backup.world, error: '回滚通道没接上（runner 缺 rollback）' };
+    }
+    // 一参调用：端口由 runner 内部提供（见上面那段注释）
+    const result = await source.rollback({ world: backup.world, entries: backup.entries });
+    // 回滚前的安全备份已经在 rollback() 内部写进 wb_backups 了，这里补一次落盘收口
+    save(true);
+    return result;
+  }
+
+  /** 记一份回滚结果给界面看（记录页 props 读它）；传 null = 清掉上次的提示 */
+  function setRollbackResult(result: RollbackResult | null): void {
+    rollbackResult.value = result;
+  }
+
+  /** 某本世界书的备份（最新的在前）；不传 = 全部 */
+  function backupsOf(world?: string): WbBackup[] {
+    const list = world ? data.value.wb_backups.filter(item => item.world === world) : data.value.wb_backups;
+    return list.slice().sort((a, b) => (b.taken_at || 0) - (a.taken_at || 0));
+  }
+
   /* -------------------- 草稿：按会话分开 -------------------- */
 
   /** 取某个会话的草稿；不传 = 当前会话（runner 按会话取草稿就是它） */
@@ -854,6 +997,8 @@ export const useAppStore = defineStore('cx-assistant', () => {
     toolOverrides, toolOverrideOf, setToolOverride, resetToolOverride,
     pluginEnabled, setPluginEnabled, pluginConfig, imageConfig, setPluginConfig, resetPluginConfig,
     currentDrafts, draftsOf, draftCount, addDraft, clearDraftsFor, clearDrafts,
+    backupSink, pruneBackups, rollbackBackup, backupsOf, BACKUPS_PER_WORLD,
+    rollbackResult, setRollbackResult,
     addArtifact, clearArtifacts,
   };
 });

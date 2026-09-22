@@ -39,6 +39,9 @@ const { defaultRootData, migrateRootData, recoverRootData, importAll, setHostBri
   root + 'core/storage.ts'
 );
 const { useAppStore } = await import(root + 'stores/app.ts');
+const { pluginCapabilitySkips, loadablePlugins } = await import(root + 'plugins/registry.ts');
+const { CAPABILITIES } = await import(root + 'core/capability.ts');
+const { installCapabilityGateHost, capabilityNameOffenders } = await import('./_helpers.ts');
 
 /** 注册表函数只依赖 plugin_state 那一小块，不用造整份 RootData */
 function state(plugin_state = {}) {
@@ -576,4 +579,222 @@ test('源码级：来源插件关掉时「能力 · 工具」段有「来源已�
   assert.match(capability, /来源已停用/, '兜底行要标「来源已停用」');
   const app = codeOnly(readFileSync('src/苍玄助手/App.vue', 'utf8'));
   assert.match(app, /owner_disabled:/, 'App.vue 给工具行打这个标');
+});
+
+/* ==================== 能力闸（P4-11 / task-22 的意义所在） ==================== */
+
+/*
+ * 背景：task-22 给内置插件补了 `contributes.requires`，于是 `loadablePlugins` 的**能力闸活了**：
+ * 必需能力缺失 → 该插件整个不注册（页面 / 工具 / 宏 / 技能 / 预设全都不出）。
+ *
+ * 这一族测试要**同时**钉住两面，缺一面这个闸就白做了：
+ *   ① 能力齐全 → 插件正常装载（下面第一条）；
+ *   ② ⭐能力缺失 → **真的会拦**，而且给得出人话原因（第二、三条）。
+ *
+ * ② 是 task-22 存在的全部理由。修夹具的时候最容易把它一起「修没」——
+ * 比如把断言放宽成「不报错就行」，那这个闸就变成摆设了。
+ * 所以下面用 `installCapabilityGateHost(name => ...)` 显式制造「缺某条必需能力」的场景，
+ * 并且**双向验证**：装夹具 → 绿；摘夹具（模拟缺能力）→ 红。
+ */
+
+test('能力闸①：能力齐全的宿主 → 世界书正常装载（页面 + 7 个工具都在）', (t) => {
+  const restore = installCapabilityGateHost();
+  t.after(restore);
+
+  assert.deepEqual(pluginCapabilitySkips(state()), [], '能力齐全时不该跳过任何插件');
+  assert.deepEqual(
+    loadablePlugins(state()).map(manifest => manifest.id),
+    ['cangxuan', 'worldbook'],
+    '世界书要装载（它默认开）',
+  );
+  // 页面与工具都真的在
+  assert.ok(availablePages(state()).some(page => page.id === 'worldbook'), '世界书页在顶栏');
+  assert.ok(pluginAllTools(state()).includes('wb_list'), '世界书的工具在');
+  assert.ok(pluginAllTools(state()).includes('entry_meta'), '按需工具也算它注册的');
+});
+
+test('⭐能力闸②：必需能力缺失 → 世界书**整个不注册**，且给出人话原因', (t) => {
+  // 模拟「这台机器缺 getWorldbook / replaceWorldbook」（世界书的两条**必需**能力）。
+  const restore = installCapabilityGateHost(name => name !== 'getWorldbook' && name !== 'replaceWorldbook');
+  t.after(restore);
+
+  const skips = pluginCapabilitySkips(state());
+  assert.equal(skips.length, 1, '只该跳过世界书一个');
+  assert.equal(skips[0].id, 'worldbook');
+
+  // 人话原因：用户 / 开发者要能一眼看出「缺什么、为什么」
+  assert.match(skips[0].reason, /缺少必需能力/, '原因里要写明「缺少必需能力」');
+  assert.match(skips[0].reason, /读世界书/, '原因里要点出缺的是哪条（人话名字）');
+  assert.match(skips[0].reason, /写回世界书/);
+  assert.deepEqual(skips[0].missing, ['getWorldbook', 'replaceWorldbook'], 'missing 要给机器可读的接口名');
+  assert.match(skips[0].detail, /这台机器上找不到接口 getWorldbook/, 'detail 要给出「为什么找不到」');
+
+  // ⭐ 整个插件不注册：不在 loadablePlugins 里
+  assert.deepEqual(loadablePlugins(state()).map(manifest => manifest.id), ['cangxuan'], '世界书被拦掉了');
+
+  // ⭐ 它的页面与 7 个工具**全都不出**（这是「拦」的实质，不是只报个警告）
+  assert.equal(
+    availablePages(state()).some(page => page.id === 'worldbook'),
+    false,
+    '被拦的插件不该贡献页面 —— 否则用户进得去一个用不了的页',
+  );
+  for (const name of ['wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete', 'entry_meta']) {
+    assert.equal(pluginAllTools(state()).includes(name), false, '被拦的插件不该贡献 ' + name);
+  }
+
+  // 但它仍然「开着」：插件管理页要能显示「开着但不可用」（enabledPlugins 只看开关）
+  assert.ok(
+    enabledPlugins(state()).some(manifest => manifest.id === 'worldbook'),
+    '开关状态与装载是两件事 —— 界面要能显示「开着但缺能力」',
+  );
+});
+
+test('⭐能力闸③：只缺**可选**能力时照常装载（降级，不拦）', (t) => {
+  // worldbook 的 requires 里有裸名（必需）与带 ? 的（可选）。
+  // 只把可选的能力判为缺失 → 插件必须照常装载，绝不因为「有东西用不了」就整个不注册。
+  const restore = installCapabilityGateHost(name => name === 'getWorldbook' || name === 'replaceWorldbook');
+  t.after(restore);
+
+  assert.deepEqual(pluginCapabilitySkips(state()), [], '只缺可选能力不该拦');
+  assert.deepEqual(
+    loadablePlugins(state()).map(manifest => manifest.id),
+    ['cangxuan', 'worldbook'],
+    '只缺可选能力 → 照常装载（降级由能力自己的 degrade 负责）',
+  );
+  assert.ok(availablePages(state()).some(page => page.id === 'worldbook'), '页面照常在');
+  assert.ok(pluginAllTools(state()).includes('wb_list'), '工具照常在');
+});
+
+test('能力闸④：摘掉夹具（默认测试环境：宿主还没接上）→ 不拦，交给运行时晚绑定', () => {
+  // ⚠️ 这条**故意不装夹具**，钉的是 `pluginCapabilitySkips` 开头那句
+  // `if (!hostIsPresent()) return []`（task-22 撞上能力闸时暴露的洞）：
+  // 「宿主整个不存在」与「宿主在、但缺某个能力」是两件事 ——
+  // 前者不是「缺」，是「还没接上」，拦掉会让扩展 activate 早于 ST 就绪时把插件**永久判死**。
+  //
+  // 这也解释了下面这条的反例关系：**只装 resolver 不改变结论**，
+  // 必须同时让宿主「看起来存在」（installCapabilityGateHost 干的就是这件事）。
+  assert.deepEqual(pluginCapabilitySkips(state()), [], '宿主未就绪 → 不拦');
+  assert.deepEqual(
+    loadablePlugins(state()).map(manifest => manifest.id),
+    ['cangxuan', 'worldbook'],
+    '单测环境默认放行，交给运行时按晚绑定去拿',
+  );
+});
+
+/* ==================== requires 的静态契约（拼写错误闸） ==================== */
+
+/*
+ * 为什么需要这条**静态**闸（P4-11 的意外收获）：
+ * `worldbook` 的 requires 曾把 `getWorldbook` 写成 `getWorldbooks`（多了个 s）。
+ * 后果**不是**一个小警告 —— 必需能力判为缺失 → **整个插件不注册**（页面 + 7 个工具全没）。
+ * 而它此前一直没被发现，因为测试里宿主不可见、能力闸被短路；真机上宿主就绪时才会真的丢插件。
+ *
+ * 纯静态检查，不需要夹具、不需要真酒馆 —— 但能拦住这类**只在真机上才发作**的 typo。
+ */
+
+/** 合法能力名集合（底座唯一清单） */
+const CAPABILITY_NAMES = new Set(CAPABILITIES.map(capability => capability.name));
+
+/** 剥掉可选的 `?` 后缀（requires 里 `?` 是「可选」的唯一表达法） */
+function bareCapabilityName(raw: string): string {
+  return raw.replace(/\?$/, '');
+}
+
+/** 编辑距离：给拼写错误提供「你可能想写」的建议 */
+function editDistance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+/** 最接近的几个合法名字（拼写建议） */
+function suggestNames(bad: string, limit = 3): string[] {
+  return [...CAPABILITY_NAMES]
+    .map(name => ({ name, distance: editDistance(bad.toLowerCase(), name.toLowerCase()) }))
+    .sort((a, b) => a.distance - b.distance || a.name.localeCompare(b.name))
+    .slice(0, limit)
+    .map(item => item.name);
+}
+
+test('⭐静态闸：每个插件 requires 里的名字都必须在能力表里登记（拦住「只在真机上发作」的 typo）', () => {
+  assert.ok(CAPABILITY_NAMES.size > 10, '能力表要真的读到了（读不到这条会变成空转）');
+
+  // 判定走 _helpers.ts 的**共享纯函数**（P5-5 抽出）。
+  // 为什么共享：capability.test.ts 也要用同一套口径验「登记 fetch 之后不再被拒」，
+  // 各写一份副本就变成「我以为在测它，其实在测我自己的副本」。
+  // ⚠️ 共享函数只负责**判定**；下面这些**报错文案**（含拼写建议）仍留在这里 ——
+  // 那是这条闸自己的表达，不该塞进纯函数。
+  const bad: string[] = [];
+  for (const manifest of PLUGIN_MANIFESTS) {
+    const offenders = capabilityNameOffenders(manifest.contributes.requires ?? [], CAPABILITY_NAMES);
+    for (const raw of offenders) {
+      const name = bareCapabilityName(raw);
+      bad.push(
+        '  · ' + manifest.id + ' 声明了 ' + JSON.stringify(raw) +
+        '，但能力表里没有这个（也没登记过）\n' +
+        '      最接近的合法名字：' + suggestNames(name).join('、'),
+      );
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    '这些 requires 名字不在 core/capability.ts 的 CAPABILITIES 里。\n' +
+      '⚠️ 必需能力写错名字 = 该插件在此环境中**整个不注册**（页面 / 工具 / 宏全没），' +
+      '而且只在真机宿主就绪时才发作：\n' + bad.join('\n'),
+  );
+});
+
+test('静态闸自检：三重反例都能被抓出来（别让上面那条变成「恒空」的空转闸）', (t) => {
+  // ① 拼写错误（真发生过的形态：多了个 s）
+  // ② 带 ? 的可选项写错也要抓（剥掉 ? 之后仍须在表里）
+  // ③ 完全瞎编的名字
+  const fake = [
+    { id: 'typo-suffix', requires: ['getWorldbooks'] },      // ← 就是 worldbook 那次的原形
+    { id: 'typo-optional', requires: ['getWorldboookNames?'] },
+    { id: 'nonsense', requires: ['完全不存在的能力'] },
+    { id: 'fine', requires: ['getWorldbook', 'getScriptTrees?'] }, // 合法：不该被抓
+  ];
+
+  const caught: string[] = [];
+  for (const manifest of fake) {
+    for (const raw of manifest.requires) {
+      const name = bareCapabilityName(raw);
+      if (!CAPABILITY_NAMES.has(name)) caught.push(manifest.id + ':' + raw);
+    }
+  }
+  assert.deepEqual(
+    caught.sort(),
+    ['nonsense:完全不存在的能力', 'typo-optional:getWorldboookNames?', 'typo-suffix:getWorldbooks'].sort(),
+    '三个反例必须全被抓到，而合法的那个不许被误伤',
+  );
+
+  // 拼写建议要真的指得对（否则报错时帮不上忙）
+  assert.ok(suggestNames('getWorldbooks').includes('getWorldbook'), 'getWorldbooks 应建议 getWorldbook');
+  assert.ok(suggestNames('getWorldboookNames').includes('getWorldbookNames'), '三个 o 的 typo 也要建议对');
+  assert.equal(suggestNames('完全不存在的能力').length, 3, '实在不像的也给几个候选，不抛');
+});
+
+test('静态闸：可选项用 ? 表达，且 ? 只出现在末尾（防止把 ? 写在中间当装饰）', () => {
+  for (const manifest of PLUGIN_MANIFESTS) {
+    for (const raw of manifest.contributes.requires ?? []) {
+      assert.equal(typeof raw, 'string', manifest.id + ' 的 requires 元素必须是字符串');
+      assert.ok(raw.trim().length > 0, manifest.id + ' 的 requires 里有空字符串');
+      assert.equal(raw.indexOf('?'), raw.endsWith('?') ? raw.length - 1 : -1, manifest.id + ' 的 ' + raw + '：? 只能出现在末尾');
+      // 剥掉 ? 之后不能还是带 ?（防 "x??"）
+      assert.equal(bareCapabilityName(raw).includes('?'), false, manifest.id + ' 的 ' + raw + ' 有两个以上的 ?');
+    }
+  }
+  // 自检：中间带 ? 的形态确实会被判出来
+  const mid = 'getWorld?book';
+  assert.notEqual(mid.indexOf('?'), mid.endsWith('?') ? mid.length - 1 : -1, '中间带 ? 应被判为非法');
 });

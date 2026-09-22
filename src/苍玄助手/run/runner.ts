@@ -29,7 +29,13 @@
  *  3. 草稿镜像进 args.data.drafts（UI 的草稿条/diff 弹窗读的是 RootData.drafts），
  *     DraftStore 本体在 createRunner() 里建一次、长期持有，saveDrafts() 才有东西可应用。
  */
-import { createDraftStore, describeChange, formatDiff } from '../agent/draft.ts';
+import {
+  createDraftStore,
+  describeChange,
+  formatDiff,
+  type BackupSink,
+  type RollbackResult,
+} from '../agent/draft.ts';
 import { runAgentLoop, turnsToMessages, type AgentLoopResult, type LoopEvent } from '../agent/loop.ts';
 import { createRegistry, resolveToolDefs } from '../agent/registry.ts';
 import { skillCatalogText } from '../agent/tools_skill.ts';
@@ -53,6 +59,7 @@ import {
   type RootData,
   type Skill,
   type Turn,
+  type WbBackup,
 } from '../core/types.ts';
 import { createWorldbookPort } from '../core/worldbook.ts';
 
@@ -106,6 +113,22 @@ export interface Runner {
   dropDrafts(): void;
   /** 草稿条数 */
   draftCount(): number;
+  /**
+   * 接上写回前的备份钩子（P5-6）。
+   *
+   * 为什么由 runner 转发、而不是把 DraftStore 整个暴露出去：草稿仓是 runner 的私有状态
+   * （`createRunner()` 里建一次、长期持有），装配方（App.vue）只需要「接钩子」这一个动作。
+   * 暴露整个 store 等于把 `apply / diffs / clear` 都放出去，迟早有人在别处直接调 —— 写路径就不唯一了。
+   *
+   * 实现在 `stores/app.ts`（`store.backupSink()`）—— 备份要写进 `RootData.wb_backups` + 落盘，
+   * 只有 store 同时拿得到「数据」与 `save()`。runner 拿不到 `data`（每轮从参数收），所以只能注入。
+   */
+  setBackupSink(sink: BackupSink | null): void;
+  /**
+   * 回滚一份备份（P5-3）。内部顺序由 `DraftStore.rollback` 保证：
+   * **先对当前状态再备一次**，再整本写回（「回滚也可撤销」的唯一保证）。
+   */
+  rollback(backup: Pick<WbBackup, 'world' | 'entries'>): Promise<RollbackResult>;
 }
 
 /* ============================ 小工具 ============================ */
@@ -772,6 +795,16 @@ export function createRunner(): Runner {
 
     draftCount(): number {
       return drafts.count();
+    },
+
+    setBackupSink(sink: BackupSink | null): void {
+      drafts.setBackupSink(sink);
+    },
+
+    async rollback(backup: Pick<WbBackup, 'world' | 'entries'>): Promise<RollbackResult> {
+      // 用**真实端口**：回滚是落地操作，不能落在草稿视图上（视图的 writeAll 只是透传，
+      // 而且读到的会是「套过草稿」的样子 —— 回滚前那份要备的是**宿主里的当前状态**）。
+      return drafts.rollback(getPort(), backup);
     },
   };
 }

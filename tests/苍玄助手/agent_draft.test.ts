@@ -267,9 +267,257 @@ test('draft: apply 把 readAll 找不到 uid 的警告带进 report', async () =
   const store = createDraftStore([change({ id: 'c1', world: '天枢阁', uid: '404', before: 'x', after: 'y' })]);
   const report = await store.apply(port);
   assert.equal(report.ok, true, '读到了世界书就算成功（只是这条被跳过）');
-  assert.equal(report.warnings.length, 1);
-  assert.match(report.warnings[0], /天枢阁：找不到 uid 404/);
+  // P5-2 起 apply 会先备份；这个仓没接备份钩子，所以除了 uid 警告还会多一条「没有兜底」。
+  // 两条都必须出现 —— 静默没有兜底＝假安全感。
+  assert.equal(report.warnings.length, 2);
+  assert.ok(
+    report.warnings.some(w => /天枢阁：找不到 uid 404/.test(w)),
+    'uid 警告要在：' + JSON.stringify(report.warnings),
+  );
+  assert.ok(
+    report.warnings.some(w => /没有兜底/.test(w)),
+    '没接备份钩子必须留一条「没有兜底」：' + JSON.stringify(report.warnings),
+  );
   assert.equal(store.count(), 0);
+});
+
+
+/* ==================== 写回前自动备份（P5-2） ==================== */
+
+/**
+ * 一个记录得快照的假备份钩子。
+ *
+ * 关键记录 `atWriteCount`：快照发生时宿主已经写了几次 —— 用来证明
+ * 「快照是在 writeAll **之前**打的」（那一刻写次数还没涨）。
+ */
+function backupSinkOf(port, { throwOn = null } = {}) {
+  const snapshots = [];
+  const sink = {
+    snapshots,
+    snapshot(world, entries, reason) {
+      if (throwOn === world) throw new Error('备份炸了（假）');
+      snapshots.push({
+        world,
+        reason,
+        // 深拷贝：证明交出来的是一份独立快照，之后世界书再变也不影响它
+        entries: structuredClone(entries),
+        atWriteCount: port.writes.length,
+      });
+    },
+  };
+  return sink;
+}
+
+test('P5-2: apply 在 writeAll **之前**打快照，且交出去的是**写前**的原始 entries', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '原正文')] });
+  const sink = backupSinkOf(port);
+  const store = createDraftStore([change({ id: 'c1', world: '天枢阁', uid: '1', before: '原正文', after: '新正文' })]);
+  store.setBackupSink(sink);
+
+  const report = await store.apply(port);
+  assert.equal(report.ok, true);
+  assert.equal(sink.snapshots.length, 1, '每本世界书写回前打一次快照');
+
+  const snap = sink.snapshots[0];
+  assert.equal(snap.world, '天枢阁');
+  assert.equal(snap.reason, '写回前自动备份');
+  assert.equal(snap.atWriteCount, 0, '快照发生在 writeAll **之前**（那时还没写过）');
+
+  // 最关键的一条：备份里是**写前**的内容，不是合并后的新内容
+  assert.equal(snap.entries.length, 1);
+  assert.equal(snap.entries[0].content, '原正文', '备份必须是「写坏之前长什么样」');
+  assert.notEqual(snap.entries[0].content, '新正文', '绝不能把合并后的结果当备份');
+
+  // 而真正写回去的才是新内容
+  assert.equal(port.writes[0].entries[0].content, '新正文');
+});
+
+test('P5-2: 快照带 extra（写回要合并回去的未知字段，备份一个都不能丢）', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '正文', { extra: { position: 7, custom: 'x' } })] });
+  const sink = backupSinkOf(port);
+  const store = createDraftStore([change({ id: 'c1', world: '天枢阁', uid: '1', before: '正文', after: '改后' })]);
+  store.setBackupSink(sink);
+  await store.apply(port);
+
+  assert.deepEqual(
+    sink.snapshots[0].entries[0].extra,
+    { position: 7, custom: 'x' },
+    '备份是快照，未知字段必须原样留着 —— 丢一个键就是回滚时抹掉用户的东西',
+  );
+});
+
+test('P5-2: 多本世界书 → 每本**各自**在写回前备一次', async () => {
+  const port = portOf({ 甲: [entry('1', 'A', '甲原')], 乙: [entry('2', 'B', '乙原')] });
+  const sink = backupSinkOf(port);
+  const store = createDraftStore([
+    change({ id: 'c1', world: '甲', uid: '1', before: '甲原', after: '甲新' }),
+    change({ id: 'c2', world: '乙', uid: '2', before: '乙原', after: '乙新' }),
+  ]);
+  store.setBackupSink(sink);
+  const report = await store.apply(port);
+
+  assert.equal(sink.snapshots.length, 2);
+  assert.deepEqual(sink.snapshots.map(s => s.world).sort(), ['乙', '甲']);
+  // 判据是「快照时，这本世界书**自己**还没被写过」——不是全局写次数为 0
+  // （第二本打快照时，第一本已经写完了，全局计数自然是 1）。
+  const writeCountAt = world => port.writes.filter(w => w.world === world).length;
+  for (const snap of sink.snapshots) {
+    // 快照发生在它自己那次写回之前 → 那一刻它自己的写次数是 0，之后才变 1
+    assert.equal(writeCountAt(snap.world), 1, snap.world + '：最终应该写过一次');
+    assert.equal(snap.atWriteCount, snap.world === '甲' ? 0 : 1, snap.world + '：快照在它自己写回之前');
+  }
+  // 更强的证明：快照那一刻，**它自己**还没被写（用备份内容证明拿的是写前内容）
+  assert.equal(sink.snapshots.find(s => s.world === '甲').entries[0].content, '甲原');
+  assert.equal(sink.snapshots.find(s => s.world === '乙').entries[0].content, '乙原');
+  assert.deepEqual(report.backed_up.sort(), ['乙', '甲'], 'report 要列出这次为哪些 world 备了份');
+});
+
+test('P5-2: 备份失败**不中断**写回，但必须 warn + 进 warnings（静默没有兜底＝假安全感）', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '原')] });
+  const sink = backupSinkOf(port, { throwOn: '天枢阁' });
+  const store = createDraftStore([change({ id: 'c1', world: '天枢阁', uid: '1', before: '原', after: '新' })]);
+  store.setBackupSink(sink);
+
+  const warned = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warned.push(args.map(String).join(' '));
+  let report;
+  try {
+    report = await store.apply(port);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  assert.equal(report.ok, true, '备份失败不能让写回失败 —— 备份是兜底，不是门禁');
+  assert.equal(port.writes.length, 1, '写回照常发生');
+  assert.ok(
+    report.warnings.some(w => /没有兜底/.test(w)),
+    '必须有一条人话 warning：' + JSON.stringify(report.warnings),
+  );
+  assert.ok(warned.some(w => /没有兜底/.test(w)), '必须 console.warn 出声，不能静默');
+  assert.deepEqual(report.backed_up, [], '失败了就不能算「备过份」');
+});
+
+test('P5-2: 没接备份钩子 → 照常写回，但 report 里留一条「没有兜底」', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '原')] });
+  const store = createDraftStore([change({ id: 'c1', world: '天枢阁', uid: '1', before: '原', after: '新' })]);
+  assert.equal(store.hasBackupSink(), false);
+  const report = await store.apply(port);
+  assert.equal(report.ok, true);
+  assert.equal(port.writes.length, 1);
+  assert.ok(report.warnings.some(w => /没有兜底/.test(w)), '没钩子必须说出来');
+  assert.deepEqual(report.backed_up, []);
+});
+
+test('P5-2: 备份钩子可以晚接（setBackupSink），接了之后 apply 就会用', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '原')] });
+  const sink = backupSinkOf(port);
+  const store = createDraftStore([change({ id: 'c1', world: '天枢阁', uid: '1', before: '原', after: '新' })]);
+  store.setBackupSink(sink);
+  assert.equal(store.hasBackupSink(), true);
+  const report = await store.apply(port);
+  assert.equal(sink.snapshots.length, 1);
+  assert.deepEqual(report.backed_up, ['天枢阁']);
+});
+
+/* ==================== 回滚（P5-2）：回滚前必须先再备一次 ==================== */
+
+/** 造一份「备份」形状（与 types.ts 的 WbBackup 一致） */
+function backupOf(world, entries, over = {}) {
+  return { id: 'bk1', world, taken_at: 1, reason: '写回前自动备份', entry_count: entries.length, entries, ...over };
+}
+
+test('P5-2 回滚: 用备份整本写回', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '现在的样子')] });
+  const store = createDraftStore();
+  store.setBackupSink(backupSinkOf(port));
+
+  const backup = backupOf('天枢阁', [entry('1', 'A', '当时的样子'), entry('2', 'B', '当时还有这条')]);
+  const result = await store.rollback(port, backup);
+
+  assert.equal(result.ok, true, result.error);
+  assert.equal(result.world, '天枢阁');
+  assert.equal(result.restored, 2);
+  // 备份只写进 RootData.wb_backups（由钩子负责），**不写世界书** ——
+  // 所以世界书只被写一次，就是回滚那一次。
+  assert.equal(port.writes.length, 1, '回滚只写一次世界书');
+  assert.equal(port.writes[0].world, '天枢阁');
+  assert.deepEqual(port.writes[0].entries.map(e => e.content), ['当时的样子', '当时还有这条']);
+});
+
+test('P5-2 回滚: **回滚前必须先对当前状态再备一次**（否则回滚错了没法回头）', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '当前状态')] });
+  const sink = backupSinkOf(port);
+  const store = createDraftStore();
+  store.setBackupSink(sink);
+
+  const oldBackup = backupOf('天枢阁', [entry('1', 'A', '很久以前')]);
+  const result = await store.rollback(port, oldBackup);
+
+  assert.equal(result.ok, true, result.error);
+  // ① 必须先备一次，而且备的是**回滚之前**的当前状态
+  assert.equal(sink.snapshots.length, 1, '回滚前必须自动备一次');
+  assert.equal(sink.snapshots[0].reason, '回滚前自动备份');
+  assert.equal(
+    sink.snapshots[0].entries[0].content,
+    '当前状态',
+    '备的必须是「回滚前」的样子，否则用户回滚错了就回不到回滚之前',
+  );
+  assert.equal(result.backed_up_before_rollback, true);
+
+  // ② 然后才把备份写回去
+  assert.equal(port.writes.length, 1);
+  assert.equal(port.writes[0].entries[0].content, '很久以前');
+});
+
+test('P5-2 回滚: 回滚前那次备份失败 → 回滚照常进行，但明确告知「这次回滚不可撤销」', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '当前')] });
+  const sink = backupSinkOf(port, { throwOn: '天枢阁' });
+  const store = createDraftStore();
+  store.setBackupSink(sink);
+
+  const result = await store.rollback(port, backupOf('天枢阁', [entry('1', 'A', '备份')]));
+  assert.equal(result.ok, true, '备份失败不该阻止回滚本身');
+  assert.equal(result.backed_up_before_rollback, false, '必须如实报告：这次回滚不可撤销');
+  assert.ok(result.warnings.some(w => /没有兜底/.test(w)), '要有 warning');
+  assert.equal(port.writes.length, 1, '回滚仍然执行');
+});
+
+test('P5-2 回滚: 没接钩子 → 回滚可用，但如实说「不可撤销」', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '当前')] });
+  const store = createDraftStore();
+  const result = await store.rollback(port, backupOf('天枢阁', [entry('1', 'A', '备份')]));
+  assert.equal(result.ok, true);
+  assert.equal(result.backed_up_before_rollback, false);
+  assert.equal(port.writes.length, 1);
+});
+
+test('P5-2 回滚: 备份没记世界书 → 明确失败（不猜、不写）', async () => {
+  const port = portOf({ 天枢阁: [] });
+  const store = createDraftStore();
+  const result = await store.rollback(port, backupOf('', [entry('1', 'A', 'x')]));
+  assert.equal(result.ok, false);
+  assert.match(result.error, /没记世界书名/);
+  assert.equal(port.writes.length, 0, '名字都没有就绝不能写');
+});
+
+test('P5-2 回滚: 写回抛错 → 返回 ok=false + 人话，不把异常放出去', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', '当前')] }, { failWorld: '天枢阁' });
+  const store = createDraftStore();
+  store.setBackupSink(backupSinkOf(port));
+  const result = await store.rollback(port, backupOf('天枢阁', [entry('1', 'A', '备份')]));
+  assert.equal(result.ok, false);
+  assert.match(result.error, /写回失败/);
+});
+
+test('P5-2 回滚: 整本替换语义 —— 备份里没有的条目会被删掉（那是「回到当时的样子」）', async () => {
+  const port = portOf({ 天枢阁: [entry('1', 'A', 'a'), entry('2', 'B', 'b'), entry('3', 'C', 'c')] });
+  const store = createDraftStore();
+  store.setBackupSink(backupSinkOf(port));
+  // 当时的备份里只有两条
+  await store.rollback(port, backupOf('天枢阁', [entry('1', 'A', 'a'), entry('2', 'B', 'b')]));
+  assert.equal(port.writes[0].entries.length, 2, '整本写回 = 回到当时的样子（多出来的那条要没）');
+  assert.deepEqual(port.writes[0].entries.map(e => e.uid), ['1', '2']);
 });
 
 /* ============================ 套用算法（纯函数） ============================ */

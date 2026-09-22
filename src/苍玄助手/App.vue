@@ -34,6 +34,7 @@
       v-else-if="tab === 'chat'"
       :data="store.data"
       :assistant-name="ASSISTANT_NAME"
+      :rollback-result="store.rollbackResult"
       @send="onSend"
       @stop="onStop"
       @attach="onAttach"
@@ -41,6 +42,8 @@
       @export-drafts="onExportDrafts"
       @retry-image="onRetryImage"
       @session-action="onSessionAction"
+      @rollback="onRollback"
+      @rollback-cleared="store.setRollbackResult(null)"
       @preset-change="onPresetChange"
       @mode-change="store.setMode($event)"
     />
@@ -313,11 +316,27 @@ function loadTools(): void {
   }
 }
 
+/**
+ * 把「写回前自动备份」接到草稿仓上（P5-6 第 1 段）。
+ *
+ * 为什么装配点在 App.vue：备份要写进 `RootData.wb_backups` 并落盘 —— 那需要同时拿到
+ * **数据**（`store.data`）和 `save()`，只有 store 有；而 `DraftStore` 是 runner 的私有状态，
+ * 由 `createRunner()` 建一次并长期持有。**两边都在 `App.vue` 的作用域里**，所以这里是唯一
+ * 能一次接上的地方（runner 自己拿不到 data：它每轮从参数收 `args.data`；store 也拿不到草稿仓）。
+ *
+ * 没接上的后果是静默的：`apply()` 会 warn 一句「没有接入备份钩子，本次写回没有兜底」，
+ * 但界面照常，`wb_backups` 永远是空的 —— 记录页永远空态、回滚永远调不到。
+ */
+function wireBackupSink(): void {
+  runner.setBackupSink(store.backupSink());
+}
+
 onMounted(() => {
   // 插件宏接线：core 不认识插件，由底座在启动时把「插件贡献的宏」注册进去。
   // 名字清单取全部插件（停用的名字也要认，否则 {{图片提示词}} 会留成裸露占位符），
   // renderer 只认已启用的插件 —— 关掉即退回空串。
   wirePluginMacros(store.data);
+  wireBackupSink();
   void refreshAll();
   document.addEventListener('visibilitychange', onVisibilityChange);
 });
@@ -473,6 +492,35 @@ function onSessionAction(payload: { action: string; id: string }): void {
   if (action === 'export-all') {
     try { download(dataFileName(), store.exportSessions()); notify('已导出全部记录'); }
     catch (err) { notify('导出失败：' + String((err as Error).message || err)); }
+  }
+}
+
+/**
+ * 回滚一份世界书备份（P5-6 第 3 段）。
+ *
+ * 三层都在这里收口，界面那边只 emit 一个 id：
+ *  1. 结果**存进 store**（`setRollbackResult`）再交给界面 —— 记录页住在会卸载的 Sheet 里，
+ *     异步结果不能靠组件句柄回传（详见 stores/app.ts 里 rollbackResult 的注释）；
+ *  2. 真正的回滚动作在 store（`rollbackBackup`）：找备份 → runner.rollback（内部转 DraftStore.rollback）→ 落盘；
+ *  3. 这里只负责「挂起自动保存 / 起止提示」这种页面级编排。
+ *
+ * `store.holdSaves()`：回滚是「读整本 + 写整本」的慢动作，期间别的写点不该各排各的盘。
+ */
+async function onRollback(payload: { id: string }): Promise<void> {
+  const id = payload?.id ?? '';
+  if (!id) return;
+  store.holdSaves();
+  try {
+    store.setRollbackResult(null);
+    const result = await store.rollbackBackup(runner, id);
+    store.setRollbackResult(result);
+    store.save(true);
+  } catch (err) {
+    // rollback 自己承诺不抛；真抛了也得让界面看到，不能静默
+    store.setRollbackResult({ ok: false, error: String((err as Error)?.message ?? err) });
+    store.save(true);
+  } finally {
+    store.releaseSaves();
   }
 }
 

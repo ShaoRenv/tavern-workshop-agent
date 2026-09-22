@@ -1535,6 +1535,80 @@ body {
   border-color: var(--qx-danger);
 }
 
+/* ---------- 世界书备份行（P5-3） ---------- */
+
+/*
+ * 备份行与 .cx-rec（记录行）同构，但**不复用 .cx-rec**：记录行有 5 个按钮、
+ * 备份行只有 1 个，共用类名会让两边互相牵制（改一边坏一边）。
+ * 视觉上保持一致：一样的分隔线 + 一样的左main右acts。
+ */
+.cx-bk {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--qx-hair);
+}
+
+.cx-bk:last-child {
+  border-bottom: 0;
+}
+
+.cx-bk-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cx-bk-world {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cx-bk-meta {
+  font-size: 10.5px;
+  color: var(--qx-faint);
+  margin-top: 2px;
+  /* 时间 / 条数 / 来源三段，窄屏换行而不是横向溢出（375px 不许横滚） */
+  overflow-wrap: anywhere;
+}
+
+.cx-bk-acts {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+/* 回滚结果提示：默认中性，bad = 不可撤销警报 */
+.cx-bk-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: var(--qx-accent-dim);
+  color: var(--qx-accent);
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+
+.cx-bk-note.bad {
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--qx-danger);
+}
+
+.cx-bk-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+  margin-top: 6px;
+}
+
 /* ==================== 工具页 ==================== */
 
 /* 一行一个工具：整行可点，够 48px */
@@ -1976,6 +2050,27 @@ body {
 
   .cx-rec-acts {
     max-width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* 手机端：备份行同样压成上下两段，回滚键靠左（.cx-tiny 在上面已有 40px 点击区） */
+  .cx-bk {
+    flex-direction: column;
+  }
+
+  /*
+   * ⚠️ 这两条 `width: 100%` 不能省。
+   * 行改成 column 之后，`.cx-bk-main` 的 `flex: 1` 作用在**纵轴**上，
+   * 宽度变成「按内容撑」—— 长世界书名会把 main 撑到 393px（行只有 339px），
+   * 于是 `text-overflow: ellipsis` 永远不触发（元素比容器还宽，压根没被裁）。
+   * 显式给满宽，省略号才真的生效。
+   */
+  .cx-bk-main,
+  .cx-bk-acts {
+    width: 100%;
+  }
+
+  .cx-bk-acts {
     justify-content: flex-start;
   }
 

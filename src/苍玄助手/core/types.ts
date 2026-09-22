@@ -10,7 +10,7 @@
  */
 import { z } from 'zod';
 // 只借类型：工具覆盖项的**唯一契约**在 ports.ts（那边不带运行时校验）
-import type { ToolOverrideMap } from './ports.ts';
+import type { ToolOverrideMap, WbEntry } from './ports.ts';
 
 /* ============================ 设置 ============================ */
 
@@ -791,6 +791,90 @@ export const ArtifactSchema = z.object({
 });
 export type Artifact = z.infer<typeof ArtifactSchema>;
 
+/* ============================ 世界书备份（写回前兜底 / 一键回滚） ============================ */
+
+/**
+ * 世界书条目的**运行期**形状 —— 镜像 `core/ports.ts` 的 `WbEntry` 接口。
+ *
+ * 为什么要单独写一份：`WbEntry` 只是 TS 接口（编译期就没了），而备份要**存进变量再读回来**，
+ * 读回来时必须有一道运行期校验，否则坏数据会一路走进 `writeAll`。
+ *
+ * ⚠️ **两处必须同步**。下面的 `_WbEntrySchemaMatches` 是编译期闸：
+ * schema 少一个字段、或某个字段类型写错，`tsc` 就会报错（不用靠人记得）。
+ *
+ * ⚠️ 用 `.passthrough()` 而不是默认的「剥掉未知键」：这是**快照**，
+ * 多留一个键只是多几个字节，丢掉一个键就是回滚时抹掉用户的东西 —— 不可逆。
+ * （正常路径下未知字段会被 `core/worldbook.ts` 归一化收进 `extra`，
+ *  但快照不该依赖上游一定做对了。）
+ */
+export const WbEntrySchema = z
+  .object({
+    uid: z.string(),
+    name: z.string().default(''),
+    content: z.string().default(''),
+    enabled: z.boolean().default(true),
+    strategy: z.enum(['constant', 'selective', 'vectorized']).default('selective'),
+    keys: z.array(z.string()).default([]),
+    keys_secondary: z
+      .object({
+        logic: z.enum(['and_any', 'and_all', 'not_all', 'not_any']).default('and_any'),
+        keys: z.array(z.string()).default([]),
+      })
+      .default({ logic: 'and_any', keys: [] }),
+    scan_depth: z.union([z.number(), z.literal('same_as_global')]).default('same_as_global'),
+    position: z.number().default(0),
+    order: z.number().default(100),
+    depth: z.number().default(4),
+    /** 其余字段原样带着（`WbEntry.extra`），写回时必须合并回去 */
+    extra: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+
+/*
+ * 编译期一致性闸：`WbEntrySchema` 推导出的类型必须能赋值给 `WbEntry`。
+ *
+ * **已用反例实测过它有牙**（不是「看起来像有」）：
+ *   - `WbEntry` 加一个**必填**字段而 schema 没有 → `Type 'true' is not assignable to type 'never'` ✅
+ *   - schema 里把某个字段类型写错（`order` 写成 string）→ 同上 ✅
+ *
+ * **已知不覆盖**（写在这里免得下一个人以为它是全牙的）：
+ *   - `WbEntry` 加一个**可选**字段 → 闸不响。因为可选字段不影响赋值兼容，而且
+ *     `.passthrough()` 的索引签名本来就会吸收它 —— 这是**无害方向**（快照本来就保留未知键）。
+ *     真在意的话得比对键集合，那属于另一条闸，别混进这一条。
+ *   - 只做单向：`.passthrough()` 会给推导类型加索引签名，
+ *     反向（`WbEntry extends 推导类型`）会因为接口没有索引签名而永远失败，那个方向查不了。
+ */
+type _WbEntrySchemaMatches = z.infer<typeof WbEntrySchema> extends WbEntry ? true : never;
+const _WB_ENTRY_SCHEMA_OK: _WbEntrySchemaMatches = true;
+void _WB_ENTRY_SCHEMA_OK;
+
+/**
+ * 一份**整本**世界书的快照。
+ *
+ * 为什么是整本而不是单条 diff：回滚要能把世界书换回某个时刻的样子。
+ * 只存 diff 的话，「当时那本里还有哪些条目」这个信息没了，回滚就补不回被删的条目。
+ *
+ * ⚠️ 两条硬口径（下游别绕过）：
+ *  1. **必须限量保留**：整本快照可能很大（本仓库实测过 1.1MB 的世界书上传），
+ *     脚本变量不是无限大的。保留条数由写入方实现（例如每本留最近 3 份），契约只定形状。
+ *  2. **回滚本身也是一次写入** → **回滚前必须先对当前状态再备份一次**。
+ *     否则用户点错一次回滚，就再也回不到回滚之前了。
+ */
+export const WbBackupSchema = z.object({
+  id: z.string(),
+  /** 哪本世界书 */
+  world: z.string().default(''),
+  /** 什么时候备份的（epoch ms） */
+  taken_at: z.number().default(0),
+  /** 人话来源，记录页直接显示：「写回前自动备份」/「回滚前自动备份」 */
+  reason: z.string().default(''),
+  /** 条目数（跟 entries.length 冗余，但列表页不必解析整份 entries 就能显示） */
+  entry_count: z.number().default(0),
+  /** 整本快照 */
+  entries: z.array(WbEntrySchema).default([]),
+});
+export type WbBackup = z.infer<typeof WbBackupSchema>;
+
 /* ============================ 选择（要喂给模型的数据） ============================ */
 
 export const SelectionSchema = z.object({
@@ -879,6 +963,13 @@ export const RootDataSchema = z.object({
   session: LegacySessionSchema.prefault({}),
   drafts: z.array(DraftChangeSchema).default([]),
   artifacts: z.array(ArtifactSchema).default([]),
+  /**
+   * 世界书备份（写回前自动拍快照）。记录页可一键回滚。
+   *
+   * ⚠️ **DATA_VERSION 不加**：这是**新增块 + `.default([])`**，不是结构搬迁。
+   * 口径见 `reports/苍玄助手-底座化实施计划.md` §2.2：只有字段搬家 / 改名 / 换类型才涨版本。
+   */
+  wb_backups: z.array(WbBackupSchema).default([]),
 });
 export type RootData = z.infer<typeof RootDataSchema>;
 
