@@ -30,6 +30,8 @@ const {
   pluginSkills,
   toolOwner,
   toolOwnerLabel,
+  availablePages,
+  allPages,
 } = await import(root + 'plugins/registry.ts');
 const { liveToolDefs } = await import(root + 'run/runner.ts');
 const macros = await import(root + 'core/macros.ts');
@@ -280,15 +282,38 @@ test('源码级：苍玄助手目录不含 store / Store 的 import（插件页�
   assert.deepEqual(offenders, [], offenders.join('\n'));
 });
 
-test('源码级：worldbook 插件是**唯一**贡献页面的内置插件（顶栏 3 格的来源）', () => {
+test('源码级：贡献页面的内置插件是 worldbook + mcp，且**只有 worldbook 上顶栏**', () => {
   const withPages = PLUGIN_MANIFESTS.filter(manifest => (manifest.contributes.pages ?? []).length > 0);
-  assert.deepEqual(withPages.map(manifest => manifest.id), ['worldbook'], '阶段 3 只有世界书带页面');
+  assert.deepEqual(
+    withPages.map(manifest => manifest.id),
+    ['worldbook', 'mcp'],
+    '阶段 6 起两个插件带页面：世界书（上顶栏）+ MCP（inTabbar:false，从插件管理页进）',
+  );
 
   const pages = withPages.flatMap(manifest => manifest.contributes.pages ?? []);
   assert.deepEqual(
     pages.map(page => [page.id, page.title, page.order, page.inTabbar]),
-    [['worldbook', '世界书', 30, true]],
+    [
+      ['worldbook', '世界书', 30, true],
+      ['mcp', 'MCP', 70, false],
+    ],
+    'mcp 的页面**不上顶栏**（顶栏仍 3 格）',
   );
+
+  // ⭐新性质①：mcp 页面 inTabbar:false → 开不开它，顶栏都是 3 格
+  const off = { plugin_state: { mcp: { enabled: false } } };
+  const on = { plugin_state: { mcp: { enabled: true } } };
+  for (const [label, st] of [['关着', off], ['开着', on]] as const) {
+    assert.equal(availablePages(st).length, 3, 'mcp ' + label + '时顶栏都该是 3 格');
+    assert.deepEqual(
+      availablePages(st).map(page => page.id),
+      ['chat', 'worldbook', 'settings'],
+      'mcp ' + label + '时的顶栏',
+    );
+  }
+  // 但 allPages 里 mcp 的**在不在**要随开关变（它是个真页面，只是不上顶栏）
+  assert.equal(allPages(off).some(page => page.id === 'mcp'), false, '关着 → 页面不存在');
+  assert.equal(allPages(on).some(page => page.id === 'mcp'), true, '开着 → 页面存在（可从插件管理页进）');
 });
 
 test('源码级：插件开关缺省值 —— 苍玄助手 / 世界书 true，生图 false', () => {

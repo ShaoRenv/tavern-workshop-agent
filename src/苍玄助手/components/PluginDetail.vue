@@ -13,6 +13,26 @@
         <span class="cx-tag">v{{ def.version }}</span>
       </div>
       <p class="cx-hint cx-mt6">{{ def.desc }}</p>
+
+      <!--
+        ★ 开着但被能力闸拦下：在**详情页第一块**就把话说清楚（P4-12）。
+
+        为什么放在这个位置（而不是像别的说明那样放到下面）：
+        「它加了什么」那一块列的是 manifest **声明**的页面与工具 —— 缺能力时那些东西
+        一个都没装载。用户上来第一眼就是那份清单，所以必须在它**之前**讲清
+        「下面那些现在都没生效、为什么」，否则那份清单本身就是误导。
+      -->
+      <div v-if="skip" class="cx-f cx-mt12">
+        <div>
+          <div class="cx-warn-text">{{ skip.reason }}</div>
+          <pre class="cx-code cx-mt6">{{ skip.detail }}</pre>
+          <p class="cx-hint cx-mt6">
+            要恢复它：把上面列出的能力补上（例如装上酒馆助手、或换一台把这些接口暴露出来的酒馆）。
+            补好之后刷新页面即可，不用重启酒馆。
+          </p>
+        </div>
+      </div>
+
       <div class="cx-f cx-mt12">
         <div class="cx-frow">
           <span class="cx-sw-lab">启用</span>
@@ -123,8 +143,19 @@ const props = defineProps<{
   config: Record<string, unknown>;
   /** 开关在 plugin_state 里（底座拥有），不从 config 里读 */
   enabled: boolean;
-  /** 状态标签由插件自己算（plugins/registry.ts 的 pluginStatus），界面只画 */
+  /**
+   * 状态标签由插件自己算（plugins/registry.ts 的 pluginStatusWithCapabilities），界面只画。
+   * P4-12 起它带**能力口径**：开着但缺必需能力时是「缺能力」而不是「已启用」。
+   */
   status: PluginStatus;
+  /**
+   * 开着却被能力闸拦下时的**人话原因**（registry 的 PluginSkip）；没被拦就是 null。
+   *
+   * 为什么单独传一个 prop 而不是塞进 status：`PluginStatus` 是**列表行标签**的形状
+   * （label + kind，一行字），而这里要给的是**多行明细**（缺哪个能力、缺的接口名、
+   * ST 原生对应是什么）。硬塞进 label 会把列表行撑坏，也会让两个用途互相将就。
+   */
+  skip?: { reason: string; detail: string; missing: string[] } | null;
 }>();
 const emit = defineEmits<{
   back: [];

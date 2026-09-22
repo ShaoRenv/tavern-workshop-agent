@@ -6,6 +6,7 @@
     :config="configBag(openDef.id)"
     :enabled="enabledOf(openDef)"
     :status="statusOf(openDef)"
+    :skip="skipOf(openDef) ?? null"
     @back="openId = ''"
     @toggle="emit('toggle', openDef.id, $event)"
     @patch="emit('patch', openDef.id, $event)"
@@ -30,6 +31,21 @@
             </div>
             <!-- 行上就写清「它加了什么」（1 页 · 7 工具），省一次点击 -->
             <div class="cx-toolrow-desc">{{ whatItAdds(def) }}</div>
+            <!--
+              ★ 缺能力时**在行上**给一句人话原因（P4-12）。
+
+              为什么非要在这一行说、而不是让用户点进详情看：
+              「缺能力」只回答了「它能不能用」，没回答「缺什么、我该怎么办」——
+              不说原因的话，这行和以前那句「已启用」一样对用户没用。
+              点一下展开完整明细（含缺的接口名与 ST 原生对应），不用进详情页来回翻。
+            -->
+            <div v-if="skipOf(def)" class="cx-toolrow-desc">
+              <span class="cx-warn-text" @click.stop="toggleReason(def.id)">
+                {{ skipOf(def).reason }}
+                <span class="cx-hint">{{ openReason === def.id ? '收起' : '详情' }}</span>
+              </span>
+              <pre v-if="openReason === def.id" class="cx-code cx-mt6" @click.stop>{{ skipOf(def).detail }}</pre>
+            </div>
           </div>
           <Sw :model-value="enabledOf(def)" @update:model-value="emit('toggle', def.id, $event)" />
           <span class="cx-toolrow-go">›</span>
@@ -45,7 +61,7 @@ import { computed, ref } from 'vue';
 import { RootDataSchema, type RootData } from '../core/types.ts';
 import PluginDetail from '../components/PluginDetail.vue';
 import Sw from '../components/Sw.vue';
-import { PLUGIN_MANIFESTS, pluginEnabled, pluginStatus } from '../plugins/registry.ts';
+import { PLUGIN_MANIFESTS, pluginCapabilitySkips, pluginEnabled, pluginStatusWithCapabilities } from '../plugins/registry.ts';
 import type { PluginManifest } from '../plugins/types.ts';
 
 /**
@@ -93,9 +109,46 @@ function enabledOf(def: PluginManifest): boolean {
   return pluginEnabled(props.data, def.id);
 }
 
-/** 状态标签只有一份口径（未启用 > 插件自己说的缺什么 > 已启用），插件自己算、底座只画 */
+/**
+ * ★ 状态标签 = **装载裁决的口径**（未启用 > 缺能力 > 插件自己说的 > 已启用）。
+ *
+ * ⚠️ 这里用 `pluginStatusWithCapabilities` 而不是 `pluginStatus`（P4-12 修的就是这个）：
+ * 后者**不看能力**，于是「插件被能力闸拦下、页面与工具全不出」时，列表行仍然显示「已启用」——
+ * 界面替底层撒谎。同一个根因的另一面：这一页的 `whatItAdds()` 数的是 manifest 里声明的
+ * 页数 / 工具数，**声明归声明**；缺能力时那些东西其实一个都没装载。
+ *
+ * 为什么把「探能力」的结果**算一次缓存起来**，而不是在模板里每行现算：
+ * `pluginStatusWithCapabilities` 会调 `pluginCapabilitySkips()`，后者要遍历**全部**已启用插件、
+ * 逐个现探能力（`evaluatePluginCapabilities`）。模板里 `statusOf(def)` 是**每行调一次**，
+ * 于是 N 行 = N 次全表探测 —— O(N²)。
+ *
+ * 实测（4 个插件的当下）：`pluginStatus` 单次渲染 0.001ms，带能力的 0.216ms（约 200 倍）。
+ * 4 个插件时绝对值仍很小，但**这是 O(N²) 的形状**：插件变多、或将来能力探测变重
+ * （外部插件要真去探网络能力）就会变成可感的卡顿。所以用 computed 把它压成**每次数据变化只探一遍**。
+ * （这也是当初没直接用它的合理顾虑 —— 现在用「算一次」把它解决了，而不是继续不用。）
+ */
+const skipById = computed(() => new Map(pluginCapabilitySkips(props.data).map(skip => [skip.id, skip])));
+
+/** 这台是不是「开着但被能力闸拦下」（列表与详情共用同一份判据） */
+function skipOf(def: PluginManifest) {
+  return skipById.value.get(def.id);
+}
+
 function statusOf(def: PluginManifest): { label: string; kind: '' | 'ok' | 'warn' | 'dang' } {
-  return pluginStatus(props.data, def.id, configBag(def.id));
+  return pluginStatusWithCapabilities(props.data, def.id, configBag(def.id));
+}
+
+/**
+ * 缺能力的**人话原因**（列表行上直接显示，点一下能看全部明细）。
+ *
+ * 为什么不只显示「缺能力」三个字：用户看到「缺能力」但不知道缺什么、更不知道怎么办 ——
+ * 那和「已启用」一样没用。`skip.reason` 是装配期就算好的人话（含能力名），
+ * `skip.detail` 是逐条明细（含缺的接口名与 ST 原生对应），两个都是现成的。
+ */
+const openReason = ref('');
+
+function toggleReason(id: string): void {
+  openReason.value = openReason.value === id ? '' : id;
 }
 
 /** 行上的「它加了什么」：内置 · v0.1 · 1 页 · 7 工具 */

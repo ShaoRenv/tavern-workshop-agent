@@ -16,8 +16,14 @@
 import { manifest as cangxuan } from './cangxuan/manifest.ts';
 import { manifest as worldbook } from './worldbook/manifest.ts';
 import { manifest as image } from './image/manifest.ts';
+import { manifest as mcp } from './mcp/manifest.ts';
 import type { PluginManifest } from '../types.ts';
 
-export const BUILTIN_MANIFESTS: PluginManifest[] = [cangxuan, worldbook, image];
+/**
+ * 阶段 6 加 mcp。它的工具是**运行时注册**的（远端拉回来才有），
+ * 所以 contributes.tools 是空数组 —— 这不违和：插件贡献的是「**能力来源**」，
+ * 而不是「一批写死的工具」。
+ */
+export const BUILTIN_MANIFESTS: PluginManifest[] = [cangxuan, worldbook, image, mcp];
 
 export default BUILTIN_MANIFESTS;

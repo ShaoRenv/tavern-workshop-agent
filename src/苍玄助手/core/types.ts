@@ -124,14 +124,57 @@ export const CangxuanConfigSchema = z.object({
 export type CangxuanConfig = z.infer<typeof CangxuanConfigSchema>;
 
 /**
+ * MCP 插件自己的设置（阶段 6）：一张**服务器清单**。
+ *
+ * ⚠️ 为什么不用 `contributes.settings` 的 SettingsField：那些是**标量字段**
+ * （输入框 / 开关 / 下拉），而服务器是一张**列表** —— 每行有自己的 url / headers /
+ * 逐条停用的工具，还要显示连接状态。列表由插件自己的 Page.vue 画，
+ * 这里只钉**数据形状**（同 cangxuan：要落盘 / 导出 / 迁移的东西必须在核心 schema 里）。
+ */
+export const McpServerSchema = z.object({
+  id: z.string(),
+  /** 列表里显示的名字；留空时界面用 url 兜底 */
+  name: z.string().default(''),
+  url: z.string().default(''),
+  /**
+   * 额外请求头（鉴权：`Authorization: Bearer ...`）。
+   * 明文存在本地变量里，与 API Key 同一口径 —— 设置页对 Key 的那句提示同样适用。
+   */
+  headers: z.record(z.string(), z.string()).default({}),
+  /** 'http' = Streamable HTTP（POST JSON-RPC）；'sse' = 老式 SSE 双通道（二期） */
+  transport: z.enum(['http', 'sse']).default('http'),
+  /** 这一个服务器开不开：关掉即断开，它的工具立刻从能力里消失 */
+  enabled: z.boolean().default(true),
+  /**
+   * 逐条停用的远端工具名（**持久**）。
+   * 「停用只在来源处」的落点之一：服务器页勾掉 = 不给模型，且跨刷新有效。
+   */
+  disabled_tools: z.array(z.string()).default([]),
+  /** 最近一次连接错误（人话）。连上后清空 —— 界面靠它显示「连不上（原因）」 */
+  last_error: z.string().default(''),
+  /** 上次连接成功的时间戳（毫秒），0 = 没连过 */
+  last_ok_at: z.number().default(0),
+});
+export type McpServer = z.infer<typeof McpServerSchema>;
+
+export const McpConfigSchema = z.object({
+  servers: McpServerSchema.array().default([]),
+});
+export type McpConfig = z.infer<typeof McpConfigSchema>;
+
+/**
  * 插件自己的设置：插件 id → 设置。
  *
- * image / cangxuan 各有真 schema。加新插件时在这里加一段（阶段 6 外部插件的设置
+ * image / cangxuan / mcp 各有真 schema。加新插件时在这里加一段（阶段 7 外部插件的设置
  * 走宽松袋子的兜底）。
+ *
+ * ⚠️ 新增一段**不涨 DATA_VERSION**：带 `.prefault({})` 的新块对老数据是「缺省值补齐」，
+ *    不是结构搬迁（同 wb_backups 的口径）。
  */
 export const PluginsSchema = z.object({
   image: GenImageConfigSchema.prefault({}),
   cangxuan: CangxuanConfigSchema.prefault({}),
+  mcp: McpConfigSchema.prefault({}),
 });
 export type Plugins = z.infer<typeof PluginsSchema>;
 

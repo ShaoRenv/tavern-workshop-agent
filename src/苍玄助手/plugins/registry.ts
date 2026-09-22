@@ -202,6 +202,100 @@ export function availablePages(state: PluginStateHost): PageEntry[] {
   return tabbarPages(allPages(state));
 }
 
+/* ==================== 运行时注册（MCP：跑起来才知道有什么工具） ==================== */
+
+/**
+ * 运行时注册的一条来源。
+ *
+ * 为什么必须有这条通道：`manifest.contributes.tools` 是**静态声明**，
+ * 而 MCP 要 `initialize` + `tools/list` 之后才知道远端有什么工具 ——
+ * 静态清单撑不住（设计自查 B1）。所以分两条：
+ *   - 静态：manifest.contributes.tools（内置插件的工具）
+ *   - 运行时：本函数（MCP 拉到什么就是什么）
+ *
+ * 底座**不认识「MCP」这个词**：它只知道「有个插件运行时注册了一批工具，来源标签是这个」。
+ */
+export interface RuntimeToolSource {
+  plugin: PluginId;
+  /** 界面上的来源标签，如 `MCP · 我的服务器`；留空则用插件名 */
+  label: string;
+  tools: ToolDef[];
+}
+
+const runtimeSources = new Map<PluginId, RuntimeToolSource>();
+
+/** 注册结果：成功哪些、拒绝哪些（拒绝要带人话原因，不静默丢） */
+export interface RuntimeRegisterReport {
+  registered: string[];
+  rejected: Array<{ name: string; reason: string }>;
+}
+
+/** 全部内置插件**静态**声明的工具名（运行时注册不许撞它们） */
+function staticToolNames(): Set<string> {
+  const names = new Set<string>();
+  for (const manifest of PLUGIN_MANIFESTS) {
+    for (const def of manifest.contributes.tools ?? []) names.add(def.name);
+  }
+  return names;
+}
+
+/**
+ * 运行时注册 / 覆盖某个插件的工具集（原子：整批换掉上一次的）。
+ *
+ * 口径：
+ *   - **整批替换** —— 重连后远端工具可能变了，绝不能把上一批残留下来；
+ *   - 名字空 / 同批重名 / 撞上静态声明的工具 → **拒绝并给出原因**（不静默成功）；
+ *   - 幂等：同一个插件重复注册就是换新的一批；
+ *   - 插件被关掉 / 能力闸拦下时，这批工具**自动不生效**（pluginToolDefs 只取 loadablePlugins）——
+ *     所以断开时**不必须**手动注销，但断开时调 unregisterRuntimeTools 更干净。
+ */
+export function registerRuntimeTools(
+  plugin: PluginId,
+  tools: ToolDef[],
+  label = '',
+): RuntimeRegisterReport {
+  const registered: string[] = [];
+  const rejected: Array<{ name: string; reason: string }> = [];
+  const staticNames = staticToolNames();
+  const clean: ToolDef[] = [];
+
+  for (const def of Array.isArray(tools) ? tools : []) {
+    const name = typeof def?.name === 'string' ? def.name.trim() : '';
+    if (!name) {
+      rejected.push({ name: '', reason: '这个远端工具没有名字，没法进工具表' });
+      continue;
+    }
+    if (clean.some(item => item.name === name)) {
+      rejected.push({ name, reason: '同一次注册里有两个同名工具' });
+      continue;
+    }
+    if (staticNames.has(name)) {
+      rejected.push({ name, reason: '这个名字已被内置插件的工具占用（静态声明优先）' });
+      continue;
+    }
+    clean.push(def);
+    registered.push(name);
+  }
+
+  runtimeSources.set(plugin, { plugin, label, tools: clean });
+  return { registered, rejected };
+}
+
+/** 撤销某个插件的运行时工具（断开 / 卸载时调；关插件时不需要，loadablePlugins 已经挡住） */
+export function unregisterRuntimeTools(plugin: PluginId): void {
+  runtimeSources.delete(plugin);
+}
+
+/** 某个插件当前运行时注册的工具（不管开关） */
+export function runtimeToolsOf(plugin: PluginId): ToolDef[] {
+  return runtimeSources.get(plugin)?.tools ?? [];
+}
+
+/** 某个插件当前运行时注册的工具名（界面 / 调试用） */
+export function runtimeToolNames(plugin: PluginId): string[] {
+  return runtimeToolsOf(plugin).map(def => def.name);
+}
+
 /* ============================ 工具 ============================ */
 
 /** 已启用插件的工具定义（**活的**：关插件就没有） */
@@ -209,6 +303,8 @@ export function pluginToolDefs(state: PluginStateHost): ToolDef[] {
   const out: ToolDef[] = [];
   for (const manifest of loadablePlugins(state)) {
     for (const def of manifest.contributes.tools ?? []) out.push(def);
+    // 运行时注册的工具（MCP）：插件装载着才进来 —— 关插件 / 被能力闸拦下即消失
+    for (const def of runtimeToolsOf(manifest.id)) out.push(def);
   }
   return out;
 }
@@ -231,7 +327,8 @@ export function pluginAllTools(state: PluginStateHost): string[] {
 function collectToolNames(state: PluginStateHost, onlyDefault: boolean): string[] {
   const out: string[] = [];
   for (const manifest of loadablePlugins(state)) {
-    for (const def of manifest.contributes.tools ?? []) {
+    const live = [...(manifest.contributes.tools ?? []), ...runtimeToolsOf(manifest.id)];
+    for (const def of live) {
       if (onlyDefault && !toolDefaultOn(def)) continue;
       if (!out.includes(def.name)) out.push(def.name);
     }
@@ -249,13 +346,23 @@ export function toolOwner(name: string): PluginId | 'base' {
   for (const manifest of PLUGIN_MANIFESTS) {
     if ((manifest.contributes.tools ?? []).some(def => def.name === name)) return manifest.id;
   }
+  // ⚠️ 运行时注册的工具**必须**在这里能归属：落回 'base' 的话，
+  //    run/runner.ts 的 liveToolDefs 会把它当底座工具，关掉插件后照样发给模型。
+  for (const [plugin, source] of runtimeSources) {
+    if (source.tools.some(def => def.name === name)) return plugin;
+  }
   return 'base';
 }
 
-/** 工具来源标签（界面上必须可见：底座 / 某个插件的名字） */
+/** 工具来源标签（界面上必须可见：底座 / 某个插件的名字 / MCP · 服务器名） */
 export function toolOwnerLabel(name: string): string {
   const owner = toolOwner(name);
-  return owner === 'base' ? '底座' : pluginManifest(owner).name;
+  if (owner === 'base') return '底座';
+  const source = runtimeSources.get(owner);
+  if (source && source.tools.some(def => def.name === name)) {
+    return source.label.trim() !== '' ? source.label : pluginManifest(owner).name;
+  }
+  return pluginManifest(owner).name;
 }
 
 /* ============================ 宏 / 技能 / 预设 / 设置 ============================ */

@@ -525,12 +525,12 @@ test('store：setPluginConfig 忽略 enabled 键（开关只在 setPluginEnabled
 
 /* ==================== 阶段 2 结构（源码级防回归） ==================== */
 
-test('源码级：App.vue 的页面分支只剩 worldbook / chat（设置走 v-else），没有 portraits / capability / records', () => {
+test('源码级：App.vue 的页面分支 = worldbook / mcp / chat（设置走 v-else），没有 portraits / capability / records', () => {
   const app = codeOnly(readFileSync('src/苍玄助手/App.vue', 'utf8'));
   const branchIds = [...app.matchAll(/v-(?:if|else-if)="tab === '([^']+)'"/g)].map(match => match[1]);
-  // 阶段 3：苍玄助手去页面 → 插件页只剩 worldbook，加核心页 chat。
+  // 阶段 6：worldbook + mcp 两个插件页，加核心页 chat。
   // ⚠️ 错误边界那个 v-if="pageError" 不带 tab === 判定，所以不会混进来。
-  assert.deepEqual(branchIds, ['worldbook', 'chat'], '页面分支 = 1 个插件页 + 1 个核心页');
+  assert.deepEqual(branchIds, ['worldbook', 'mcp', 'chat'], '页面分支 = 2 个插件页 + 1 个核心页');
   assert.equal(branchIds.includes('portraits'), false, '阶段 3：苍玄助手不再是页面');
   assert.equal(branchIds.includes('capability'), false, '能力不再是页面');
   assert.equal(branchIds.includes('records'), false, '记录不再是页面');

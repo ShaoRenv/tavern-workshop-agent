@@ -68,7 +68,12 @@ test('硬规矩①：plugins/builtin/*/ 下不许出现跨插件的 import（目
       .map(file => file.replace(/^.*?plugins\/builtin\//, '').split('/')[0])
       .filter(part => part && part !== 'index.ts'),
   );
-  assert.deepEqual([...owners].sort(), ['cangxuan', 'image', 'worldbook'], '内置插件就是这三个自包含目录');
+  // 阶段 6 起是**四个**：mcp 也是自包含目录（运行时从远端拉工具，contributes.tools 为空）
+  assert.deepEqual(
+    [...owners].sort(),
+    ['cangxuan', 'image', 'mcp', 'worldbook'].sort(),
+    '内置插件就是这四个自包含目录',
+  );
 
   const violations: string[] = [];
   for (const file of files) {
@@ -88,14 +93,14 @@ test('硬规矩①：plugins/builtin/*/ 下不许出现跨插件的 import（目
   const aggregator = importSpecifiers(readFileSync(join(builtinDir, 'index.ts'), 'utf8'));
   assert.deepEqual(
     aggregator.map(item => item.specifier).sort(),
-    ['../types.ts', './cangxuan/manifest.ts', './image/manifest.ts', './worldbook/manifest.ts'],
+    ['../types.ts', './cangxuan/manifest.ts', './image/manifest.ts', './mcp/manifest.ts', './worldbook/manifest.ts'],
     'plugins/builtin/index.ts 是全工程唯一列出内置插件的地方，且只 import 各目录的 manifest + 契约类型',
   );
-  // 顺序也要对：三个 manifest 都在，且**没有**第二个插件目录被漏掉
+  // 四个 manifest 都在，且**没有**插件目录被漏掉
   assert.deepEqual(
     aggregator.filter(item => item.specifier.endsWith('/manifest.ts')).map(item => item.specifier).sort(),
-    ['./cangxuan/manifest.ts', './image/manifest.ts', './worldbook/manifest.ts'],
-    '三个内置插件一个不多一个不少',
+    ['./cangxuan/manifest.ts', './image/manifest.ts', './mcp/manifest.ts', './worldbook/manifest.ts'],
+    '四个内置插件一个不多一个不少',
   );
 });
 
@@ -217,4 +222,139 @@ test('硬规矩②：关掉世界书 → 顶栏 2 格（对话 / 设置）；重
 
   // allPages 与顶栏在阶段 3 相等（还没有 inTabbar:false 的插件内容页，那是阶段 5 MCP）
   assert.deepEqual(allPages(state()).map(page => page.id), availablePages(state()).map(page => page.id));
+});
+/* ==================== ⭐新性质②：mcp 是唯一「工具靠运行时注册」的插件 ==================== */
+
+test('⭐mcp 的 contributes.tools 必须是**空数组**（工具是运行时从远端拉的，不能写死在 manifest 里）', async () => {
+  const { pluginManifest, runtimeToolsOf } = await import('../../src/苍玄助手/plugins/registry.ts');
+  const mcp = pluginManifest('mcp');
+
+  assert.ok(
+    Array.isArray(mcp.contributes.tools),
+    'tools 要显式声明成数组（不是 undefined）—— 这是「静态工具为空」这件事的书面表达',
+  );
+  assert.deepEqual(
+    mcp.contributes.tools,
+    [],
+    'mcp 的工具**全部**来自 registerRuntimeTools（tools/list 拉回来的）；写死进 manifest 说明有人把远端工具当静态的写了',
+  );
+
+  // 运行时注册通道才是它真正的工具来源（还没连服务器时当然是空的）
+  assert.deepEqual(runtimeToolsOf('mcp'), [], '没连任何服务器时，运行时工具为空');
+
+  // 其余三个内置插件是**静态声明**型：静态工具不许为空（否则它们的工具就凭空没了）
+  for (const id of ['cangxuan', 'worldbook', 'image']) {
+    assert.ok(
+      (pluginManifest(id).contributes.tools ?? []).length > 0,
+      id + ' 是静态声明型插件，contributes.tools 不该为空',
+    );
+  }
+});
+
+test('源码级：当前只有 mcp 一个插件用 registerRuntimeTools（别的插件不许偷用运行时通道）', () => {
+  // ⚠️ walkFiles 返回的已经是**相对 src/苍玄助手**的 posix 路径，不要再 join srcRoot
+  const files = walkFiles(builtinDir)
+    .filter(file => /\.(ts|vue)$/.test(file))
+    .filter(file => /registerRuntimeTools\s*\(/.test(codeOnly(readFileSync(join(srcRoot, file), 'utf8'))))
+    .map(file => file.replace(/^.*plugins\/builtin\//, '').split('/')[0]);
+  assert.deepEqual([...new Set(files)], ['mcp'], '运行时注册当前只有 MCP 需要（阶段 5 的设计就是它一个）');
+});
+/* ==================== ⭐宿主外壳的「真牙齿」：字面量扫描 ==================== */
+
+/**
+ * 扫一段源码里所有指向宿主外壳的**字面量**（不只是静态 import）。
+ *
+ * 为什么需要这一层：上面那条闸用的是 `importSpecifiers`，只认
+ *   `import x from '...'` / `export ... from '...'` / `import('...')`
+ * 这几种**语法形态**。但只要把 import 挪成
+ *   `const mod = await import('../../../components/' + name)`
+ * 或
+ *   `const p = '../../../components/Sw.vue'`
+ * 静态 import 那条闸就抓不到了 —— 而插件的**自包含性**照样被破坏。
+ *
+ * 这条是「口径的真牙齿」：插件目录里**不许出现 components/ 这个字面量**
+ * （`views/` / `stores/` 同理）。外部插件只有「自包含目录 + manifest + 运行时 host」，
+ * 放行宿主外壳等于给未来的外部插件留一条走不通的路。
+ *
+ * ⚠️ 先 `codeOnly` 剥注释再扫：注释里举例提到 `components/` 不算违规，
+ * 否则以后写解释性注释都要绕着走（本文件自己就大量提到它）。
+ */
+function shellLiterals(text: string): string[] {
+  const code = codeOnly(text);
+  const out: string[] = [];
+  for (const shell of ['components', 'views', 'stores']) {
+    // 形状：可选的 ./ 前缀 + 若干 ../ + shell 目录名，后面跟 / 或引号
+    const pattern = new RegExp("(?:\\.\\./)*\\.?\\/?" + shell + "\\/", 'g');
+    for (const match of code.matchAll(pattern)) {
+      out.push(match[0]);
+    }
+  }
+  return out;
+}
+
+/** 反例自检用：跑一段假源码，返回它被抓到的外壳字面量 */
+function probeShell(src: string): string[] {
+  return shellLiterals(src);
+}
+
+test('⭐源码级（真牙齿）：插件目录里不许出现宿主外壳的**字面量**（静态/动态 import、拼路径都算）', () => {
+  const files = walkFiles(builtinDir).filter(file => /\.(ts|vue)$/.test(file) && file !== 'plugins/builtin/index.ts').sort();
+  assert.ok(files.length > 5, '要真的扫到插件文件（否则这条是空转）');
+
+  const offenders: string[] = [];
+  for (const file of files) {
+    for (const literal of shellLiterals(readFileSync(join(srcRoot, file), 'utf8'))) {
+      offenders.push(file + ' → ' + literal);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    '插件目录里出现了指向宿主外壳的字面量（components/ views/ stores/）——\n' +
+      '插件必须是自包含目录（外部插件只有「自包含目录 + manifest + 运行时 host」）：\n' +
+      offenders.join('\n'),
+  );
+});
+
+test('⭐真牙齿闸的反例自检：静态 import / 动态 import / 拼路径**三种都抓得住**，纯注释**不误报**', () => {
+  // ① 静态 import —— 老闸也能抓，这里确认新闸没退化
+  assert.deepEqual(
+    probeShell("import Sw from '../../../components/Sw.vue';"),
+    ['../../../components/'],
+    '静态 import 要被抓到',
+  );
+
+  // ② ⭐动态 import —— 这正是老闸（只认语法形态）漏掉的那种
+  assert.deepEqual(
+    probeShell("const mod = await import('../../../components/ui_types.ts');"),
+    ['../../../components/'],
+    '动态 import 必须也被抓到（把 import 挪去动态不能绕过闸）',
+  );
+
+  // ③ ⭐路径字符串拼接 —— 最隐蔽的一种：根本不是 import 语句
+  assert.deepEqual(
+    probeShell("const dir = '../../../components/';"),
+    ['../../../components/'],
+    '拼路径的字面量也要抓到',
+  );
+  assert.deepEqual(
+    probeShell("const file = '../../../components/' + name + '.vue';"),
+    ['../../../components/'],
+    '拼接形态同样要抓到',
+  );
+
+  // ④ 三种外壳目录都要覆盖
+  for (const shell of ['components', 'views', 'stores']) {
+    assert.deepEqual(probeShell("x = '../../" + shell + "/y';"), ['../../' + shell + '/'], shell + ' 要被扫到');
+  }
+
+  // ⑤ ⚠️ **不误报**：只在注释里提 components/ 不算违规
+  assert.deepEqual(probeShell('// 这里以前 import 过 ../../../components/Sw.vue，后来改成自包含了'), [], '行注释里提到不算违规');
+  assert.deepEqual(probeShell('/* 举例：不要把 ../../components/ 写进插件 */'), [], '块注释里提到不算违规');
+  assert.deepEqual(probeShell('<!-- 模板注释：components/ 是宿主外壳 -->'), [], 'HTML 注释里提到不算违规');
+
+  // ⑥ 不误报：合法路径不该被当成外壳
+  assert.deepEqual(probeShell("import x from '../../../core/types.ts';"), [], 'core/ 是允许的');
+  assert.deepEqual(probeShell("import y from './Switch.vue';"), [], '同目录自包含零件是允许的');
+  assert.deepEqual(probeShell("const 组件 = '../../../componentsX/y';"), [], '前缀相同的别的目录名不算（componentsX ≠ components）');
 });

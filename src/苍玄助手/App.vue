@@ -30,6 +30,19 @@
       @goto-chat="goto('chat')"
       @change="store.save()"
     />
+    <!-- 阶段 6：MCP 服务器页。inTabbar:false —— 顶栏保持 3 格，这页从插件管理页
+         「它加了什么 → 页面」进（存在性判定用 allPages，画顶栏用 availablePages）。 -->
+    <McpView
+      v-else-if="tab === 'mcp'"
+      :config="mcpConfig"
+      :statuses="mcpStatuses"
+      :tools-of="mcpTools"
+      @patch="onMcpPatch"
+      @add="onMcpAdd"
+      @remove="onMcpRemove"
+      @action="onMcpAction"
+      @change="store.save()"
+    />
     <ChatView
       v-else-if="tab === 'chat'"
       :data="store.data"
@@ -95,6 +108,7 @@ import {
   uid,
   type Artifact,
   type GlobalCaps,
+  type McpServer,
   type Preset,
   type Skill,
   type Turn,
@@ -102,7 +116,7 @@ import {
 import { createWorldbookPort } from './core/worldbook.ts';
 import { generateImages } from './plugins/builtin/image/nai.ts';
 import { wirePluginMacros } from './plugins/host.ts';
-import { allPages, availablePages, pluginAllTools, pluginTools as pluginToolsOf, toolOwner, toolOwnerLabel } from './plugins/registry.ts';
+import { allPages, availablePages, pluginAllTools, pluginEnabled, pluginTools as pluginToolsOf, toolOwner, toolOwnerLabel } from './plugins/registry.ts';
 import { createRunner } from './run/runner.ts';
 import { useAppStore } from './stores/app.ts';
 import ChatView from './views/ChatView.vue';
@@ -110,6 +124,18 @@ import SettingsView from './views/SettingsView.vue';
 // 阶段 3：插件页面从**插件目录**静态 import（单文件酒馆脚本里 import() 的 chunk 永远 404，
 // 所以插件页只能静态引入；见 webpack.config.ts 的 limitChunkCount）。
 import WorldbookView from './plugins/builtin/worldbook/Page.vue';
+// 阶段 6：MCP 的**服务器页**同样静态 import（单文件脚本里 import() 的 chunk 永远 404）；
+// 连接层由 App.vue 驱动 —— 页面只管画，不认识 store 也不认识运行时状态。
+import McpView from './plugins/builtin/mcp/Page.vue';
+import {
+  connectServer,
+  disconnectAll,
+  disconnectServer,
+  serverStatus,
+  serverToolNames,
+  syncServers,
+} from './plugins/builtin/mcp/connection.ts';
+import { hostFn } from './core/host.ts';
 
 const ASSISTANT_NAME = '苍玄';
 
@@ -289,6 +315,15 @@ function onTouched(): void {
 
 /* -------------------- 载入外部数据 -------------------- */
 
+/**
+ * 读当前选中世界书的条目，写进 entries。
+ *
+ * ⚠️ 有**代次守卫**（entriesGeneration）：防抖只能减少并发，不能消除它 ——
+ * 某一本很大（1.1MB）时读得可能比防抖窗口还久，两次读就会重叠，先发的那次可能后回来，
+ * 把新选择的结果**覆盖成旧书**的条目。所以每次读领一个号，回来时号不是最新的就丢弃。
+ */
+let entriesGeneration = 0;
+
 async function refreshAll(): Promise<void> {
   try { roles.value = await loadRoles(); } catch (err) { console.warn('[苍玄助手] 角色读取失败', err); }
   try { worlds.value = await loadWorlds(); } catch (err) { console.warn('[苍玄助手] 世界书读取失败', err); }
@@ -297,18 +332,75 @@ async function refreshAll(): Promise<void> {
 }
 
 async function refreshEntries(): Promise<void> {
+  const generation = ++entriesGeneration;
   try {
     const picked = store.data.selection.worldbook_names.slice();
-    entries.value = picked.length ? await loadEntries(picked) : [];
+    const next = picked.length ? await loadEntries(picked) : [];
+    if (generation !== entriesGeneration) return; // 期间又换了选择 → 这次结果过期，别覆盖
+    entries.value = next;
   } catch (err) {
+    if (generation !== entriesGeneration) return;
     console.warn('[苍玄助手] 条目读取失败', err);
     entries.value = [];
   }
 }
 
+/* -------------------- 选择变化 → 重读条目（P5-8） -------------------- */
+
+/**
+ * 条目重读的防抖窗口（毫秒）。
+ *
+ * 为什么不立刻读：勾选是**逐本**发生的 —— 点「全选」会一次性改 N 本，用户手速快时
+ * 一秒内可能改十几次。每次改动都整本读一遍 = N 次宿主 IO + N 次大对象分配，
+ * 而世界书实测有 1.1MB 一本（loadEntries 要把整本 entries 从宿主拉过来才能投影出
+ * uid/name/group）。所以攒一小会儿，只按**最终**选择读一次。
+ * 250ms 是「手感上还即时」与「一次全选只读一次」之间的平衡（跟 store 落盘的 2500ms
+ * 不是一个量级：那个是写盘，这个是读出来给用户看，卡顿阈值更低）。
+ */
+const ENTRIES_DEBOUNCE_MS = 250;
+
+/** 防抖定时器（只有一个：永远以最后一次选择为准） */
+let entriesTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 请求重读条目（防抖）。选择一变就调它，真正的读在 refreshEntries 里。 */
+function scheduleEntriesRefresh(): void {
+  if (entriesTimer) clearTimeout(entriesTimer);
+  entriesTimer = setTimeout(() => {
+    entriesTimer = null;
+    void refreshEntries();
+  }, ENTRIES_DEBOUNCE_MS);
+}
+
+/**
+ * 当前选择世界书的**签名串**（用来判断「选择是不是变了」）—— 下面那条 watcher 的监听源。
+ *
+ * 这条 watcher 就是「选好世界书后，数据层会把条目读出来」那句界面文案的兑现处：
+ * 在它之前 refreshEntries() 只在挂载时（refreshAll）跑过一次，而 selection 是
+ * **持久化**的 —— 挂载时读到的是上次选的书，之后换选就再也没人重读，面板一直停在旧条目上。
+ *
+ * 两个刻意的选择：
+ *  1. **派生出一条字符串**，而不是监听数组：世界书页勾一本是**原地改数组**
+ *     （Page.vue 的 toggleWorld 用 splice / push），浅监听数组看不到；而 deep 又会深度遍历
+ *     整个响应式对象 —— App.vue 里曾经那条全局 deep watcher 就是因为「一次变动深遍历整份
+ *     RootData + 整份回传 46.7MB」被删掉的（有源码级防回归闸盯着，见 tests/苍玄助手/stores_save.test.ts）。
+ *     join 出来的串对两类改动（原地改 / 换引用）都会变，于是**既灵敏又不用 deep**。
+ *  2. 用 \u0000 而不是逗号分隔：世界书名理论上可能带逗号，否则「A,B」与「A」+「B」
+ *     会撞成同一个签名，漏掉一次重读。
+ */
+const selectionSignature = computed(() => store.data.selection.worldbook_names.join('\u0000'));
+
+// 选择一变（选中 / 取消 / 全选 / 清空）就安排重读条目。只管**后续变化**：
+// 挂载路径由 refreshAll() 负责（那是「回归不能弄坏」的第 2 条验收），所以不设 immediate。
+watch(selectionSignature, () => scheduleEntriesRefresh());
+
 function loadTools(): void {
   try {
-    const reg = createRegistry(createWorldbookPort());
+    // ⚠️ 必须把 **plugin_state** 传进去（原来没传）：
+    //   不传的话注册表按 manifest 的 defaultEnabled 算，于是
+    //   ① 用户手动开着的非默认插件（生图 / MCP）的工具**在界面上根本列不出来**；
+    //   ② 运行时注册的工具（MCP 连上才有的那些）永远进不了这份目录。
+    //   真机验收就是这么抓到的：连上服务器后「能力 · 工具」仍是 15 行、没有 cx_ping。
+    const reg = createRegistry(createWorldbookPort(), { plugin_state: store.data.plugin_state });
     catalog.value = toUiTools(reg.catalog());
   } catch (err) {
     console.warn('[苍玄助手] 工具清单读取失败', err);
@@ -337,6 +429,8 @@ onMounted(() => {
   // renderer 只认已启用的插件 —— 关掉即退回空串。
   wirePluginMacros(store.data);
   wireBackupSink();
+  // MCP：启动时按配置同步一遍（幂等；插件关着时会把残留连接断干净）
+  void syncMcp();
   void refreshAll();
   document.addEventListener('visibilitychange', onVisibilityChange);
 });
@@ -650,6 +744,173 @@ function onToolReset(name: string): void {
   notify('已恢复内置默认');
 }
 
+/* -------------------- 阶段 6：MCP 插件（服务器清单 + 连接） -------------------- */
+
+/**
+ * MCP 的设置就在 plugins.mcp —— 设置归插件、开关仍归 plugin_state（老口径不破）。
+ * store.data 已经过 zod parse，所以 mcp.servers 一定存在（prefault 兜底）。
+ */
+const mcpConfig = computed(() => store.data.plugins.mcp);
+
+/**
+ * 连接动作的「重算信号」。
+ *
+ * ⚠️ 为什么需要它：connection.ts 的 sessions 是**模块级普通对象**（故意的：它不该依赖 vue），
+ * 所以连上 / 断开这件事**不会自己触发 Vue 重算**。下面两个只读计算属性靠这个 tick 依赖它 ——
+ * 没有它，用户点了「连接」，工具清单要等下一次别的数据变动才刷新（看起来像没生效）。
+ */
+const mcpTick = ref(0);
+function mcpBump(): void {
+  mcpTick.value += 1;
+  // 工具目录也要跟着重算：运行时注册的工具（cx_ping 那类）不在挂载时那份目录里，
+  // 不重算的话「能力 · 工具」永远少它们 —— 界面又替底层撒谎了。
+  loadTools();
+}
+
+/**
+ * 每台服务器该显示的状态（详情页那一行）。
+ *
+ * 分工：**「连上没有」只由 connection.ts 回答**（它持有运行时真相）；
+ * 「未启用 / 缺地址」这类不依赖运行时的事在这里兜底，免得没连过的服务器显示「未连接」却没原因。
+ */
+const mcpStatuses = computed<Record<string, { label: string; kind: '' | 'ok' | 'warn' | 'dang' }>>(() => {
+  void mcpTick.value; // 依赖信号：连接动作后必须重算
+  const out: Record<string, { label: string; kind: '' | 'ok' | 'warn' | 'dang' }> = {};
+  for (const server of mcpConfig.value.servers) {
+    if (server.enabled === false) {
+      out[server.id] = { label: '未启用', kind: '' };
+      continue;
+    }
+    if (!server.url.trim()) {
+      out[server.id] = { label: '缺地址', kind: 'warn' };
+      continue;
+    }
+    out[server.id] = serverStatus(server.id);
+  }
+  return out;
+});
+
+/** 每台服务器当前带来的**远端**工具名（没连上就是空数组）—— 页面拿它画逐条停用的勾选框 */
+const mcpTools = computed<Record<string, string[]>>(() => {
+  void mcpTick.value;
+  const out: Record<string, string[]> = {};
+  for (const server of mcpConfig.value.servers) out[server.id] = serverToolNames(server.id);
+  return out;
+});
+
+/**
+ * 取宿主 fetch（能力名 'fetch'）。
+ *
+ * **晚绑定**：拿不到就返回 null，由 connection.ts 翻成「这台机器没有网络能力」的人话 ——
+ * 而不是在这儿抛，把整页渲染打断（协议层与连接层的口径一致：失败是返回值，不是异常）。
+ */
+function mcpFetch(): typeof fetch | null {
+  const fn = hostFn('fetch') as typeof fetch | undefined;
+  return typeof fn === 'function' ? fn : null;
+}
+
+/**
+ * 把一次连接结果写回配置（last_error / last_ok_at）。
+ *
+ * ⚠️ 这一步不能省：connection.ts 不碰持久化，而 manifest.status() 读的正是 config 里的
+ * last_error / last_ok_at —— 不写回去，连不上的服务器在插件列表里会一直显示「已连接 N 台」，
+ * 那就是界面替底层撒谎。
+ */
+function persistMcpResult(result: { id: string; ok: boolean; error?: string; at: number }): void {
+  const server = mcpConfig.value.servers.find(item => item.id === result.id);
+  if (!server) return;
+  server.last_error = result.ok ? '' : (result.error ?? '连接失败');
+  if (result.ok) server.last_ok_at = result.at;
+}
+
+/** 连一台（用户在服务器页点「连接 / 刷新」） */
+async function connectMcpServer(id: string): Promise<void> {
+  const server = mcpConfig.value.servers.find(item => item.id === id);
+  if (!server) return;
+  const result = await connectServer(server, mcpFetch);
+  persistMcpResult(result);
+  mcpBump();
+  store.save();
+  if (!result.ok) notify('MCP 连接失败：' + (result.error ?? '未知原因'));
+}
+
+function disconnectMcpServer(id: string): void {
+  disconnectServer(id);
+  mcpBump();
+}
+
+/** 服务器页的三个动作（连接 / 断开 / 刷新） */
+async function onMcpAction(payload: { id: string; action: 'connect' | 'disconnect' | 'refresh' }): Promise<void> {
+  if (payload.action === 'disconnect') {
+    disconnectMcpServer(payload.id);
+    return;
+  }
+  // 刷新 = 先断开再连：远端改了工具清单只有重连才看得到
+  if (payload.action === 'refresh') disconnectMcpServer(payload.id);
+  await connectMcpServer(payload.id);
+}
+
+function onMcpPatch(payload: { id: string; patch: Partial<McpServer> }): void {
+  const server = mcpConfig.value.servers.find(item => item.id === payload.id);
+  if (!server) return;
+  Object.assign(server, payload.patch);
+  // 落盘交给页面的 @change（store.save()），这里不重复写
+}
+
+/**
+ * 每行服务器都必须有 id —— id 就是这行的身份：连接、逐条停用的归属、错误写回全靠它。
+ *
+ * ⚠️ 这段是**真机验收逼出来的兜底**：页面上的「加入清单」最初只给了名字与地址，
+ * 行里 id 是空的，于是点「连接」直接被拒（connection.ts 的防御分支报了
+ * 「这台服务器没有 id，没法建立连接」）。**身份不该由展示层保证** ——
+ * 宿主在这里统一补，页面漏给 / 老数据里没有，都自动修好。
+ *
+ * 返回「补过没有」，补过就要落盘（不然刷新又变回空 id）。
+ */
+function ensureMcpIds(): boolean {
+  let changed = false;
+  for (const server of mcpConfig.value.servers) {
+    if (typeof server.id === 'string' && server.id.trim()) continue;
+    server.id = uid();
+    changed = true;
+  }
+  return changed;
+}
+
+function onMcpAdd(payload: { server: McpServer }): void {
+  mcpConfig.value.servers.push({ ...payload.server, id: uid() });
+  store.save();
+}
+
+function onMcpRemove(payload: { id: string }): void {
+  // 先断开再删：留在 sessions 里的连接会让「已连接 N 台」多算一台
+  disconnectMcpServer(payload.id);
+  const list = mcpConfig.value.servers;
+  const index = list.findIndex(item => item.id === payload.id);
+  if (index >= 0) list.splice(index, 1);
+}
+
+/**
+ * 按配置同步一遍连接（幂等）。三个时机调它：面板启动、插件开关变化、导入数据之后。
+ *
+ * 插件**关着**时把连接全部断干净：注册表层已经挡住工具（loadablePlugins），
+ * 但留着连接会让下次打开时拿一个旧会话冒充「已连接」。
+ */
+async function syncMcp(): Promise<void> {
+  if (!pluginEnabled(store.data, 'mcp')) {
+    disconnectAll();
+    mcpBump();
+    return;
+  }
+  // 先修身份（老数据 / 页面漏给），再按配置连 —— id 不对的话连接一定失败
+  if (ensureMcpIds()) store.save();
+  const results = await syncServers(mcpConfig.value.servers, mcpFetch);
+  if (!results.length) return; // 幂等：什么都没动就不要白写一次盘
+  for (const result of results) persistMcpResult(result);
+  mcpBump();
+  store.save();
+}
+
 /* -------------------- 插件段（设置 · 能力 · 插件） -------------------- */
 
 /**
@@ -661,6 +922,8 @@ function onPluginToggle(id: string, enabled: boolean): void {
   // 开关变了，活的宏也变了：重新接线（renderer 只认已启用的插件）。
   // 不同步这一步的话，关掉插件后 {{图片提示词}} 还会用旧 renderer 渲染出内容。
   wirePluginMacros(store.data);
+  // MCP：「关掉即消失」的第四层 —— 关插件要断开全部服务器，打开则按配置连上。
+  void syncMcp();
 }
 
 /** 插件自己的设置：只 emit，写路径唯一在这里（store.setPluginConfig；enabled 由 store 忽略） */

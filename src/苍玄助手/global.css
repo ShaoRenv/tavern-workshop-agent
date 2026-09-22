@@ -2117,3 +2117,115 @@ body {
     font-size: 13px;
   }
 }
+
+/* ==================== MCP 服务器页（task-40） ==================== */
+
+/*
+ * 归属：插件页 src/苍玄助手/plugins/builtin/mcp/Page.vue 专用。
+ * 全部带 .cx-mcp- 前缀，不碰任何已有规则 / 不碰 --qx-* token。
+ * 颜色一律走变量（浅色主题才跟着变），尺寸沿用现有尺度。
+ */
+
+/* 列表行：整行可点（进详情），所以点击区按 40px+ 给 */
+.cx-mcp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 9px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.cx-mcp-row:hover {
+  background: var(--qx-field);
+}
+
+.cx-mcp-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cx-mcp-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 名字过长省略，别把状态标签挤走 */
+.cx-mcp-name .cx-nm {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cx-mcp-url {
+  font-size: 10.5px;
+  color: var(--qx-faint);
+  margin-top: 2px;
+  /* 长 URL 换行而不是横向撑开（375px 不横滚） */
+  overflow-wrap: anywhere;
+}
+
+.cx-mcp-arrow {
+  flex: 0 0 auto;
+  color: var(--qx-faint);
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* 详情里的动作键行：窄屏换行，不横滚 */
+.cx-mcp-acts {
+  flex-wrap: wrap;
+}
+
+/* 请求头键值对：左键名右值，都占满剩余宽度 */
+.cx-mcp-hdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.cx-mcp-hdr > input:first-child {
+  flex: 1 1 40%;
+  min-width: 0;
+}
+
+.cx-mcp-hdr > input:nth-child(2) {
+  flex: 1 1 60%;
+  min-width: 0;
+}
+
+/* 工具行：勾选框 + 名字 + （停用时的）标签 */
+.cx-mcp-tool .cx-nm {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 最近错误原文：等宽、可滚、限高（原文可能很长） */
+.cx-mcp-err {
+  max-height: 220px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1280px) {
+  .cx-mcp-row {
+    min-height: 56px;
+  }
+
+  /* 手机端：键值对压成上下两行，避免两个窄输入框挤在一起 */
+  .cx-mcp-hdr {
+    flex-wrap: wrap;
+  }
+
+  .cx-mcp-hdr > input:first-child,
+  .cx-mcp-hdr > input:nth-child(2) {
+    flex: 1 1 100%;
+  }
+}

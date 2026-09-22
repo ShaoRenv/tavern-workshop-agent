@@ -42,8 +42,13 @@ export type { AgentSkillLike, RegistryOptions, SkillDraft };
  *
  * 阶段 3：世界书 7 + 生图 1 已搬进插件，加上苍玄助手插件的 3 个（portrait_list /
  * portrait_meta / portrait_prompt），共 16 个。
- * ⚠️ 这份清单是**底座眼里的全集**，跟「插件开不开」无关：
+ * ⚠️ 这份清单是**内置工具的全集**（顺序 = 设置页显示顺序），跟「插件开不开」无关：
  * 关掉插件时工具定义不进注册表，但界面仍要靠这份清单标出「来源已停用」（见 App.vue）。
+ *
+ * ⚠️⚠️ 它**不再是「底座眼里的全部工具」**（阶段 6 起）：运行时注册的工具（MCP 连上才有）
+ * 以及将来外部插件带来的工具，名字根本不可能预先写在这里。所以 `catalog()` 必须是
+ * **「这份清单 ∪ 注册表里真实存在的 defs」**，不能只遍历这份名单 —— 否则新来源的工具
+ * 模型拿得到、界面却列不出来（真机验收就这么抓到的：连上 MCP 后「能力 · 工具」少两个）。
  */
 export const TOOL_NAMES = [
   'wb_list',
@@ -156,6 +161,34 @@ function createFlowTools(): ToolDef[] {
 
 /* ============================ 注册表 ============================ */
 
+/**
+ * ToolDef → 设置页的一行（工具详情页也吃这份）。
+ *
+ * ⚠️ 抽成函数是**故意的**：`catalog()` 有两条来源（内置名单 / 名单外的真实 defs），
+ * 两处各写一份投影 = 迟早有一处漏字段（比如 source / settings 只在一个分支里透出）。
+ */
+function catalogRow(def: ToolDef): ToolCatalogRow {
+  return {
+    name: def.name,
+    group: def.group,
+    group_label: TOOL_GROUP_LABELS[def.group] ?? def.group,
+    title: def.title,
+    desc: def.desc,
+    model_description: def.model_description,
+    parameters: def.parameters,
+    default_on: def.default_on,
+    user_initiated_only: !!def.user_initiated_only,
+    ...(typeof def.timeoutMs === 'number' ? { timeout_ms: def.timeoutMs } : {}),
+    ...(def.readonly ? { readonly: true } : {}),
+    ...(def.source ? { source: def.source } : {}),
+    ...(def.origin ? { origin: def.origin } : {}),
+    // 工具自己的声明式设置（阶段 4）：内核只负责**原样透出**，不认识里面任何键。
+    // 没声明就保持键缺席 —— 详情页据此显示「这个工具没有专属设置」。
+    ...(def.settings !== undefined ? { settings: def.settings } : {}),
+    missing: false,
+  };
+}
+
 export class ToolRegistry {
   readonly defs: ToolDef[];
   private readonly index = new Map<string, ToolDef>();
@@ -238,7 +271,9 @@ export class ToolRegistry {
    * 不套 tool_overrides —— 覆盖值由界面自己从 store 读。
    */
   catalog(): ToolCatalogRow[] {
-    return TOOL_NAMES.map(name => {
+    // ① 内置名单：即使注册表里没有（插件关着 / 名字过期）也要出行，标 missing ——
+    //    预设里硬引用过的工具靠这行兜底显示「来源已停用 / 缺失」。
+    const rows: ToolCatalogRow[] = TOOL_NAMES.map(name => {
       const def = this.byName(name);
       if (!def) {
         return {
@@ -254,26 +289,17 @@ export class ToolRegistry {
           missing: true,
         };
       }
-      return {
-        name: def.name,
-        group: def.group,
-        group_label: TOOL_GROUP_LABELS[def.group] ?? def.group,
-        title: def.title,
-        desc: def.desc,
-        model_description: def.model_description,
-        parameters: def.parameters,
-        default_on: def.default_on,
-        user_initiated_only: !!def.user_initiated_only,
-        ...(typeof def.timeoutMs === 'number' ? { timeout_ms: def.timeoutMs } : {}),
-        ...(def.readonly ? { readonly: true } : {}),
-        ...(def.source ? { source: def.source } : {}),
-        ...(def.origin ? { origin: def.origin } : {}),
-        // 工具自己的声明式设置（阶段 4）：内核只负责**原样透出**，不认识里面任何键。
-        // 没声明就保持键缺席 —— 详情页据此显示「这个工具没有专属设置」。
-        ...(def.settings !== undefined ? { settings: def.settings } : {}),
-        missing: false,
-      };
+      return catalogRow(def);
     });
+
+    // ② **名单之外**的真实 defs 也要列：运行时注册的（MCP）、以后外部插件带来的。
+    //    顺序 = this.defs 的顺序（constructor 已把这批排到最后），保持「谁先注册在前」。
+    const listed = new Set<string>(TOOL_NAMES);
+    for (const def of this.defs) {
+      if (listed.has(def.name)) continue;
+      rows.push(catalogRow(def));
+    }
+    return rows;
   }
 
   /** 自检：清单里每个工具都在吗？名字有没有多余？ */
