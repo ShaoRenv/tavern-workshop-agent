@@ -3,7 +3,12 @@
  *
  * 阶段 3 起：**manifest 不再写死在这里**，而是各个插件目录自己的 `manifest.ts`，
  * 由 `plugins/builtin/index.ts` 汇总成本文件的 PLUGIN_MANIFESTS。
- * 这样内置插件与未来外部插件**同形**：一个自包含目录 + 一份 manifest。
+ * 这样内置插件与外部插件**同形**：一个自包含目录 + 一份 manifest。
+ *
+ * 阶段 7 起有**两条** manifest 通道：
+ *   · 内置 → 静态 import（`BUILTIN_MANIFESTS`，编译期就定死）；
+ *   · 外部 → `registerExternalManifest()`（代码下载执行之后才知道它有什么）。
+ * 聚合一律走 `allManifests()` —— **别再直接遍历 PLUGIN_MANIFESTS**。
  *
  * 聚合口径：**插件开关在 plugin_state（底座拥有），插件设置在自己那段 plugins.<id>（插件拥有）**。
  * 所有「已启用的插件给了什么」都从这份表现算，不缓存 —— 关插件立刻消失，没有第二个真相源。
@@ -23,8 +28,77 @@ import { BUILTIN_MANIFESTS } from './builtin/index.ts';
 import { evaluatePluginCapabilities } from '../core/capability.ts';
 import { hostFn } from '../core/host.ts';
 
-/** 全部插件清单（内置目录汇总；阶段 6 外部装载也并进这里） */
+/** **内置**插件清单（静态目录汇总，编译期定死；外部插件见下面的通道） */
 export const PLUGIN_MANIFESTS: PluginManifest[] = BUILTIN_MANIFESTS;
+
+/* ==================== 外部插件（阶段 7）：运行时注册的 manifest ==================== */
+
+/**
+ * 外部装载的插件：id → manifest。
+ *
+ * ⚠️ 为什么必须有第二条通道：内置 manifest 是**静态 import**（`builtin/index.ts` 那个数组），
+ * 运行时加不进去；而外部插件的 manifest 要等**代码下载 + 执行完**才知道。
+ *
+ * 与「运行时工具注册」（`registerRuntimeTools`）是**两件事**，别混：
+ *   · 这里管**插件本身**（它有哪些页面 / 宏 / 技能 / 设置 / 静态工具）；
+ *   · 那里管**工具**（MCP 那种「连上服务器才知道有什么工具」的来源）。
+ */
+const externalManifests = new Map<PluginId, PluginManifest>();
+
+/**
+ * **全部**插件 = 内置 + 外部装载。
+ *
+ * ⚠️ 所有聚合函数一律走这个，**不要**直接遍历 `PLUGIN_MANIFESTS` ——
+ * 漏掉外部的后果是「装上了却哪儿都不生效」，而且界面上看起来一切正常（最难查的一类）。
+ */
+export function allManifests(): PluginManifest[] {
+  return [...PLUGIN_MANIFESTS, ...externalManifests.values()];
+}
+
+/** 外部插件的 id 清单（界面 / 卸载用） */
+export function externalManifestIds(): PluginId[] {
+  return [...externalManifests.keys()];
+}
+
+/** 这个 id 是不是外部装载的 */
+export function isExternalPlugin(id: PluginId): boolean {
+  return externalManifests.has(id);
+}
+
+/**
+ * 注册一个外部插件的 manifest（幂等：同 id 重复注册 = 整份替换，用于「更新」）。
+ *
+ * 拒绝的情况都给**人话原因**（不静默）：
+ *   · 不是对象 / 没有 id；· 与**内置**插件撞 id（内置优先，外部不许顶替它）。
+ *
+ * 另外强制 `builtin: false` —— 它来自装载通道这件事由底座说了算，不由插件包自己声明
+ * （否则一个外部包可以自称内置，界面就会把它显示成「不可卸载」）。
+ */
+export function registerExternalManifest(manifest: PluginManifest): { ok: boolean; error?: string } {
+  if (!manifest || typeof manifest !== 'object') {
+    return { ok: false, error: '这个插件包没有导出 manifest 对象' };
+  }
+  const id = typeof manifest.id === 'string' ? manifest.id.trim() : '';
+  if (!id) return { ok: false, error: '插件包里的 manifest 没有 id' };
+  if (PLUGIN_MANIFESTS.some(item => item.id === id)) {
+    return { ok: false, error: '插件 id「' + id + '」已被内置插件占用，外部插件不许顶替它' };
+  }
+  /*
+   * ⚠️ 外部插件的 **defaultEnabled 由底座定死为 true**，不采纳插件包自己写的值。
+   *
+   * 理由（真机验收暴露的口径分叉）：外部插件的 manifest 是它自己写的，
+   * 一个包完全可以把 defaultEnabled 写成 false —— 于是用户「装上了、开关也开着（界面读 plugin_state），
+   * 但工具不生效（registry 读 defaultEnabled=false）」，两边各说各话。
+   * 口径统一成一条：**用户主动装进来的东西，默认就是启用的**（要停用他自己关）。
+   */
+  externalManifests.set(id, { ...manifest, id, builtin: false, defaultEnabled: true });
+  return { ok: true };
+}
+
+/** 卸载 / 注销一个外部插件（没有这个 id 也安全，幂等） */
+export function unregisterExternalManifest(id: PluginId): void {
+  externalManifests.delete(id);
+}
 
 /** 一个工具是不是「默认给」（ToolDef.default_on） */
 function toolDefaultOn(def: ToolDef): boolean {
@@ -33,7 +107,7 @@ function toolDefaultOn(def: ToolDef): boolean {
 
 /** 按 id 取插件清单；没有就抛（配错 id 是代码错，不该静默） */
 export function pluginManifest(id: PluginId): PluginManifest {
-  const hit = PLUGIN_MANIFESTS.find(item => item.id === id);
+  const hit = allManifests().find(item => item.id === id);
   if (!hit) throw new Error('没有这个插件：' + id);
   return hit;
 }
@@ -47,7 +121,7 @@ export function pluginEnabled(state: PluginStateHost, id: PluginId): boolean {
 
 /** 已启用的插件（列表顺序 = 声明顺序） */
 export function enabledPlugins(state: PluginStateHost): PluginManifest[] {
-  return PLUGIN_MANIFESTS.filter(manifest => pluginEnabled(state, manifest.id));
+  return allManifests().filter(manifest => pluginEnabled(state, manifest.id));
 }
 
 /* ==================== 能力闸：缺必需能力的插件**不注册**（P0-C） ==================== */
@@ -116,6 +190,14 @@ export function pluginCapabilitySkips(state: PluginStateHost): PluginSkip[] {
 
   // ⚠️ 这里必须走 enabledPlugins（只看开关），**不能**走 loadablePlugins ——
   // loadablePlugins 靠本函数的结论做过滤，改回去就是无限递归。
+  /*
+   * ⚠️ 外部插件**同样过这道闸**（allManifests 而不是内置清单）。
+   *
+   * 理由不是「公平」，而是**安全垫**：外部插件的 manifest 是它自己写的，
+   * 它声明的 requires 正是用户判断「这东西在我这台机器上能不能跑」的唯一依据 ——
+   * 跳过闸的话，一个依赖酒馆助手独占接口的包会在跑起来之后炸在半路，
+   * 而界面上还显示「已启用」。这与内置插件的口径完全一致。
+   */
   for (const manifest of enabledPlugins(state)) {
     let verdict: ReturnType<typeof evaluatePluginCapabilities>;
     try {
@@ -230,10 +312,10 @@ export interface RuntimeRegisterReport {
   rejected: Array<{ name: string; reason: string }>;
 }
 
-/** 全部内置插件**静态**声明的工具名（运行时注册不许撞它们） */
+/** 全部插件**静态**声明的工具名（运行时注册不许撞它们；含外部插件的静态工具） */
 function staticToolNames(): Set<string> {
   const names = new Set<string>();
-  for (const manifest of PLUGIN_MANIFESTS) {
+  for (const manifest of allManifests()) {
     for (const def of manifest.contributes.tools ?? []) names.add(def.name);
   }
   return names;
@@ -343,7 +425,7 @@ function collectToolNames(state: PluginStateHost, onlyDefault: boolean): string[
  * 关着的时候界面还要靠它标「来源已停用」。
  */
 export function toolOwner(name: string): PluginId | 'base' {
-  for (const manifest of PLUGIN_MANIFESTS) {
+  for (const manifest of allManifests()) {
     if ((manifest.contributes.tools ?? []).some(def => def.name === name)) return manifest.id;
   }
   // ⚠️ 运行时注册的工具**必须**在这里能归属：落回 'base' 的话，

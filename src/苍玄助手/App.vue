@@ -82,6 +82,9 @@
       @plugin-toggle="onPluginToggle"
       @plugin-patch="onPluginPatch"
       @plugin-reset="onPluginReset"
+      @external-install-url="onExternalInstallUrl"
+      @external-install-paste="onExternalInstallPaste"
+      @external-uninstall="onExternalUninstall"
       @goto="goto"
       @goto-seg="requestGotoSeg"
       @change="store.save()"
@@ -107,6 +110,7 @@ import {
   isAgentPreset,
   uid,
   type Artifact,
+  type ExternalPlugin,
   type GlobalCaps,
   type McpServer,
   type Preset,
@@ -114,6 +118,15 @@ import {
   type Turn,
 } from './core/types.ts';
 import { createWorldbookPort } from './core/worldbook.ts';
+// 阶段 7：外部插件装载（下载 / 粘贴 → 存真文件 → 动态 import → 注册进插件表）
+import {
+  createLoaderDeps,
+  installFromCode,
+  installFromUrl,
+  loadInstalled,
+  uninstallPlugin,
+  type InstallResult,
+} from './plugins/external/loader.ts';
 import { generateImages } from './plugins/builtin/image/nai.ts';
 import { wirePluginMacros } from './plugins/host.ts';
 import { allPages, availablePages, pluginAllTools, pluginEnabled, pluginTools as pluginToolsOf, toolOwner, toolOwnerLabel } from './plugins/registry.ts';
@@ -431,6 +444,8 @@ onMounted(() => {
   wireBackupSink();
   // MCP：启动时按配置同步一遍（幂等；插件关着时会把残留连接断干净）
   void syncMcp();
+  // 外部插件：启动时按安装清单装载一遍（幂等；失败的按行记 last_error，不连坐）
+  void loadExternalPlugins();
   void refreshAll();
   document.addEventListener('visibilitychange', onVisibilityChange);
 });
@@ -742,6 +757,121 @@ function onToolOverride(name: string, patch: Partial<ToolOverride>): void {
 function onToolReset(name: string): void {
   store.resetToolOverride(name);
   notify('已恢复内置默认');
+}
+
+/* -------------------- 阶段 7：外部插件（装载 / 卸载） -------------------- */
+
+/**
+ * 外部插件装载是**命令式**的（要发网络请求、要 import 代码、要写文件），
+ * 所以它没有「响应式真相源」：注册表里的 manifest 是普通 Map，装/卸**不会自己触发界面重算**。
+ * 这个 tick 就是给界面用的重算信号（同 mcpTick 那条口径）。
+ */
+const registryTick = ref(0);
+function bumpRegistry(): void {
+  registryTick.value += 1;
+  loadTools(); // 外部插件可能贡献静态工具：工具目录必须跟着重算
+}
+
+/** 装载器的宿主依赖（fetch + CSRF）——生产实现放在 loader 里，界面不碰细节 */
+const loaderDeps = createLoaderDeps();
+
+/**
+ * 把一次安装的结果落进数据（清单 + 哈希 + 错误），并给用户一句人话。
+ *
+ * ⚠️ **先注册进注册表，再写数据**：写数据会触发落盘，而落盘之后界面立刻会重算
+ * （`tools` / `pages` 都是 computed）—— 顺序反了会闪一下「装上了但什么都没变」。
+ */
+function applyInstallResult(result: InstallResult, source: 'url' | 'paste', origin: string): boolean {
+  if (!result.ok || !result.id || !result.manifest) {
+    notify('装不上：' + (result.error ?? '未知原因'));
+    return false;
+  }
+  const record: ExternalPlugin = {
+    id: result.id,
+    name: result.manifest.name || result.id,
+    version: result.manifest.version || '',
+    api_version: result.manifest.apiVersion ?? 1,
+    source,
+    origin: origin || '',
+    code_path: result.code_path ?? '',
+    hash: result.hash ?? '',
+    installed_at: Date.now(),
+    last_error: '',
+  };
+  store.setExternalPlugin(record);
+  // 装完默认**开着**：用户刚装的东西不生效会以为装坏了（要停用他自己关）。
+  // 这条与 registry 里「外部插件 defaultEnabled 定死为 true」是**同一口径的两道保险** ——
+  // 只写一边的话，界面的开关与注册表的装载判断会分叉（真机验收踩过）。
+  store.setPluginEnabled(result.id, true);
+  bumpRegistry();
+  notify((result.updated ? '已更新外部插件：' : '已装上外部插件：') + record.name);
+  return true;
+}
+
+/** 从 URL 安装 */
+async function onExternalInstallUrl(payload: { url: string }): Promise<void> {
+  const url = String(payload?.url ?? '').trim();
+  if (!url) return;
+  const result = await installFromUrl(url, loaderDeps);
+  applyInstallResult(result, 'url', url);
+}
+
+/** 从粘贴的代码安装 */
+async function onExternalInstallPaste(payload: { code: string }): Promise<void> {
+  const code = String(payload?.code ?? '');
+  if (!code.trim()) return;
+  const result = await installFromCode(code, { source: 'paste' }, loaderDeps);
+  applyInstallResult(result, 'paste', '');
+}
+
+/**
+ * 卸载：**先注销注册表与数据，再删文件**。
+ *
+ * 顺序理由：删文件要发网络请求（可能失败 / 慢），而「卸载」对用户应该是**立刻**生效的；
+ * 文件删失败最多留个孤儿文件，不会让界面停在一个已经不存在的插件上。
+ */
+async function onExternalUninstall(payload: { id: string }): Promise<void> {
+  const id = String(payload?.id ?? '').trim();
+  if (!id) return;
+  const record = store.data.external_plugins.find(item => item.id === id);
+  const path = record?.code_path ?? '';
+  const name = record?.name ?? id;
+  store.removeExternalPlugin(id);
+  bumpRegistry();
+  try {
+    await uninstallPlugin(id, path, loaderDeps);
+    notify('已卸载：' + name);
+  } catch (error) {
+    // 数据已经清干净了，这里只可能是文件没删掉 —— 如实说，别假装成功
+    notify('已卸载 ' + name + '，但它的代码文件没删掉：' + (error instanceof Error ? error.message : String(error)));
+  }
+}
+
+/**
+ * 启动 / 刷新时装载已安装的外部插件（幂等）。
+ *
+ * 每个插件的失败都写回它自己的 `last_error`（界面按行显示），**绝不连坐** ——
+ * 一个坏插件不能把整个面板拖垮（失败隔离的落点，见 loader 的注释）。
+ */
+async function loadExternalPlugins(): Promise<void> {
+  const installed = store.data.external_plugins;
+  if (!installed.length) return;
+  const result = await loadInstalled(installed, loaderDeps);
+  // ⚠️ 装载**成功**也要重算工具目录：外部插件的静态工具（ext_hello 那类）不在挂载时那份
+  //    catalog 里，不重算的话「能力 · 工具」永远少它们 —— 真机验收就是这么抓到的
+  //    （诊断显示 pluginAll 有 ext_hello，而界面 16 行里没有它）。
+  if (result.loaded.length) loadTools();
+  let dirty = false;
+  for (const item of result.failed) {
+    if (store.data.external_plugins.find(row => row.id === item.id)?.last_error !== item.error) dirty = true;
+    store.setExternalPluginError(item.id, item.error);
+  }
+  for (const id of result.loaded) {
+    if (store.data.external_plugins.find(row => row.id === id)?.last_error) dirty = true;
+    store.setExternalPluginError(id, '');
+  }
+  if (result.loaded.length) bumpRegistry();
+  void dirty; // 落盘由 store 的写点各自负责（setExternalPluginError 内部已经 save）
 }
 
 /* -------------------- 阶段 6：MCP 插件（服务器清单 + 连接） -------------------- */

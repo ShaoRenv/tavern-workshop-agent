@@ -918,6 +918,38 @@ export const WbBackupSchema = z.object({
 });
 export type WbBackup = z.infer<typeof WbBackupSchema>;
 
+/* ============================ 外部插件（阶段 7） ============================ */
+
+/**
+ * 一个**已安装**的外部插件包（阶段 7）。
+ *
+ * ⚠️ 这里**只记「装了什么」**，不记开关 —— 开关归 `plugin_state`（阶段 1 定的口径：
+ * 开关是底座的，设置是插件的）。所以卸载 = 从本数组删掉，停用 = 改 `plugin_state`。
+ *
+ * 代码本体**不进 settings.json**：存成 ST 真文件（`/api/files/upload`），这里只留路径 + 哈希。
+ * 理由与立绘素材同一条：settings.json 已经 50MB，不能再往里塞几十 KB 的 JS。
+ */
+export const ExternalPluginSchema = z.object({
+  /** 插件 id（= 它 manifest 里的 id）；`plugin_state.<id>` 与 `plugins.<id>` 都用它 */
+  id: z.string(),
+  name: z.string().default(''),
+  version: z.string().default(''),
+  /** 插件包声明的 apiVersion；与底座不兼容时拒绝装载（见 loader） */
+  api_version: z.number().int().default(1),
+  /** 从哪来的：URL 下载 / 粘贴 */
+  source: z.enum(['url', 'paste']).default('paste'),
+  /** 来源原文（URL，或粘贴时留空）—— 只用于展示「这东西哪来的」 */
+  origin: z.string().default(''),
+  /** 代码在 ST 真文件里的路径（`/user/files/cx-plugins/<id>.js`） */
+  code_path: z.string().default(''),
+  /** 代码哈希（FNV-1a）：展示 + 判断「文件被换过了」 */
+  hash: z.string().default(''),
+  installed_at: z.number().default(0),
+  /** 最近一次装载失败的人话原因（成功时清空）—— 界面靠它显示「装上了但跑不起来」 */
+  last_error: z.string().default(''),
+});
+export type ExternalPlugin = z.infer<typeof ExternalPluginSchema>;
+
 /* ============================ 选择（要喂给模型的数据） ============================ */
 
 export const SelectionSchema = z.object({
@@ -982,6 +1014,13 @@ export const RootDataSchema = z.object({
   plugins: PluginsSchema.prefault({}),
   /** 插件开关（v5）：底座拥有；缺省取 manifest.defaultEnabled */
   plugin_state: PluginStateMapSchema,
+  /**
+   * 外部装载的插件（阶段 7）：**安装清单**，不是开关。
+   *
+   * ⚠️ 加这一块**不涨 DATA_VERSION**：新块 + `.default([])` 对老数据是「缺省补齐」，
+   * 不是结构搬迁（同 wb_backups / plugins.mcp 的口径）。
+   */
+  external_plugins: z.array(ExternalPluginSchema).default([]),
   presets: z.array(PresetSchema).default([]),
   skills: z.array(SkillSchema).default([]),
   active_preset_id: z.string().default(''),

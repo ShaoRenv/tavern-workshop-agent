@@ -17,13 +17,18 @@
 import { registerPluginMacroNames, registerPluginMacroSource, type MacroData } from '../core/macros.ts';
 import { withMacroPrefix } from '../core/native.ts';
 import { hostFn } from '../core/storage.ts';
-import { PLUGIN_MANIFESTS, enabledPlugins } from '../plugins/registry.ts';
+import { allManifests, enabledPlugins } from '../plugins/registry.ts';
 import type { PluginMacro, PluginStateHost } from '../plugins/types.ts';
 
-/** 全部内置插件贡献的宏（不管开关） */
+/**
+ * 全部插件贡献的宏（不管开关；**含外部装载的插件**）。
+ *
+ * ⚠️ 必须走 allManifests：漏掉外部插件的话，它贡献的宏名不在清单里，
+ * `{{示例宏}}` 会**原样留在界面上**（而不是被替换成空串）—— 这是最难看的一种漏。
+ */
 function allMacros(): PluginMacro[] {
   const out: PluginMacro[] = [];
-  for (const manifest of PLUGIN_MANIFESTS) {
+  for (const manifest of allManifests()) {
     for (const macro of manifest.contributes.macros ?? []) out.push(macro);
   }
   return out;

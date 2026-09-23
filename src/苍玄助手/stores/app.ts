@@ -44,6 +44,7 @@ import {
   toSessionMeta,
   uid,
   type DraftChange,
+  type ExternalPlugin,
   type GenImageConfig,
   type Preset,
   type RootData,
@@ -773,6 +774,44 @@ export const useAppStore = defineStore('cx-assistant', () => {
     save();
   }
 
+  /* -------------------- 外部插件（阶段 7）：安装清单 -------------------- */
+
+  /**
+   * 装上 / 更新一个外部插件的**安装记录**（同 id 覆盖 = 更新）。
+   *
+   * ⚠️ 这里只写「装了什么」（清单 + 代码路径 + 哈希），**不写开关** ——
+   * 开关仍然只在 setPluginEnabled 那条路上改（口径同内置插件）。
+   * 卸载才动 `plugin_state`（要把它那段开关一起清掉，免得 id 复用时继承旧状态）。
+   */
+  function setExternalPlugin(record: ExternalPlugin): void {
+    const list = data.value.external_plugins;
+    const index = list.findIndex(item => item.id === record.id);
+    if (index >= 0) list.splice(index, 1, record);
+    else list.push(record);
+    save();
+  }
+
+  /** 记下某个外部插件最近一次的装载失败（成功时传空串清空） */
+  function setExternalPluginError(id: PluginId, error: string): void {
+    const hit = data.value.external_plugins.find(item => item.id === id);
+    if (!hit || hit.last_error === error) return;
+    hit.last_error = error;
+    save();
+  }
+
+  /** 卸载：从清单删掉 + 清掉它的开关（**先做这两件事，再由调用方删文件**） */
+  function removeExternalPlugin(id: PluginId): void {
+    const list = data.value.external_plugins;
+    const index = list.findIndex(item => item.id === id);
+    if (index >= 0) list.splice(index, 1);
+    delete data.value.plugin_state[id];
+    // 它的设置也一起清掉：外部插件的设置是它自己声明的，卸载后留着只会成为孤儿
+    const bag = data.value.plugins as unknown as Record<string, unknown>;
+    delete bag[id];
+    if (!tabExists()) setTab(data.value.active_tab);
+    save();
+  }
+
   /** 插件设置恢复内置默认（**只清设置，不动开关**） */
   function resetPluginConfig(id: PluginId): void {
     if (id === 'image') {
@@ -996,6 +1035,7 @@ export const useAppStore = defineStore('cx-assistant', () => {
     exportSession, exportSessions, exportSessionEvents,
     toolOverrides, toolOverrideOf, setToolOverride, resetToolOverride,
     pluginEnabled, setPluginEnabled, pluginConfig, imageConfig, setPluginConfig, resetPluginConfig,
+    setExternalPlugin, setExternalPluginError, removeExternalPlugin,
     currentDrafts, draftsOf, draftCount, addDraft, clearDraftsFor, clearDrafts,
     backupSink, pruneBackups, rollbackBackup, backupsOf, BACKUPS_PER_WORLD,
     rollbackResult, setRollbackResult,

@@ -52,13 +52,94 @@
         </div>
       </div>
     </div>
+
+    <!-- ==================== 外部插件（阶段 7） ==================== -->
+    <div class="cx-blk">
+      <div class="cx-blkh">
+        <span class="cx-t">外部插件</span>
+        <span class="cx-n">{{ external.length }} 个 · 启用 {{ externalEnabledCount }}</span>
+        <span class="cx-spacer"></span>
+        <button class="cx-ghost" type="button" @click="installOpen = !installOpen">
+          {{ installOpen ? '收起安装' : '＋ 安装' }}
+        </button>
+      </div>
+
+      <!--
+        ★ 安全口径（拍板：不做门禁，但这句必须写出来）。
+        外部插件是**可执行代码**，与酒馆同权限；用户在装之前有权利知道这件事。
+        放在安装入口**正上方**（而不是折叠区里 / 页脚），因为这是决策前该看到的信息。
+      -->
+      <p class="cx-ext-warn">
+        装进来的代码是<b>全权执行</b>的 —— 它和酒馆同权限，能读写你的数据。<b>只装你信得过的来源。</b>
+      </p>
+
+      <!-- 安装入口（可折叠，默认收着：装插件是低频动作，不该占着列表的位置） -->
+      <div v-if="installOpen" class="cx-ext-install">
+        <div class="cx-f">
+          <label class="cx-lab">从地址安装（插件包 .js 的直链）</label>
+          <div class="cx-frow">
+            <input
+              v-model="urlDraft"
+              type="text"
+              class="cx-flex1"
+              placeholder="https://example.com/my-plugin.js"
+              @keydown.enter="installFromUrl"
+            />
+            <button class="cx-tiny" type="button" :disabled="!urlDraft.trim()" @click="installFromUrl">从 URL 安装</button>
+          </div>
+        </div>
+
+        <div class="cx-f">
+          <label class="cx-lab">或者直接粘贴插件代码</label>
+          <textarea
+            v-model="codeDraft"
+            class="cx-grow cx-mono"
+            placeholder="// 把插件包的 JS 贴进来"
+            spellcheck="false"
+          ></textarea>
+          <button class="cx-tiny cx-mt6" type="button" :disabled="!codeDraft.trim()" @click="installFromPaste">
+            安装这段代码
+          </button>
+        </div>
+
+        <p class="cx-hint">
+          装完自动启用。代码存成酒馆里的真文件，设置里只留路径与哈希 —— 所以卸载时记得两边都会清。
+        </p>
+      </div>
+
+      <!-- 已装列表 -->
+      <div class="cx-list">
+        <div v-for="item in external" :key="item.id" class="cx-ext-row">
+          <div class="cx-ext-main">
+            <div class="cx-ext-name">
+              <span class="cx-tn2">{{ item.name || item.id }}</span>
+              <span v-if="item.version" class="cx-hint">v{{ item.version }}</span>
+              <span class="cx-tag" :class="extStatus(item).kind">{{ extStatus(item).label }}</span>
+            </div>
+            <!-- 来源：URL 截断显示（整条长地址会把 375px 撑破） -->
+            <div class="cx-ext-src" :title="item.origin || ''">{{ sourceLabel(item) }}</div>
+            <!--
+              装载失败时把 loader 给的原文显示出来。
+              「装上了但跑不起来」是外部插件最常见的失败，只说「失败」用户无从下手。
+            -->
+            <pre v-if="item.last_error" class="cx-code cx-mt6 cx-ext-err">{{ item.last_error }}</pre>
+          </div>
+          <div class="cx-ext-acts">
+            <Sw :model-value="enabledOf(item)" @update:model-value="emit('toggle', item.id, $event)" />
+            <button class="cx-tiny dang" type="button" @click="uninstall(item)">卸载</button>
+          </div>
+        </div>
+      </div>
+
+      <p v-if="external.length === 0" class="cx-hint">还没有装外部插件。上面贴一个地址或一段代码就能装。</p>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 
-import { RootDataSchema, type RootData } from '../core/types.ts';
+import { RootDataSchema, type ExternalPlugin, type RootData } from '../core/types.ts';
 import PluginDetail from '../components/PluginDetail.vue';
 import Sw from '../components/Sw.vue';
 import { PLUGIN_MANIFESTS, pluginCapabilitySkips, pluginEnabled, pluginStatusWithCapabilities } from '../plugins/registry.ts';
@@ -90,6 +171,13 @@ const emit = defineEmits<{
   reset: [id: string];
   /** 「它加了什么」点一行跳过去（页面 id / 'capability'） */
   goto: [id: string];
+  /**
+   * 外部插件（阶段 7）：只 emit，装载由 App.vue → store 走 loader。
+   * 结果提示（成功 / 失败）统一由 App.vue notify，这一页不做 toast。
+   */
+  'external-install-url': [{ url: string }];
+  'external-install-paste': [{ code: string }];
+  'external-uninstall': [{ id: string }];
 }>();
 
 const openId = ref('');
@@ -163,4 +251,102 @@ function whatItAdds(def: PluginManifest): string {
 }
 
 const enabledCount = computed(() => PLUGIN_MANIFESTS.filter(def => enabledOf(def)).length);
+
+/* ==================== 外部插件（阶段 7） ==================== */
+
+const external = computed(() => props.data.external_plugins);
+
+/**
+ * 外部插件的开关：**直接读 plugin_state，不能走 `pluginEnabled`**。
+ *
+ * ⚠️ 为什么（写这段时实测到的真炸点）：`pluginEnabled(state, id)` 在没有该 id 的 manifest 时
+ * **直接 throw**（registry 的 `pluginManifest`：「没有这个插件：xxx」——那里是有意不静默的）。
+ * 而外部插件最需要显示的状态恰恰是「**装载失败**」：代码下载/执行挂了 → manifest **没注册进 registry**
+ * → `pluginEnabled` 抛错 → 整个插件段白屏，用户连卸载都点不到。
+ * 所以这里只按底座的口径读数据（开关本来就归 plugin_state），不经过 registry 查表。
+ *
+ * 口径与 `pluginEnabled` 保持一致：plugin_state 里有就听它；没有则**默认开**
+ * （外部插件是用户主动装的，装完默认启用；这也和 loader/App.vue 的接线一致）。
+ */
+function externalEnabled(item: ExternalPlugin): boolean {
+  const hit = props.data.plugin_state?.[item.id];
+  if (hit && typeof hit.enabled === 'boolean') return hit.enabled;
+  return true;
+}
+
+const externalEnabledCount = computed(() => external.value.filter(item => externalEnabled(item)).length);
+
+/**
+ * 已装行的状态标签。优先级（题面钉死的）：
+ *   **装载失败（红，带 last_error 原文）** > 未启用 > 已启用
+ *
+ * 为什么「装载失败」压在最上面：那一条的后果是「装上了但什么都用不了」，
+ * 而开关看起来是开着的 —— 不压住的话界面会显示「已启用」，等于撒谎。
+ */
+function extStatus(item: ExternalPlugin): { label: string; kind: '' | 'ok' | 'warn' | 'dang' } {
+  if (item.last_error) return { label: '装载失败', kind: 'dang' };
+  if (!externalEnabled(item)) return { label: '未启用', kind: '' };
+  return { label: '已启用', kind: 'ok' };
+}
+
+/**
+ * 来源那一行的显示文案。
+ *
+ * URL 来源**必须截断**：真实插件地址经常是一长串带 query 的直链，
+ * 整条摊出来会把 375px 撑破（横向滚动是硬约束）。
+ * 优先显示域名（用户认的是「从哪来的」），拿不到域名再退回截断的原文。
+ * 完整原文挂在 title 上，鼠标悬停能看到。
+ */
+function sourceLabel(item: ExternalPlugin): string {
+  if (item.source === 'paste') return '粘贴的代码';
+  const origin = item.origin.trim();
+  if (!origin) return '来源未知';
+  try {
+    const host = new URL(origin).host;
+    if (host) return host + '（URL 安装）';
+  } catch {
+    // 不是合法 URL（老数据 / 手改过）→ 退回截断显示
+  }
+  return origin.length > 46 ? origin.slice(0, 46) + '…' : origin + '（URL 安装）';
+}
+
+/* ---------- 安装 ---------- */
+
+/** 安装入口默认收着：装插件是低频动作，不该占着列表的位置 */
+const installOpen = ref(false);
+const urlDraft = ref('');
+const codeDraft = ref('');
+
+function installFromUrl(): void {
+  const url = urlDraft.value.trim();
+  if (!url) return;
+  emit('external-install-url', { url });
+  urlDraft.value = '';
+}
+
+function installFromPaste(): void {
+  const code = codeDraft.value.trim();
+  if (!code) return;
+  emit('external-install-paste', { code });
+  codeDraft.value = '';
+}
+
+/**
+ * 卸载：二次确认。
+ *
+ * 文案说清两件会**真的消失**的东西（题面要求）：
+ *   · 代码文件（存在酒馆的真文件里，不在设置里）
+ *   · 它的设置（plugins.<id> 与 plugin_state 里那条）
+ * 用 window.confirm —— 跟删预设 / 删备份同一个口径，不新造弹窗。
+ */
+function uninstall(item: ExternalPlugin): void {
+  const name = item.name || item.id;
+  const lines = [
+    '卸载「' + name + '」？',
+    '',
+    '会删掉它的代码文件，以及它的全部设置。这个删了没法撤销。',
+  ];
+  if (!window.confirm(lines.join('\n'))) return;
+  emit('external-uninstall', { id: item.id });
+}
 </script>

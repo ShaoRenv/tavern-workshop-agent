@@ -56,10 +56,14 @@
       <PluginsView
         v-else-if="seg === 'plugins'"
         :data="data"
+        :external="external"
         @toggle="onPluginToggle"
         @patch="onPluginPatch"
         @reset="onPluginReset"
         @goto="onGoto"
+        @external-install-url="emit('external-install-url', $event)"
+        @external-install-paste="emit('external-install-paste', $event)"
+        @external-uninstall="emit('external-uninstall', $event)"
       />
 
       <!-- 技能段：技能库 + 编辑弹窗 + 参考文件弹窗（原技能页整体纳入） -->
@@ -121,11 +125,14 @@ const props = withDefaults(
     tools?: UiTool[];
     /** 子段跳转意图（H3）：设置了 sub 就切到那个二级段（工具 / 技能 / 插件） */
     segIntent?: GotoSeg | null;
+    /** 外部插件的安装清单（阶段 7）；数据只读，装卸都走 emit */
+    external?: ExternalPlugin[];
   }>(),
   {
     data: () => RootDataSchema.parse({}),
     tools: () => [],
     segIntent: null,
+    external: () => [],
   },
 );
 const emit = defineEmits<{
@@ -145,6 +152,10 @@ const emit = defineEmits<{
   /** 插件设置改了（写路径唯一：App.vue → store.setPluginConfig(id, patch)） */
   'plugin-patch': [id: string, patch: Record<string, unknown>];
   'plugin-reset': [id: string];
+  /** 外部插件（阶段 7）：安装 / 卸载。写路径唯一：App.vue → loader + store */
+  'external-install-url': [payload: { url: string }];
+  'external-install-paste': [payload: { code: string }];
+  'external-uninstall': [payload: { id: string }];
   /** 插件详情「它加了什么」点一行跳过去（页面 id） */
   goto: [id: string];
   /**

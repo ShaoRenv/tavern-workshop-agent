@@ -163,6 +163,7 @@
         <CapabilityView
           :data="data"
           :tools="tools"
+          :external="data.external_plugins"
           :seg-intent="segIntent"
           @goto-seg="onGotoSeg"
           @tool-override="onToolOverride"
@@ -175,6 +176,9 @@
           @plugin-toggle="onPluginToggle"
           @plugin-patch="onPluginPatch"
           @plugin-reset="onPluginReset"
+          @external-install-url="emit('external-install-url', $event)"
+          @external-install-paste="emit('external-install-paste', $event)"
+          @external-uninstall="emit('external-uninstall', $event)"
           @goto="onGoto"
           @change="touch"
         />
@@ -412,6 +416,10 @@ const emit = defineEmits<{
   'plugin-toggle': [id: string, enabled: boolean];
   'plugin-patch': [id: string, patch: Record<string, unknown>];
   'plugin-reset': [id: string];
+  /** 外部插件（阶段 7）：安装 / 卸载（App.vue 接 loader + store） */
+  'external-install-url': [payload: { url: string }];
+  'external-install-paste': [payload: { code: string }];
+  'external-uninstall': [payload: { id: string }];
   /** 插件详情「它加了什么 → 页面」点一行跳过去（页面 id） */
   goto: [id: string];
   /**

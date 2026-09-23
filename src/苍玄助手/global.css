@@ -2229,3 +2229,98 @@ body {
     flex: 1 1 100%;
   }
 }
+
+/* ==================== 外部插件段（task-45） ==================== */
+
+/*
+ * 归属：views/PluginsView.vue 的「外部插件」一节专用。
+ * 全部带 .cx-ext- 前缀，只追加、不碰任何已有规则 / 不碰 --qx-* token。
+ */
+
+/*
+ * ★ 安全提醒：这一句必须在安装入口旁边看得见，所以给它自己的底色而不是普通 .cx-hint。
+ * 文字色走 --qx-warn（浅色主题自动跟着变）；底色那个 rgba 是 --qx-warn 的低透明度版本 ——
+ * 与既有 .cx-tiny.dang（1530 行）同一写法，因为工程里没有 `--qx-warn-dim` 这个 token，
+ * 而 `color-mix` 在这个构建里没有先例。要统一的话应该补 token，不该在这里单独发明。
+ */
+.cx-ext-warn {
+  margin: 0 0 12px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--qx-warn);
+  font-size: 11.5px;
+  line-height: 1.75;
+}
+
+.cx-ext-warn b {
+  font-weight: 700;
+}
+
+/* 安装入口：折叠区，和列表之间留一条分隔感 */
+.cx-ext-install {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--qx-hair);
+}
+
+/* 已装行：可点的行结构（跟 .cx-toolrow 同构但更矮，因为这行本身不导航） */
+.cx-ext-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--qx-hair);
+}
+
+.cx-ext-row:last-child {
+  border-bottom: 0;
+}
+
+.cx-ext-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.cx-ext-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cx-ext-name .cx-tn2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 来源：长 URL 必须截断/换行，绝不许撑出横向滚动（375px 硬约束） */
+.cx-ext-src {
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--qx-faint);
+  overflow-wrap: anywhere;
+}
+
+/* 装载失败原文：等宽、限高可滚（loader 给的原文可能带堆栈） */
+.cx-ext-err {
+  max-height: 180px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+/* 右侧动作：开关 + 卸载 */
+.cx-ext-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1280px) {
+  .cx-ext-row {
+    min-height: 56px;
+  }
+}
