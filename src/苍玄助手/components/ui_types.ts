@@ -168,9 +168,30 @@ export function readToolOverride(root: RootData, name: string): ToolOverride | u
   return readToolOverrides(root)[name];
 }
 
+/**
+ * 工具级开关的三态。
+ *
+ * `undefined` 与「显式开 / 显式关」必须分开：前者是**跟随**（旧口径，来源处与 default_on 决定），
+ * 后者是**用户意志**。把 undefined 当 false 会让所有按需工具（entry_meta 那类）在界面上显示成「已关」，
+ * 而它们其实是「没开而已」—— 用户会以为自己关过。
+ */
+export function toolSwitchState(override?: ToolOverride): 'follow' | 'on' | 'off' {
+  if (!override || typeof override.enabled !== 'boolean') return 'follow';
+  return override.enabled ? 'on' : 'off';
+}
+
+/** 开关的一句话说明（列表行 / 详情页共用，避免两处文案分叉） */
+export function toolSwitchLabel(override?: ToolOverride): string {
+  const state = toolSwitchState(override);
+  if (state === 'on') return '手动开';
+  if (state === 'off') return '手动关';
+  return '跟随';
+}
+
 /** 有没有真的改过东西（edited_at 不算） */
 export function overrideEdited(override?: ToolOverride): boolean {
   if (!override) return false;
+  if (typeof override.enabled === 'boolean') return true;
   if (typeof override.description === 'string') return true;
   if (override.timeout_ms !== undefined) return true;
   if (override.param_descriptions && Object.keys(override.param_descriptions).length) return true;

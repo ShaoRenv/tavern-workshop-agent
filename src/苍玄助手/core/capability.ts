@@ -1,5 +1,5 @@
 /**
- * 苍玄界 · 能力表（capability）
+ * 酒馆工坊Agent · 能力表（capability）
  *
  * ────────────────────────── 为什么需要它 ──────────────────────────
  *
@@ -335,7 +335,7 @@ export function probeCapability(def: Omit<Capability, 'provider'>): CapabilitySt
   try {
     provider = capabilityResolver()(def.name);
   } catch (error) {
-    console.warn('[苍玄界] 探测能力 ' + def.name + ' 抛错，按不可用处理', error);
+    console.warn('[酒馆工坊Agent] 探测能力 ' + def.name + ' 抛错，按不可用处理', error);
     provider = 'none';
   }
 
@@ -460,7 +460,7 @@ export function evaluatePluginCapabilities(requires: readonly string[] | undefin
     try {
       status.degrade();
     } catch (error) {
-      console.warn('[苍玄界] 能力 ' + status.name + ' 的降级动作抛错（已忽略）', error);
+      console.warn('[酒馆工坊Agent] 能力 ' + status.name + ' 的降级动作抛错（已忽略）', error);
     }
   }
 
@@ -498,7 +498,7 @@ export function reportCapabilityTable(): { total: number; ok: number; missing: s
   const missing = table.filter(status => !status.ok).map(status => status.name);
   const ok = table.length - missing.length;
   console.info(
-    '[苍玄界] 能力表：' + ok + '/' + table.length + ' 可用' +
+    '[酒馆工坊Agent] 能力表：' + ok + '/' + table.length + ' 可用' +
       (missing.length > 0 ? '；不可用：' + missing.join('、') : ''),
   );
   return { total: table.length, ok, missing };

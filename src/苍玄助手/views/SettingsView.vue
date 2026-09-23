@@ -168,6 +168,7 @@
           @goto-seg="onGotoSeg"
           @tool-override="onToolOverride"
           @tool-reset="onToolReset"
+          @tool-switch-clear="emit('tool-switch-clear', $event)"
           @save="emit('save', $event)"
           @delete="emit('delete', $event)"
           @duplicate="emit('duplicate', $event)"
@@ -408,6 +409,8 @@ const emit = defineEmits<{
   /* 「能力」段（CapabilityView）的事件：本页只转发，写路径仍然唯一在 App.vue → store */
   'tool-override': [name: string, patch: Partial<ToolOverride>];
   'tool-reset': [name: string];
+  /** 工具级开关回到「跟随」（清 enabled 一个键，不动提示词等其它覆盖） */
+  'tool-switch-clear': [name: string];
   save: [skill: Skill];
   delete: [skillId: string];
   duplicate: [skill: Skill];

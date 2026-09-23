@@ -59,7 +59,7 @@ withDefaults(
     status?: string;
   }>(),
   {
-    title: '苍玄助手',
+    title: '酒馆工坊Agent',
     status: '● 已连接',
   },
 );

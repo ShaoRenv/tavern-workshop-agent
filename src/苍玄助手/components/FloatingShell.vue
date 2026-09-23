@@ -66,7 +66,7 @@ const props = withDefaults(
     running?: boolean;
   }>(),
   {
-    title: '苍玄助手',
+    title: '酒馆工坊Agent',
     tabTitle: '',
     running: false,
   },

@@ -367,6 +367,20 @@ export function applyParameterOverride(
 export function applyToolOverride(def: ToolDef, override?: ToolOverride): ToolDef {
   if (!override) return def;
   const next: ToolDef = { ...def };
+  /*
+   * 用户级开关（工具页那个开关）→ 落到 default_on 上。
+   *
+   * ⚠️ 为什么落在 default_on 而不是另开一个字段：**下游只认 default_on**
+   * （resolveCaps 用 `tool.default_on` 决定发不发）。在这里翻译一次，
+   * runner 与界面就自动共用同一份口径 —— 不然又是一个「两处各判一次、早晚分叉」的坑。
+   *
+   * ⚠️ 只能**收窄**：显式 true 只是把它恢复成「默认给」，
+   * 救不回「来源已停用」的工具（那一步在 liveToolDefs / pluginAllTools 就被筛掉了，
+   * 比这里更早，符合「停用只在来源处」仍然成立的那部分口径）。
+   */
+  if (typeof override.enabled === 'boolean') {
+    next.default_on = override.enabled;
+  }
   if (typeof override.description === 'string' && override.description.trim()) {
     next.model_description = override.description;
   }

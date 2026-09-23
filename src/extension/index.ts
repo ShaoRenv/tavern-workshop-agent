@@ -1,5 +1,5 @@
 /**
- * 苍玄界 · 扩展入口（SillyTavern extension bootstrap）
+ * 酒馆工坊Agent · 扩展入口（SillyTavern extension bootstrap）
  *
  * 这个文件是**唯一**被酒馆直接加载的代码（manifest.json 的 `js` 指向 dist/extension/index.js）。
  * 它的职责只有三件事，别在这里写业务：
@@ -71,7 +71,7 @@ function init(): void {
   if (!ctx) {
     // 还没就绪不要紧：getContext 是晚绑定的，后面真正调用时会再取一次。
     // 这里只是不能注册适配器表 —— 留个明显的日志，别静默。
-    console.warn('[苍玄界] 初始化时 SillyTavern.getContext() 还不存在，宿主能力将在首次调用时惰性解析');
+    console.warn('[酒馆工坊Agent] 初始化时 SillyTavern.getContext() 还不存在，宿主能力将在首次调用时惰性解析');
     return;
   }
 
@@ -79,7 +79,7 @@ function init(): void {
   // 晚绑定：这里交出去的是「怎么按名字取到函数」的规则，不是固定的函数引用，
   // 所以酒馆热重载 / 扩展重载后拿到的永远是当前实现。
   registerNativeAdapters(installNativeAdapters(ctx));
-  console.log('[苍玄界] 宿主能力已切到 ST 原生接口');
+  console.log('[酒馆工坊Agent] 宿主能力已切到 ST 原生接口');
 }
 
 /* ============================ 界面挂载 ============================ */
@@ -135,11 +135,11 @@ async function mountUi(): Promise<void> {
     const { mountApp } = await import('../苍玄助手/mount.ts');
     const dispose = mountApp(root);
     state.disposers.push(dispose);
-    console.log('[苍玄界] 界面已挂载');
+    console.log('[酒馆工坊Agent] 界面已挂载');
   } catch (error) {
     // 挂载失败要能回滚，否则下次 activate 会以为已经挂过了
     state.mounted = false;
-    console.error('[苍玄界] 界面挂载失败', error);
+    console.error('[酒馆工坊Agent] 界面挂载失败', error);
   }
 }
 
@@ -150,7 +150,7 @@ function unmountUi(): void {
     try {
       dispose?.();
     } catch (error) {
-      console.warn('[苍玄界] 清理回调抛错（已忽略，继续卸载）', error);
+      console.warn('[酒馆工坊Agent] 清理回调抛错（已忽略，继续卸载）', error);
     }
   }
   document.getElementById(ROOT_ID)?.remove();
@@ -180,12 +180,12 @@ export function onDisable(): void {
 }
 
 export function onInstall(): void {
-  console.log('[苍玄界] 已安装');
+  console.log('[酒馆工坊Agent] 已安装');
 }
 
 export function onUpdate(): void {
   // 更新后模块会重新求值（换了 URL），这里主要是把「界面要重新挂」这件事记下来
-  console.log('[苍玄界] 已更新');
+  console.log('[酒馆工坊Agent] 已更新');
 }
 
 export function onDelete(): void {

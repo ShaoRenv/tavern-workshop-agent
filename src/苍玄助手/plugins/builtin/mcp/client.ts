@@ -236,7 +236,7 @@ export function createMcpClient(options: McpClientOptions): McpClient {
       await send(method, makeNotification(method, params));
     } catch (error) {
       const why = error instanceof McpError ? error.toUserMessage() : safeStringify(error);
-      console.warn('[苍玄界] MCP 通知 ' + method + ' 发送失败（不影响后续调用）：' + why);
+      console.warn('[酒馆工坊Agent] MCP 通知 ' + method + ' 发送失败（不影响后续调用）：' + why);
     }
   }
 
@@ -257,7 +257,7 @@ export function createMcpClient(options: McpClientOptions): McpClient {
       protocolVersion: PROTOCOL_VERSION,
       // 我们只用工具；声明出来让服务端知道别推别的
       capabilities: { tools: {} },
-      clientInfo: { name: '苍玄界', version: '0.1' },
+      clientInfo: { name: '酒馆工坊Agent', version: '0.1' },
     }));
 
     const info = isRecord(result) ? result : {};
@@ -267,7 +267,7 @@ export function createMcpClient(options: McpClientOptions): McpClient {
 
     if (negotiated && negotiated !== PROTOCOL_VERSION) {
       console.warn(
-        '[苍玄界] MCP 协议版本不一致：服务端 ' + negotiated + '，客户端 ' + PROTOCOL_VERSION +
+        '[酒馆工坊Agent] MCP 协议版本不一致：服务端 ' + negotiated + '，客户端 ' + PROTOCOL_VERSION +
           '（继续按现有版本调用工具；若工具调用异常，先怀疑这里）',
       );
     }

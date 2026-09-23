@@ -1,5 +1,5 @@
 /**
- * 苍玄界 · ST 原生适配层（native）
+ * 酒馆工坊Agent · ST 原生适配层（native）
  *
  * 底座原来靠「酒馆助手」(JS-Slash-Runner) 提供宿主能力，那等于把底座绑死在
  * 一个**第三方插件**上。实测证据（reports/扩展迁移-宿主能力原生映射.md）：
@@ -198,7 +198,7 @@ export function getStContext(): StContext | null {
         const ctx = (getContext as () => unknown).call(st);
         if (ctx && typeof ctx === 'object') return ctx as StContext;
       } catch (error) {
-        console.warn('[苍玄界] SillyTavern.getContext() 抛错，按「还没就绪」处理', error);
+        console.warn('[酒馆工坊Agent] SillyTavern.getContext() 抛错，按「还没就绪」处理', error);
       }
     } else if (getContext && typeof getContext === 'object') {
       return getContext as StContext;
@@ -213,7 +213,7 @@ export function getStContext(): StContext | null {
         const ctx = (bare as () => unknown).call(scope);
         if (ctx && typeof ctx === 'object') return ctx as StContext;
       } catch (error) {
-        console.warn('[苍玄界] 全局 getContext() 抛错，按「还没就绪」处理', error);
+        console.warn('[酒馆工坊Agent] 全局 getContext() 抛错，按「还没就绪」处理', error);
       }
     }
   }
@@ -546,7 +546,7 @@ export function registerTavernMacro(
   });
   if (!verified.ok) {
     unregisterTavernMacro(finalName);
-    console.warn('[苍玄界] ' + (verified.reason ?? '宏注册自检失败'));
+    console.warn('[酒馆工坊Agent] ' + (verified.reason ?? '宏注册自检失败'));
     return { ok: false, name: finalName, reason: verified.reason };
   }
 
@@ -565,7 +565,7 @@ export function unregisterTavernMacro(name: string): boolean {
     unregister.call(ctx?.macros?.registry, name);
     return true;
   } catch (error) {
-    console.warn('[苍玄界] 注销宏 ' + name + ' 失败（已忽略）', error);
+    console.warn('[酒馆工坊Agent] 注销宏 ' + name + ' 失败（已忽略）', error);
     return false;
   }
 }
@@ -617,7 +617,7 @@ function readVar(scope: unknown, key: string): unknown {
   try {
     return (native as (k: string) => unknown).call(getStContext()?.variables?.[which], key);
   } catch (error) {
-    console.warn('[苍玄界] 原生 variables.' + which + '.get 读 ' + key + ' 失败，按「读不到」处理', error);
+    console.warn('[酒馆工坊Agent] 原生 variables.' + which + '.get 读 ' + key + ' 失败，按「读不到」处理', error);
     return undefined;
   }
 }
@@ -633,13 +633,13 @@ function writeVar(scope: unknown, key: string, value: unknown): void {
   const which = isGlobalScope(scope) ? 'global' : 'local';
   const native = resolvePath(getStContext(), 'variables.' + which + '.set');
   if (typeof native !== 'function') {
-    console.warn('[苍玄界] 没有原生 variables.' + which + '.set，本次写入未生效（不伪造本地缓存）');
+    console.warn('[酒馆工坊Agent] 没有原生 variables.' + which + '.set，本次写入未生效（不伪造本地缓存）');
     return;
   }
   try {
     (native as (k: string, v: unknown) => void).call(getStContext()?.variables?.[which], key, value);
   } catch (error) {
-    console.warn('[苍玄界] 原生 variables.' + which + '.set 写 ' + key + ' 失败', error);
+    console.warn('[酒馆工坊Agent] 原生 variables.' + which + '.set 写 ' + key + ' 失败', error);
   }
 }
 /* ============================ 世界书：原生直通 + 兜底 ============================ */
@@ -857,7 +857,7 @@ export function installNativeAdapters(
   const table: NativeAdapterTable = {};
   if (!ctx) {
     // 外壳顶层就会调（那时可能真的没就绪）。这里不能抛，也不能当成错误刷屏。
-    console.warn('[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）');
+    console.warn('[酒馆工坊Agent] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）');
     return table;
   }
 
@@ -1160,7 +1160,7 @@ export function dataScope(explicit?: DataScope): DataScope {
         const id = getScriptId.call(fromHelper ? helper : scope);
         if (typeof id === 'string' && id.trim() !== '') return { type: 'script', script_id: id.trim() };
       } catch (error) {
-        console.warn('[苍玄界] getScriptId 失败，按扩展形态处理', error);
+        console.warn('[酒馆工坊Agent] getScriptId 失败，按扩展形态处理', error);
       }
     }
   }

@@ -74,6 +74,7 @@
       @data-action="onDataAction"
       @tool-override="onToolOverride"
       @tool-reset="onToolReset"
+      @tool-switch-clear="store.clearToolSwitch($event)"
       @save="onTouched"
       @delete="onTouched"
       @duplicate="onTouched"
@@ -203,10 +204,24 @@ const globalCaps = computed<GlobalCaps>(() => {
   const live = new Set(fromPlugins);
   // 底座的默认开工具照旧；插件贡献的必须插件开着才给（关掉即消失，见 plugins/types.ts 契约）
   const names = [...DEFAULT_ON_TOOLS.filter(name => toolOwner(name) === 'base' || live.has(name)), ...fromPlugins];
-  return {
-    tools: names.filter((name, index) => names.indexOf(name) === index).map(name => ({ name, default_on: true })),
-    skills: store.data.skills,
-  };
+  const unique = names.filter((name, index) => names.indexOf(name) === index);
+  /*
+   * 工具页的用户级开关（tool_overrides[name].enabled）在这里生效。
+   *
+   * 口径：**显式关掉的不进全局能力**；显式打开的**进**（把 entry_meta 这种按需工具
+   * 从「能力」页打开 —— 这正是工具开关存在的意义）；没设过的照旧（default_on 决定）。
+   * 与 applyToolOverride 是同一套语义的两种表达：那边给 runner，这边给界面与「跟随全局」的预设。
+   */
+  const overrides = store.data.tool_overrides ?? {};
+  const tools = unique
+    .filter(name => overrides[name]?.enabled !== false)
+    .map(name => ({ name, default_on: true }));
+  for (const [name, override] of Object.entries(overrides)) {
+    if (override?.enabled !== true) continue;
+    // 显式打开的按需工具也要进（且不重复）
+    if (!tools.some(tool => tool.name === name)) tools.push({ name, default_on: true });
+  }
+  return { tools, skills: store.data.skills };
 });
 
 const busy = ref(false);

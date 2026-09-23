@@ -716,6 +716,26 @@ export const useAppStore = defineStore('cx-assistant', () => {
     save();
   }
 
+  /**
+   * 把某个工具的**用户级开关**清掉（回到「跟随」）。
+   *
+   * 为什么需要单独一条：`setToolOverride` 有意忽略 `undefined`（那是防「把已有值误覆盖成空」的），
+   * 而三态开关回到「跟随」**必须**把字段删掉 —— 复用 resetToolOverride 又会连提示词一起清空。
+   * 所以这里只删 `enabled` 一个键，其余覆盖项原样保留；整条没别的字段了就顺手删掉整条。
+   */
+  function clearToolSwitch(name: string): void {
+    const tool = name.trim();
+    if (tool === '') return;
+    const current = data.value.tool_overrides[tool];
+    if (!current || current.enabled === undefined) return;
+    delete current.enabled;
+    // 只剩 edited_at（或干脆空了）就整条删掉，别在数据里留空壳
+    const rest = Object.keys(current).filter(key => key !== 'edited_at');
+    if (rest.length === 0) delete data.value.tool_overrides[tool];
+    else current.edited_at = Date.now();
+    save();
+  }
+
   /** 撤掉某个工具的全部覆盖（回到内置默认） */
   function resetToolOverride(name: string): void {
     const tool = name.trim();
@@ -1033,7 +1053,7 @@ export const useAppStore = defineStore('cx-assistant', () => {
     setMode, appendTurn, upsertTurn, patchTurnText, setTurns, setRunning, resetSession,
     currentSessionEvents, eventsOf, appendEvent, appendEvents, logEvent,
     exportSession, exportSessions, exportSessionEvents,
-    toolOverrides, toolOverrideOf, setToolOverride, resetToolOverride,
+    toolOverrides, toolOverrideOf, setToolOverride, resetToolOverride, clearToolSwitch,
     pluginEnabled, setPluginEnabled, pluginConfig, imageConfig, setPluginConfig, resetPluginConfig,
     setExternalPlugin, setExternalPluginError, removeExternalPlugin,
     currentDrafts, draftsOf, draftCount, addDraft, clearDraftsFor, clearDrafts,

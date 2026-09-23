@@ -25,7 +25,7 @@
           <span class="cx-t">工具</span>
           <span class="cx-n">{{ toolRows.length }} 个 · 已改 {{ editedToolCount }}</span>
           <span class="cx-spacer"></span>
-          <span class="cx-hint">点一行改它的提示词</span>
+          <span class="cx-hint">点一行改它的提示词；行上那个开关控制「给不给模型」</span>
         </div>
         <div class="cx-list">
           <div v-for="tool in toolRows" :key="tool.name" class="cx-toolrow" @click="openToolDetail(tool.name)">
@@ -38,6 +38,13 @@
                 <span v-if="tool.owner_disabled" class="cx-tag warn">来源已停用</span>
                 <span v-if="tool.missing" class="cx-tag dang">内核里没有</span>
                 <span class="cx-tag" :class="toolEdited(tool.name) ? 'ok' : ''">{{ toolEdited(tool.name) ? '已改过' : '默认' }}</span>
+                <!-- 工具级开关的三态：跟随 / 手动开 / 手动关（关掉 = 不给模型） -->
+                <span
+                  class="cx-tag"
+                  :class="toolSwitchOf(tool.name) === 'off' ? 'dang' : toolSwitchOf(tool.name) === 'on' ? 'ok' : ''"
+                  :title="'工具开关：' + toolSwitchLabel(readToolOverride(data, tool.name)) + '（点一下切换）'"
+                  @click.stop="toggleToolSwitch(tool.name)"
+                >{{ toolSwitchLabel(readToolOverride(data, tool.name)) }}</span>
               </div>
               <div class="cx-toolrow-desc">{{ tool.desc || '（内核还没给一句话说明）' }}</div>
             </div>
@@ -48,7 +55,8 @@
         <p v-if="toolRows.length === 0" class="cx-hint">工具清单还没就绪：agent 内核注册好工具后会自动出现在这里。</p>
         <p class="cx-hint cx-mt10">
           点一行进详情：改提示词、参数说明、参数默认值、单次超时。
-          用不用某个工具由两级决定：「能力 · 工具」段是全局默认（这里管）；预设里打开「单独启用预设能力」后，才由「预设」那份勾选管。
+          行上的开关是**用户级**的：<b>跟随</b>（默认，由来源与内置默认决定）→ <b>手动开</b> → <b>手动关</b>（这条工具不再发给模型）。
+          它只能**收窄**：来源插件关着 / MCP 服务器断着时，手动开也救不回来 —— 那两层仍然在来源处管。
         </p>
       </div>
 
@@ -100,7 +108,7 @@ import SegBar from '../components/SegBar.vue';
 import ToolDetail from '../components/ToolDetail.vue';
 import ToolPromptSheet from '../components/ToolPromptSheet.vue';
 import type { GotoSeg, SegItem, UiTool } from '../components/ui_types.ts';
-import { overrideEdited, readToolOverride } from '../components/ui_types.ts';
+import { overrideEdited, readToolOverride, toolSwitchLabel, toolSwitchState } from '../components/ui_types.ts';
 import { buildToolRows } from '../components/tool_rows.ts';
 import PluginsView from './PluginsView.vue';
 import SkillsView from './SkillsView.vue';
@@ -139,6 +147,8 @@ const emit = defineEmits<{
   /** 工具覆盖项改了（数据由 App.vue 写进 store；这条只是通知） */
   'tool-override': [name: string, patch: Partial<ToolOverride>];
   'tool-reset': [name: string];
+  /** 工具级开关回到「跟随」（清掉 enabled 一个键，不动其它覆盖项） */
+  'tool-switch-clear': [name: string];
   save: [skill: Skill];
   delete: [skillId: string];
   duplicate: [skill: Skill];
@@ -254,6 +264,27 @@ function onToolPatch(patch: Partial<ToolOverride>) {
 
 function onQuickPatch(patch: Partial<ToolOverride>) {
   emitToolPatch(quickToolName.value, patch);
+}
+
+/**
+ * 工具级开关（用户意志）：三态循环 **跟随 → 手动开 → 手动关 → 跟随**。
+ *
+ * 为什么不是「二态开关」：二态必须把「没设过」硬塞成开或关，而两者的后果不同 ——
+ * 「跟随」时按需工具（entry_meta）**不给模型**是正常的，「手动关」则是用户明确不要它。
+ * 界面上这两种要能区分（列表行标签 + 详情页文案），否则用户会以为系统背着他改了设置。
+ */
+function toggleToolSwitch(name: string) {
+  const current = toolSwitchState(readToolOverride(data.value, name));
+  // 回到「跟随」要走专门的清字段路径（setToolOverride 有意忽略 undefined）
+  if (current === 'off') {
+    emit('tool-switch-clear', name);
+    return;
+  }
+  emitToolPatch(name, { enabled: current === 'follow' });
+}
+
+function toolSwitchOf(name: string): 'follow' | 'on' | 'off' {
+  return toolSwitchState(readToolOverride(data.value, name));
 }
 
 /** 列表行的 ✎：只弹提示词，不进详情页 */

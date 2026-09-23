@@ -295,7 +295,7 @@ function closeSession(id: string): boolean {
     session.client.close();
   } catch (error) {
     // close 是幂等的且不该抛；真抛了也不该影响断开流程（工具必须能从能力里消失）
-    console.warn('[苍玄界] 关闭 MCP 连接时出错（已忽略）', error);
+    console.warn('[酒馆工坊Agent] 关闭 MCP 连接时出错（已忽略）', error);
   }
   return true;
 }

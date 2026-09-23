@@ -1,5 +1,5 @@
 /**
- * 苍玄界 · 挂载接缝（应用侧）```
+ * 酒馆工坊Agent · 挂载接缝（应用侧）```
  *
  * 扩展外壳（src/extension/index.ts）通过**动态 import** 调这里的 mountApp，
  * 拿到一个 dispose 回调。这样做的意义：

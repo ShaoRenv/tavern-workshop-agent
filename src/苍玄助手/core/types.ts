@@ -519,6 +519,15 @@ export type ToolCall = z.infer<typeof ToolCallSchema>;
  * 谁改歪了 tsc 会直接报出来。
  */
 export const ToolOverrideSchema = z.object({
+  /**
+   * **工具级开关**（三态：缺省 = 跟随 / true = 手动开 / false = 手动关）。
+   *
+   * ⚠️ 这个字段**必须**在这里声明，否则会被 zod 当未知键丢掉 ——
+   * 真机验收当场踩的坑：切到「手动关」→ store 里确实写进了 `enabled: false`
+   * （诊断确认）→ **刷新一次就没了**，因为逐块恢复走的是这份 schema。
+   * 与当初 `plugins.image.enabled` 是同一类坑：**加了字段忘了加 schema**。
+   */
+  enabled: z.boolean().optional(),
   /** 覆盖「进模型的那段说明」 */
   description: z.string().optional(),
   /** 覆盖参数 schema 里某个参数的 description（键 = 参数名） */
