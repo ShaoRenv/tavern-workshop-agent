@@ -286,6 +286,18 @@ const externalEnabledCount = computed(() => external.value.filter(item => extern
 function extStatus(item: ExternalPlugin): { label: string; kind: '' | 'ok' | 'warn' | 'dang' } {
   if (item.last_error) return { label: '装载失败', kind: 'dang' };
   if (!externalEnabled(item)) return { label: '未启用', kind: '' };
+  /*
+   * ⚠️ **缺能力也要在这里说**（独立验收抓到的口径分叉）。
+   *
+   * registry 里外部插件**同样要过能力闸**（`pluginCapabilitySkips` 走 allManifests）：
+   * 它声明了某个必需能力而本机没有 → 它**不装载**（页面 / 工具 / 宏全都不出）。
+   * 而这里原来只判 last_error / 开关 → 界面显示「已启用」，用户看不出为什么什么都没生效。
+   *
+   * 判据必须**复用 registry 的结论**，不在这里自己探一遍能力（那是第二份判断，迟早分叉）：
+   * 拿已算好的 skip 表查（同内置插件那行用的是同一份 pluginCapabilitySkips）。
+   */
+  const skip = skipById.value.get(item.id);
+  if (skip) return { label: '缺能力', kind: 'dang' };
   return { label: '已启用', kind: 'ok' };
 }
 
