@@ -1,0 +1,1216 @@
+﻿(node:25832) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_core.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 读世界书范围失败，退回只列名字 TypeError: ctx.wb.scopes is not a function
+    at Object.run (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/builtin/worldbook/tools.ts:243:32)
+    at runWithTimeout (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent/pipeline.ts:47:36)
+    at runToolPipeline (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent/pipeline.ts:90:20)
+    at runAgentLoop (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent/loop.ts:324:26)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_core.test.ts:598:18)
+    at async Test.run (node:internal/test_runner/test:1313:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+✔ draft: lineDiff 逐行 +/- 正确 (2.5447ms)
+✔ draft: 草稿 apply 才 writeAll，写成功后才清空 (4.71ms)
+✔ draft: 写回失败时草稿留着，能重试 (1.7678ms)
+✔ draft: create / delete / meta 一起落地 (8.2857ms)
+✔ registry: 阶段 3 的 16 全集 / 默认装配 15 个、顺序对、Schema 完整 (3.4914ms)
+✔ registry: create_skill 是 user_initiated_only + 默认关 + 描述写明仅用户要求时用 (0.65ms)
+✔ registry: entry_meta / portrait_prompt / ask_user 默认关，写工具默认开 (0.8374ms)
+✔ registry: entry_edit 命中多处要报错，加上下文或 replace_all 才行 (1.2639ms)
+✔ registry: entry_edit 不许整条重写（old_string 必填） (0.7717ms)
+✔ registry: wb_read 分页 + 按 uid 读 (5.5069ms)
+✔ registry: 写工具受 ctx.worlds 限制，超范围直接拒 (6.3034ms)
+✔ registry: entry_create 草稿 payload 完整（strategy/keys） (8.6247ms)
+✔ registry: entry_meta 草稿带 before_fields，落地只改属性 (4.2208ms)
+✔ registry: skill / read_skill_file / create_skill (4.3453ms)
+✔ registry: gen_image / ask_user / submit (1.3203ms)
+✔ transport: native 通道发 tools 并解析 tool_calls (2.4191ms)
+✔ transport: native 400 不支持 tools → 自动降级 text 且 via=text (5.1687ms)
+✔ transport: 酒馆路线直接走 text，不 fetch (1.3295ms)
+✔ transport: 多模态只在 send_images 开着时塞图 (0.8073ms)
+✔ transport: native 流式 SSE 拼文本和 tool_calls (4.0638ms)
+✔ transport: 文本通道把 SystemQuery 抠干净，assistant 历史转成标记文本 (1.2894ms)
+✔ loop: 两轮跑完，转写是 system+user+assistant(tool_calls)+tool (9.3374ms)
+✔ loop: 调 submit 立刻收工 (0.8885ms)
+✔ loop: 未知工具不炸，跑完还能停 (0.9202ms)
+✔ loop: AbortSignal 能停 (2.6958ms)
+✔ loop: 接口报错 → reason=error 且带消息 (1.7653ms)
+✔ loop: max_rounds 兜底；工具产出的图回灌成图片消息 (1.763ms)
+✔ loop: turnsToMessages / toToolSpecs 正常工作 (1.3111ms)
+(node:12240) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_core_e2e.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+✔ 端到端：文本通道 → 检索 → 草稿改条目 → submit → 落地 writeAll (41.9029ms)
+(node:4284) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_draft.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 甲本：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 乙本：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 乙本：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 甲本：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+[苍玄助手] 天枢阁：备份失败，本次写回**没有兜底**（回滚前自动备份）—— 备份炸了（假） Error: 备份炸了（假）
+    at Object.snapshot (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_draft.test.ts:298:36)
+    at applyBackup (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent/draft.ts:213:16)
+    at DraftStore.rollback (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent/draft.ts:455:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_draft.test.ts:479:18)
+    at async Test.run (node:internal/test_runner/test:1313:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（回滚前自动备份）
+✔ draft: lineDiff 相同文本全 same；增删行/行号正确 (5.6096ms)
+✔ draft: lineDiff 空串 / CRLF / 只增行 / 只删行 (2.3078ms)
+✔ draft: 超长文本走整段替换（不做 LCS），照样给出全量增删行 (8.6507ms)
+✔ draft: changedLines / compactDiff / formatDiff / formatStat (0.9251ms)
+✔ draft: add() 兼容 DraftSink 的三种接法（create / meta / edit / delete） (0.9103ms)
+✔ draft: diffs / summary / describeChange；delete 的 diff 是全删 (1.2465ms)
+✔ draft: get / remove / removeWorld / ofWorld / clear / 默认值补齐 (0.8169ms)
+✔ draft: apply 逐本世界书分组落地，成功才摘草稿，失败留着 (2.5469ms)
+✔ draft: apply 支持只落指定世界书；没写世界书名的草稿报错但不丢 (0.9688ms)
+✔ draft: apply 把 readAll 找不到 uid 的警告带进 report (1.0129ms)
+✔ P5-2: apply 在 writeAll **之前**打快照，且交出去的是**写前**的原始 entries (0.8329ms)
+✔ P5-2: 快照带 extra（写回要合并回去的未知字段，备份一个都不能丢） (0.5039ms)
+✔ P5-2: 多本世界书 → 每本**各自**在写回前备一次 (0.8723ms)
+✔ P5-2: 备份失败**不中断**写回，但必须 warn + 进 warnings（静默没有兜底＝假安全感） (0.6734ms)
+✔ P5-2: 没接备份钩子 → 照常写回，但 report 里留一条「没有兜底」 (0.6018ms)
+✔ P5-2: 备份钩子可以晚接（setBackupSink），接了之后 apply 就会用 (0.3602ms)
+✔ P5-2 回滚: 用备份整本写回 (0.6015ms)
+✔ P5-2 回滚: **回滚前必须先对当前状态再备一次**（否则回滚错了没法回头） (0.3218ms)
+✔ P5-2 回滚: 回滚前那次备份失败 → 回滚照常进行，但明确告知「这次回滚不可撤销」 (0.9748ms)
+✔ P5-2 回滚: 没接钩子 → 回滚可用，但如实说「不可撤销」 (0.4574ms)
+✔ P5-2 回滚: 备份没记世界书 → 明确失败（不猜、不写） (0.309ms)
+✔ P5-2 回滚: 写回抛错 → 返回 ok=false + 人话，不把异常放出去 (0.4275ms)
+✔ P5-2 回滚: 整本替换语义 —— 备份里没有的条目会被删掉（那是「回到当时的样子」） (0.4438ms)
+✔ draft: applyChangesToEntries 不改入参，edit / delete / meta / create 都生效 (1.0359ms)
+✔ draft: applyChangesToEntries 的警告：uid 找不到 / create 撞车 / 未知类型 (0.4078ms)
+✔ draft: meta 只改 payload 里出现的字段（包括 constant 简写） (0.2413ms)
+✔ draft: entryFromPayload 归一化各种入参形态 (0.6467ms)
+(node:26312) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_guards.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ observe-guard：没读过就改 → NOT_OBSERVED（DSH 文案） (10.5833ms)
+✔ observe-guard：读过之后条目变了 → STALE (1.2172ms)
+✔ observe-guard：记录的是草稿视图的版本（草稿改过也算「读过之后变了」） (1.8384ms)
+✔ observe-guard：分页读只记读到的那一页；wb_search 也记观察 (13.4683ms)
+✔ prune-guard：8192 不动、8193 标记 pruned，detail 本体一字不改 (2.0248ms)
+✔ repeat-guard：第 3/5/8 次才建议、绝不阻断、参数规范化 (1.6415ms)
+✔ createToolGuards：带端口 → observe+prune+repeat；不带 → prune+repeat；reset 清两份状态 (0.8398ms)
+(node:24564) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_pipeline.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ pipeline：before 返回结果就短路，def.run 不被调用 (1.8602ms)
+✔ pipeline：def.run 抛错 → TOOL_ERROR；after 守卫能替换结果 (1.9579ms)
+✔ pipeline：失败结果保留工具自己给的 code，不替它编分类 (0.4568ms)
+✔ pipeline：超时 → TIMEOUT；工具自带 timeoutMs 与工具页覆盖都认；onRawResult 给 after 之前的原文 (33.1204ms)
+✔ loop：守卫的 contexts 变成合成 user 消息；修剪只作用于给模型的那份 (5.14ms)
+✔ loop：失败结果带 code；未知工具走 UNKNOWN_TOOL 且不炸 (1.8339ms)
+(node:976) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_registry.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 读世界书范围失败，退回只列名字 TypeError: ctx.wb.scopes is not a function
+    at Object.run (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/builtin/worldbook/tools.ts:243:32)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_registry.test.ts:408:30)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+[苍玄助手] 当前宿主没有 getScriptTrees（ST 原生无此能力，需装酒馆助手），脚本树图库不可用
+[苍玄助手] 当前宿主没有 getScriptTrees（ST 原生无此能力，需装酒馆助手），脚本树图库不可用
+[苍玄助手] 当前宿主没有 getScriptTrees（ST 原生无此能力，需装酒馆助手），脚本树图库不可用
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+✔ registry: 16 个全集 / 默认装配 15 个、顺序按 TOOL_NAMES、分组一致 (8.767ms)
+✔ registry: 默认开关 —— DEFAULT_ON_TOOLS 11 个，装配里 default_on 也正好 11 个 (1.6615ms)
+✔ registry（第一道闸）：插件开关直接决定装配 —— 关掉哪个插件，它的工具就不在注册表里 (1.6083ms)
+✔ registry: 每个工具的 parameters 都是合法且可序列化的 JSON Schema (1.7951ms)
+✔ registry: 用 zod.fromJSONSchema 真解释一遍 —— 合法参数过、缺必填被拒 (31.7624ms)
+✔ registry: 嵌套对象参数都自带 description（keys_secondary / create_skill.files 元素） (1.6815ms)
+✔ registry: specs() / pick() 只发勾上的工具且顺序固定 (1.8737ms)
+✔ registry: 默认装配的 15 个工具拿空对象调用都不炸，且都给出人话 brief (7.8361ms)
+✔ entry_edit: 0 命中 → 报错、草稿不动、世界书不写 (1.1409ms)
+✔ entry_edit: 多命中不加 replace_all → 报错并给上下文建议；草稿不动 (1.2515ms)
+✔ entry_edit: replace_all 全换（split/join，字面量安全），草稿记全量 before/after (1.4699ms)
+✔ entry_edit: 唯一命中时只换一处，其余一字不动；落地后 extra 还在 (1.7981ms)
+✔ entry_edit: old_string 为空 / 只给 new_string → 拒绝整条重写 (0.7059ms)
+✔ entry_edit: 写范围受 ctx.worlds 限制；uid 不存在要报错 (0.541ms)
+✔ entry_edit: new_string 里的 $& / $ 反引号 / 单引号美元 / $$ / $1 一律当字面量（单命中与 replace_all 都一样） (8.6716ms)
+(node:5032) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_runner_pipeline.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+✔ runner：工具层走草稿视图 —— 建完能读到、连着改两处都不丢、saveDrafts 合起来落地 (50.8736ms)
+✔ runner：没读过就改 → observe-guard 拦下（NOT_OBSERVED），草稿不动 (3.2216ms)
+✔ runner：tool_overrides 套进发给模型的 specs（原生通道） (3.0111ms)
+✔ catalog：给工具详情页的是 ToolDef 原样值（不套覆盖），覆盖只影响 specs (1.0123ms)
+(node:26236) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_transport.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ transport: 走酒馆路线永远 text；plannedRoute 只看设置和已知能力 (5.0306ms)
+✔ transport: native 成功 → supportsTools=yes，走 native 不再 fetch (2.6045ms)
+✔ transport: 没填接口地址 / 没填模型名 / 环境没 fetch → 自动降级 text（各记一次提醒） (6.5325ms)
+✔ transport: 降级判定只看 400/404/405/415/422/501 + 明确提到 tool；其他错误原样抛 (4.2967ms)
+✔ transport: markToolsUnsupported 幂等（只提醒一次），之后不再打 native 接口 (1.2533ms)
+✔ transport: 中止的信号 → 抛 AbortError，不吞成降级 (1.7121ms)
+✔ transport: native 400 不支持 tools 时降级，并把 tools 说明拼进文本提示词 (2.968ms)
+✔ transport: 文本通道没有 generateRaw 时明确报错；回复是对象时取 content (0.7655ms)
+✔ transport: extractSystemQueries 抠标记、剥正文、认多种字段名 (0.8407ms)
+✔ transport: extractSystemQueries 对坏 JSON / 没名字 / 围栏代码块的处理 (0.7763ms)
+✔ transport: buildTextPrompts 把工具结果/助手调用都摊成纯文本 (0.5272ms)
+✔ transport: resolveEndpoint / parseToolArguments / contentToText 边界 (0.284ms)
+✔ transport: parseNativeReply 认内容分片、过滤没名字的调用、坏参不炸 (0.4494ms)
+✔ transport: toNativeTool / toNativeMessage 的转写（含多模态与工具调用） (0.5933ms)
+✔ transport: collectImages 只收最后几条、最多 4 张、顺序保持 (0.2851ms)
+(node:24068) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/agent_wb_view.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 甲本：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+✔ 草稿视图：create 之后立刻 edit / read 都能看到刚建的条目 (3.3434ms)
+✔ 草稿视图：同一条改两次，两处改动都在（不丢第一处） (2.0052ms)
+✔ 草稿视图：delete / meta 也先套在视图上；search 看的是草稿后的内容 (5.8279ms)
+✔ entryVersion：稳定短 hash，内容/标题/开关/关键词变了就变 (0.7476ms)
+(node:25436) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/bundle_artifact.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ bundle: 文件存在且是合法 JSON，顶层字段正确 (3.3649ms)
+✔ bundle: content 里没有残留的构建占位符 (7.8456ms)
+✔ bundle: content 本身通过 node --check（导入酒馆前至少语法合法） (347.3554ms)
+✔ bundle: base64 链路解得出真实 iframe HTML / app JS / app CSS (0.9874ms)
+✔ bundle: 内联的 app JS 真的是苍玄助手（不是别的工程的界面） (0.6787ms)
+✔ bundle: 面板里没有残留「苍玄界立绘工坊」（回归 task-9 的 P2-2） (1.3124ms)
+✔ bundle: 内联的 app JS 带上了脚本变量存储（type: script + __CX_SCRIPT_ID__） (1.5136ms)
+✔ bundle: 面板桥接了全部宿主接口（回归「只桥 8 / 19」那个真 bug） (4.8062ms)
+✔ bundle: 阶段 2 的 4 格页面 / 「能力」并进设置 / 记录进 ⋯ Sheet 都在产物里 (10.8508ms)
+(node:25932) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄界] 探测能力 getWorldbook 抛错，按不可用处理 Error: 探测炸了
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:201:11
+    at probeCapability (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:336:36)
+    at capabilityStatus (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:510:16)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:204:20)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄界] 能力 bad-degrade 的降级动作抛错（已忽略） Error: degrade 炸了
+    at Object.degrade (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:422:15)
+    at evaluatePluginCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:461:14)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:425:21)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+[苍玄界] 探测能力 getWorldbook 抛错，按不可用处理 Error: 探测炸了
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:548:11
+    at probeCapability (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:336:36)
+    at probeCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:370:16)
+    at evaluatePluginCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:453:18)
+    at pluginCapabilitySkips (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:204:17)
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:556:19
+    at withHostPresent (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:84:12)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:550:3)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+[苍玄界] 探测能力 getWorldbook 抛错，按不可用处理 Error: 探测炸了
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:548:11
+    at probeCapability (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:336:36)
+    at probeCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:370:16)
+    at evaluatePluginCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:453:18)
+    at pluginCapabilitySkips (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:204:17)
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:556:19
+    at withHostPresent (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:84:12)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:550:3)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+[苍玄界] 探测能力 getWorldbook 抛错，按不可用处理 Error: 探测炸了
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:548:11
+    at probeCapability (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:336:36)
+    at probeCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:370:16)
+    at evaluatePluginCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:453:18)
+    at pluginCapabilitySkips (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:204:17)
+    at skippedIds (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:230:18)
+    at loadablePlugins (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:242:19)
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:562:22
+    at withHostPresent (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:84:12)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:550:3)
+[苍玄界] 探测能力 getWorldbook 抛错，按不可用处理 Error: 探测炸了
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:548:11
+    at probeCapability (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:336:36)
+    at probeCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:370:16)
+    at evaluatePluginCapabilities (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/capability.ts:453:18)
+    at pluginCapabilitySkips (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:204:17)
+    at skippedIds (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:230:18)
+    at loadablePlugins (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugins/registry.ts:242:19)
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:562:22
+    at withHostPresent (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:84:12)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/capability.test.ts:550:3)
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] 能力表：0/27 可用；不可用：generateRaw、generateQuietPrompt、substitudeMacros、registerMacroLike、unregisterMacroLike、getWorldbook、replaceWorldbook、createWorldbook、deleteWorldbook、getWorldbookNames、getGlobalWorldbookNames、getCharWorldbookNames、getChatWorldbookName、vars.table、vars.keyed、getVariables、insertOrAssignVariables、replaceVariables、updateVariablesWith、getRequestHeaders、triggerSlash、stopGenerationById、fetch、isToolCallingSupported、getScriptTrees、getModelList、getScriptId
+✔ 能力表: 清单里的 name 唯一，且都有 label / required 声明 (3.8258ms)
+✔ 能力表: 契约字段齐全（name / provider / required / label，degrade 可选） (0.6394ms)
+✔ 能力表: 全都有 → ok=true 且没有 reason (0.5476ms)
+✔ 能力表: 什么都没有 → 每条都 ok=false 且有**人话** reason (0.6253ms)
+✔ 能力表: 不可用原因要说清「缺哪个接口 / ST 原生对应是什么」 (0.6072ms)
+✔ 能力表: 明确不可用的接口，原因要**区别于**「这台机器恰好缺」 (0.7193ms)
+✔ 能力表: probeCapabilities(only) 只探指定的几条 (1.9543ms)
+✔ 能力表: 探测**不缓存** —— 解析器换了，同一次会话里结果要跟着变 (0.4616ms)
+✔ 能力表: 解析器抛错时按「不可用」处理，异常不许放出来 (1.4501ms)
+✔ 能力表: capabilityStatus 对不存在的名字返回 undefined（不抛） (8.1039ms)
+✔ 能力表: reportCapabilityTable 给出 total/ok/missing 摘要 (1.0167ms)
+✔ fetch: 登记在能力表里，且 label / required 都有据 (0.5077ms)
+✔ fetch: 宿主在位时判定可用，且来源是 platform（不是 tavern-helper） (2.9927ms)
+✔ ⭐静态名字闸：requires 写 'fetch' **不再报错**（这条就是被它卡住的） (1.2383ms)
+✔ ⭐静态名字闸反例自检：把 fetch 从能力表挖掉 → **必须重新报错**（证明不是恒绿） (0.3811ms)
+✔ 裁决: 没声明 requires 的插件 → 一律通过（不受能力表影响） (0.2296ms)
+✔ 裁决: 声明的能力全都有 → ok，reason 空 (0.2405ms)
+✔ 裁决: 缺**必需**能力 → ok=false，且 reason 是人话（本任务核心验收项） (0.513ms)
+✔ 裁决: detail 逐条列缺什么、缺的接口名、以及「永久不可用」的警告 (0.3405ms)
+✔ 裁决: 只缺**可选**能力 → 照常通过，但记进 missingOptional (0.3489ms)
+✔ 裁决: 缺可选能力时要跑它的 degrade（降级动作是能力自己的事） (0.4149ms)
+✔ 裁决: degrade 抛错不影响裁决结果（单个降级失败不拦装） (0.7804ms)
+✔ 裁决: requires 里混入空串 / 非字符串不炸（脏声明当成没声明） (0.1957ms)
+✔ 裁决: requires 里的能力名不在能力表里 → 明确报「没有这条能力」 (0.3408ms)
+✔ 注册表: 缺能力时插件的页面 / 工具 / 宏真的不出（不是运行时炸半路） (1.5552ms)
+✔ 注册表: skip 记录里有人话理由 + 缺的能力名（界面直接可用） (0.4541ms)
+✔ 注册表: 能力齐备时插件照常装载（闸不误伤） (0.4591ms)
+✔ 注册表: pluginStatusWithCapabilities 把「缺能力」显示成 dang 档 (0.5893ms)
+✔ 注册表: 探测抛错时**没有异常逃出去**，插件按「不可用」被明确拦下 (1.9149ms)
+✔ 变量两档: 纯原生环境 → vars.keyed 可用、vars.table **不可用**（这条差异要暴露给用户） (0.5624ms)
+✔ 变量两档: 装了酒馆助手 → vars.table 也可用（存储不再受限） (0.2366ms)
+✔ 变量两档: 两条都在能力表里，且没有合成一条「存储可用」 (0.2232ms)
+✔ fromHasHostFn: 有 → 按原生/酒馆助手分档；没有 → none (0.7616ms)
+✔ fromHasHostFn: hasHostFn 抛错时按 none 处理（不把异常放出去） (0.2037ms)
+✔ fromHasHostFn 接进能力表: 链上有能力 → 插件通过裁决 (0.3871ms)
+✔ 端到端: 插件自己声明的 requires 从「缺能力被跳过」到「能力齐备被装载」 (0.7132ms)
+✔ 端到端: 声明可选（问号后缀）的能力缺失 → 装载不受影响，只记一笔 (0.2823ms)
+(node:10700) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_adapters.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 没填接口地址，取不到模型列表，请手填模型名
+✔ adapters: loadEntries 只回 uid/name/group，正文一个字都不许进界面模型 (4.9593ms)
+✔ adapters: loadEntries 空入参 / 非数组 / 单本读失败都不炸，失败本只 warn 跳过 (2.1068ms)
+✔ adapters: 宿主整个不可用时 loadEntries / loadWorlds / loadRoles 都回空数组（不抛） (2.9209ms)
+✔ adapters: loadWorlds 标出当前启用的世界书 (0.6085ms)
+✔ adapters: toUiTools 只挑界面要的字段 (0.5696ms)
+✔ adapters: fetchModels 没填地址直接回空；优先用酒馆 getModelList 并归一化 (0.7552ms)
+✔ adapters: getModelList 失败时直连 {url}/models，失败一律回空数组 (1.4865ms)
+✔ adapters: getModelList 返回空表时继续直连兜底 (0.4266ms)
+✔ adapters: parsePortraitFile 对不是 PNG 的文件回 ok:false + 人话错误 (0.9613ms)
+✔ adapters: parsePortraitFile 读得到没有元数据的真 PNG 时给出可读提示（不抛） (6.1815ms)
+(node:25772) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_events.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+✔ events: 缺省是空数组，老数据（v2）补空不报错 (15.9637ms)
+✔ events: makeEvent 保证 title 非空，appendEvent / appendEvents 是纯函数 (2.3791ms)
+✔ events: eventsForTurn 把轮次摊成事件（确定性 id / ref / raw / 失败标记） (1.895ms)
+✔ store: appendTurn / upsertTurn 双写（turns 与 events 都不落） (21.7861ms)
+✔ store: appendEvent / logEvent / eventsOf（title 兜底、按会话取） (4.1914ms)
+✔ store: setToolOverride 合并 + 自动 edited_at，resetToolOverride 清掉 (15.3391ms)
+✔ store: 草稿按会话分开（addDraft 盖章 / draftsOf / clearDraftsFor） (7.691ms)
+[苍玄助手] 保存失败 Error: 保存失败：没有可用的变量写入接口（insertOrAssignVariables / replaceVariables / updateVariablesWith），当前作用域 酒馆全局变量（跨会话）
+    at saveData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:843:11)
+    at Timeout.flushNow (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/stores/app.ts:250:7)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+(node:6844) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_macros.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 插件宏 图片提示词 渲染失败，按空串处理 Error: boom
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_macros.test.ts:185:11
+    at applyPluginMacros (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/macros.ts:176:17)
+    at render (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/macros.ts:124:10)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_macros.test.ts:187:16)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+✔ macros: emptyMacroData 全空、round=0、has_image=false (2.4321ms)
+✔ macros: 渲染顺序 = 先酒馆宏，再自定义宏（酒馆宏吐出的自定义宏也要被替换） (5.3286ms)
+✔ macros: 没挂酒馆宏引擎时原样透传，不影响自定义宏 (0.7004ms)
+✔ macros: 酒馆宏引擎抛错时原样返回（并 warn），不把整条消息弄丢 (0.6794ms)
+✔ macros: 自定义宏表按固定顺序替换 —— 先替换的键吐出的后键会被展开，后键吐出的先键保持字面量 (0.8476ms)
+✔ macros: 底座自己的宏逐个替换；轮数/截图/当前时间 特殊处理 (0.4492ms)
+✔ macros: 角色列表 / 图片元数据 归插件 —— 关掉插件退回空串（F-V1 回归闸） (0.5546ms)
+✔ macros: 同一宏出现多次全部替换；$& 之类的替换串特殊字符不引入 (0.322ms)
+✔ macros: usedMacros 按 OUR_MACROS 顺序报出现过的宏 (1.2721ms)
+✔ macros: 插件贡献的宏 —— 关插件退回空串，开插件用插件给的值（阶段 3） (1.4139ms)
+✔ macros: formatHistory 角色标签 / 工具卡 / limit 截断 / 空文本跳过 (0.7037ms)
+✔ macros: formatEntries 拼条目 (0.6455ms)
+(node:16148) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_script_scope.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ scope: resolveScriptId 解析链 —— globalThis.__CX_SCRIPT_ID__ 优先于 getScriptId()，都取到后去首尾空白 (2.0383ms)
+✔ scope: getScriptId 抛错 / 返回空 / 返回非字符串 → 降级为 undefined（省略 script_id） (1.6217ms)
+✔ scope: scriptScope 带上 script_id（有 id 时） (0.3431ms)
+✔ scope: 三级写兜底三条路（insertOrAssign / replace / updateWith）都带脚本作用域和 script_id (27.5534ms)
+✔ io: exportAll(true) 保留 api.key；exportAll(false) 抹成空串且不改入参 (3.726ms)
+✔ io: importAll 合法往返 ok:true；坏输入一律 ok:false 带 error 且不抛 (12.6811ms)
+✔ io: importAll 只解析不落盘（落盘要调用方自己 saveData） (2.9395ms)
+✔ io: 读入口**按形态选作用域**（脚本形态走 script，扩展形态走 global） (2.9799ms)
+✔ 源码级: 作用域字面量只出现在 core/native.ts 与 core/storage.ts（P4-10 新口径） (53.7976ms)
+✔ 源码级: 作用域闸**能失败**（喂违规片段确认报警） (0.7658ms)
+✔ 源码级: 两个允许文件**确实**还在用作用域字面量（闸没被架空） (2.0624ms)
+(node:26076) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_sessions.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 存储块 sessions 有 2 条数据不合法（已丢弃），保留 1 条
+✔ sessions: makeSession 默认值 / titleFromText / sessionTitle (9.2672ms)
+✔ sessions: pickActiveSession 按 id → 第一条 → 现造一条 (0.6111ms)
+✔ sessions: v1 老数据（只有 session）迁移成一条记录，内容一个字不丢 (18.3594ms)
+✔ sessions: v1 空会话（没痕迹）迁移成一条「新对话」并留警告 (0.7443ms)
+✔ sessions: 混合形态（sessions 有内容 + 残留单数 session）并进去不丢 (1.6658ms)
+✔ sessions: 迁移是幂等的（migrate(migrate(x)) 等价，第二次不再报迁移） (0.8821ms)
+✔ sessions: v2 干净数据 sessions 为空 → 静默补一条；active 指不上 → 修到第一条 (10.7422ms)
+✔ sessions: sessions 块坏条目逐条丢坏留好 (2.2249ms)
+✔ sessions: 落盘后单数 session 是空壳，聊天记录只在 sessions 里存一份 (7.9823ms)
+(node:24848) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_types_storage.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 脚本变量 cx_assistant_v1 不是对象，已整体回退为默认值
+[苍玄助手] 脚本变量 cx_assistant_v1 不是对象，已整体回退为默认值
+[苍玄助手] 脚本变量 cx_assistant_v1 不是对象，已整体回退为默认值
+[苍玄助手] 脚本变量 cx_assistant_v1 不是对象，已整体回退为默认值
+[苍玄助手] 存储块 active_tab 校验失败，已用默认值恢复：Invalid input: expected string, received number 123
+[苍玄助手] 存储块 api 校验失败，已用默认值恢复：route: Invalid option: expected one of "custom"|"tavern" { route: 'nope' }
+[苍玄助手] 存储块 gen 校验失败，已用默认值恢复：image_concurrency: Too small: expected number to be >0 { image_concurrency: -1 }
+[苍玄助手] 存储块 presets 有 2 条数据不合法（已丢弃），保留 1 条
+[苍玄助手] 存储块 skills 校验失败，已用默认值恢复：Invalid input: expected array, received string 不是数组
+[苍玄助手] 存储块 drafts 有 1 条数据不合法（已丢弃），保留 0 条
+[苍玄助手] 存储块 artifacts 校验失败，已用默认值恢复：Invalid input: expected array, received null null
+[苍玄助手] 数据版本 99 与当前版本 5 不一致，已按当前版本读取
+[苍玄助手] 存储块 active_tab 校验失败，已用默认值恢复：Invalid input: expected string, received number 123
+[苍玄助手] 存储块 active_tab 校验失败，已用默认值恢复：Invalid input: expected string, received array [ 'records' ]
+[苍玄助手] 存储块 api 校验失败，已用默认值恢复：Invalid input: expected object, received array []
+[苍玄助手] 存储块 presets 校验失败，已用默认值恢复：Invalid input: expected array, received object {}
+[苍玄助手] 存储块 session 校验失败，已用默认值恢复：Invalid input: expected object, received number 1
+[苍玄助手] 存储块 drafts 校验失败，已用默认值恢复：Invalid input: expected array, received string x
+[苍玄助手] 存储块 version 校验失败，已用默认值恢复：Invalid input: expected number, received string v1
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 这次保存被**拦下**了（不是没写成功，是主动拒绝写）：启动时读数据失败，为避免用默认值覆盖你原有的数据，在你有实际改动前不会写回。你刚才的改动尚未保存 —— 请检查宿主变量接口后重试。 Error: 保存失败：没有可用的变量写入接口（insertOrAssignVariables / replaceVariables / updateVariablesWith），当前作用域 酒馆全局变量（跨会话）
+    at saveData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:843:11)
+    at saveRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:882:5)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_types_storage.test.ts:496:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+[苍玄助手] 存储块 active_tab 校验失败，已用默认值恢复：Invalid input: expected string, received number 123
+[苍玄助手] 存储块 gen 校验失败，已用默认值恢复：image_concurrency: Too small: expected number to be >0 { image_concurrency: -3 }
+[苍玄助手] 存储块 presets 有 1 条数据不合法（已丢弃），保留 1 条
+[苍玄助手] 保存前修复了 3 处数据问题
+✔ types: RootDataSchema.parse({}) 各块默认值齐全（老数据零字段也能跑） (18.2585ms)
+✔ types: 非法枚举 / 越界数字被拒 (10.6493ms)
+✔ types: 块内缺字段自动补 default；未声明的键被剥掉（不污染存储） (6.5368ms)
+✔ types: 预设 v3 → v4 迁移 —— agent 的 system / plain 的 messages 迁进 items，一条都不丢，幂等 (6.5693ms)
+✔ types: 迁移口径 —— 老 plain → use_global_caps=true + tools=[]；老 agent → false（保留自己的工具） (1.1714ms)
+✔ types: parse 结果可直接 JSON 序列化（能原样存进酒馆变量） (0.9018ms)
+✔ types: uid / roleLabel 小工具 (0.8785ms)
+✔ storage: recoverRootData(null / undefined) 给填满的默认值 + 静默补一条会话，不报警 (3.5768ms)
+✔ storage: 顶层不是对象时整体回退默认值 + 一条警告（不抛） (3.022ms)
+✔ storage: 坏块逐块恢复 —— 好数据保留、坏块换默认、数组逐条丢坏留好 (5.2773ms)
+✔ storage: active_tab 未知字符串不再被清洗；老页名走 TAB_ID_ALIASES 兜底（不报警告） (4.3912ms)
+✔ storage: 好数据原样读出（不改内容、不误报警告） (2.0257ms)
+✔ storage: recoverRootData 对奇形怪状输入不抛异常 (3.9314ms)
+✔ storage: loadData 走宿主 getVariables（**按形态选作用域**），缺接口时给默认值 (6.0819ms)
+✔ storage: 没有任何变量接口时 saveData 抛错（store 会 catch） (3.3172ms)
+✔ storage: 优先 insertOrAssignVariables，只动我们那一个 key（作用域按形态分流） (2.2937ms)
+✔ storage: 退化到 replaceVariables 时保留别人的变量（作用域按形态分流） (1.4423ms)
+✔ storage: 退化到 updateVariablesWith 时保留别人的变量（作用域按形态分流） (1.1578ms)
+✔ storage: 写入前先校验修复坏块（坏值不会落盘） (1.7264ms)
+✔ storage: 防抖保存只落最后一次，flush / cancel 语义正确 (42.7593ms)
+✔ storage: hostFn 优先级 —— 注入 > TavernHelper > 全局；isPlainRecord 排除数组 (0.5272ms)
+(node:2776) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_v3.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 存储块 tool_overrides 校验失败，已用默认值恢复：Invalid input: expected record, received string 不是对象
+[苍玄助手] 存储块 tool_overrides 有 2 项数据不合法（已丢弃），保留 1 项
+✔ v3: RootDataSchema.parse({}) 的 tool_overrides / events 默认值 (18.1565ms)
+✔ v3 迁移: v2 老数据补覆盖项 / 事件 / 草稿归属，且不报警 (12.2256ms)
+✔ v3 迁移: 幂等（再跑一次结果一样、migrated=false、无警告） (1.0924ms)
+✔ v3 迁移: v1 → v3 一次到位（会话、事件、草稿归属一起补） (1.2572ms)
+✔ tool_overrides: 往返（saveData → loadData） (4.1817ms)
+✔ tool_overrides: 坏数据逐项兜底，不清空整张表 (3.0506ms)
+✔ drafts: session_id 有默认值，老草稿迁移回填 (1.6112ms)
+✔ adapters: toUiTools 全字段透传（工具详情页要的不能丢） (0.6801ms)
+(node:24056) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_worldbook.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 搜索时读取世界书失败：天枢阁 MissingHostApiError: 酒馆助手缺少 getWorldbook 接口，无法操作世界书
+    at requireHostFn (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/worldbook.ts:356:18)
+    at TavernWorldbookPort.readAll (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/worldbook.ts:484:26)
+    at TavernWorldbookPort.search (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/worldbook.ts:508:30)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core_worldbook.test.ts:332:33)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Test.run (node:internal/test_runner/test:1313:7)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+✔ worldbook: toWbEntry 归一化 TavernHelper 形态，extra 留下整条原始快照 (6.8557ms)
+✔ worldbook: toWbEntry 归一化旧版扁平形态（comment/key/keysecondary/selectiveLogic/constant/scanDepth） (0.5312ms)
+✔ worldbook: toWbEntry 对 undefined / null / 垃圾输入不炸 (0.6698ms)
+✔ worldbook: TavernHelper 形态往返字段一个不丢（整条 deepEqual） (0.8028ms)
+✔ worldbook: 旧版扁平形态往返 —— 原有字段全保，只补一个 enabled (0.8935ms)
+✔ worldbook: 野字段（自动化 / 分组 / 概率 / 扩展）原样带回 (0.7867ms)
+✔ worldbook: name 与 comment 同时存在且不同时，两个都原样带回（往返完全一致） (0.7839ms)
+✔ worldbook: uid 只有为空才交给酒馆分配，非空一律原样带上 (1.479ms)
+✔ worldbook: searchInEntries 只回 uid + 片段，命中数与 limit 正确 (1.3367ms)
+✔ worldbook: countHits / buildSnippet 边界 (0.7177ms)
+✔ worldbook: 端口 readAll / readByUid 走宿主接口 (1.8225ms)
+✔ worldbook: 端口 writeAll 带上 render 参数，uid 形态与 extra 字段全保住 (1.7662ms)
+✔ worldbook: 端口 list / current 去重保序；宿主缺接口时降级不炸 (3.0212ms)
+✔ worldbook: createWorldbook 绝不覆盖同名；createOrReplace 返回 false 要报错 (1.4209ms)
+✔ worldbook: 端口 search 跨世界书按 limit 截断，坏世界书不影响其他本 (0.7884ms)
+(node:25896) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/extension_contract.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 扩展 manifest：必须字段齐全（少一个酒馆就静默不加载） (5.3645ms)
+✔ 扩展 manifest：js / css 指向真实产出的文件（名字对不上就是白屏） (0.7739ms)
+✔ 扩展 manifest：hooks 声明的每个函数，入口文件都必须 export (1.5705ms)
+✔ 扩展 manifest：版本与 package.json 不冲突，且 auto_update 是显式的 (0.4974ms)
+✔ 扩展入口：init 可重复调用（activate 5 秒超时 + 模块单例） (0.5752ms)
+✔ 扩展入口：界面挂载是动态 import，不阻塞底座 (0.5313ms)
+✔ 扩展入口：不依赖 jQuery ready / errorCatched（那是 iframe 时代的开场白） (0.4517ms)
+✔ 扩展入口：卸载路径真的存在（disable 要拆干净） (0.6054ms)
+✔ 扩展入口：界面挂在 document.body，不挂进设置抽屉（真机踩过的 0×0 bug） (0.6836ms)
+✔ 扩展产出：样式全部在 manifest.css 指向的文件里（不许分包到异步 chunk） (2.1225ms)
+✔ 扩展产出：没有没被 index.js 引用的旧 chunk（防「更新后白屏」） (1.7476ms)
+✔ 扩展产出：manifest.json 与 index.js 同级（构建后才检查） (1.8139ms)
+✔ 扩展产出：index.js 是 ES module 且能被 node --check 认（构建后才检查） (0.8686ms)
+(node:13916) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/external_loader.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ apiVersion：1 通过；2 被拒且理由给出「下一步」；**没声明也拒**（不能默认放行） (6.981ms)
+✔ validateModule：apiVersion 不兼容要在**形状校验这一层**就被拦住（且带上人话） (0.5685ms)
+✔ 形状校验：没 manifest / 没 id / 没 contributes → **各自一句人话**（不是笼统的「加载失败」） (0.704ms)
+✔ 形状校验：export default 也认（不只 export const manifest）—— 且两者冲突时 manifest 优先 (0.3963ms)
+✔ 体积上限：超过 1 MB 直接拒（给出 KB 数字 + 上限），**且一个请求都不发** (171.8269ms)
+✔ 空代码：直接拒（不写盘、不执行） (1.4858ms)
+✔ ⭐撞内置 id：注册表通道拒绝 + 原因点名「内置插件占用」，且**不写进外部表** (0.9437ms)
+✔ 注册表通道：非法 manifest 也给人话（不是对象 / 没 id） (0.5862ms)
+✔ 注册表通道：外部 manifest 进来后强制 builtin=false（外部包不许自称内置） (0.697ms)
+✔ 成功路径：注册后 allManifests / pluginManifest / isExternalPlugin 都能看到它；注销后消失 (3.5989ms)
+✔ 注册幂等：同 id 重复注册 = 整份替换（用于「更新」），不会出现两份 (0.9555ms)
+✔ ⭐失败隔离：前一个插件的异常**不会中断循环** —— 两个插件各自失败、各自带走自己的原因 (1.3051ms)
+✔ ⭐失败隔离：一个插件在读取时**抛异常**，后面的插件仍然被处理到（不半途而废） (2.1956ms)
+✔ ⭐失败隔离：读文件失败的那台**不该**在注册表里留下 manifest（不留痕） (17.8227ms)
+✔ loadInstalled：空数组 / 缺 id 的记录 → 不炸、不进 failed (1.3963ms)
+✔ loadInstalled：没有网络能力（fetch 取不到）→ 每个插件各自失败并给人话，不整体抛 (0.9599ms)
+✔ ⭐失败不留痕：installFromUrl 下载失败 → 不写任何文件（一个 upload 都没有） (0.9418ms)
+✔ ⭐失败不留痕：网络层抛异常（CORS）→ 人话里点名 CORS，且不写盘 (2.0283ms)
+✔ installFromUrl：地址为空 / 不是 http(s) / 拿不到 fetch → 各自人话，一个请求都不发 (1.1179ms)
+✔ ⭐写盘失败（upload 非 200）→ ok:false + 人话，且**没有后续的 delete**（本来就没写进去） (1.1866ms)
+✔ CSRF：拿到 token 就带上 X-CSRF-Token；拿不到也照发（让请求去撞 403 再报人话） (10.2136ms)
+✔ hashText：同输入稳定、不同输入不同（**只差一个字符也要不同**） (0.745ms)
+✔ ⭐toBase64：中文（多字节）能正确往返 —— 「中文注释炸 btoa」那个坑的闸 (1.5837ms)
+✔ codePathFor：路径稳定、带前缀、id 里的怪字符被清掉（防路径穿越） (1.1152ms)
+✔ uninstallPlugin：注销 manifest + 删文件（两步都幂等，删失败也不抛） (3.6333ms)
+✔ 常量口径：前缀 / 上限 / 路径都用导出的常量（别在别处再写一份字面量） (0.4455ms)
+(node:21256) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/mcp_client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：调用 notifications/initialized 时服务端出错（HTTP 500），服务端说：通知炸了；这是服务端的问题，不是配置错；稍后重试，或看服务端日志
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回了空响应（HTTP 202）；这个地址可能不是 MCP 的服务端点；确认它接受 POST 的 JSON-RPC 请求
+✔ initialize：握手成功 + 把服务端服务器名/版本带回来 (3.8519ms)
+✔ notifications/initialized 失败**不算错**（握手已经成功，不该因此连不上） (0.9718ms)
+✔ ⭐失败矩阵：网络层炸（CORS / 连不上）→ McpError(NETWORK) 带人话，**不许裸 TypeError** (1.2902ms)
+✔ ⭐失败矩阵：401 → McpError(AUTH)，hint 指向鉴权 (0.7027ms)
+✔ ⭐失败矩阵：403 → 同样是 McpError(AUTH)（不许当成一般网络错误） (0.5052ms)
+✔ ⭐失败矩阵：404 → McpError(NOT_FOUND)，hint 提示地址写错 (0.5791ms)
+✔ ⭐失败矩阵：5xx → McpError(SERVER)，hint 说明是服务端的问题（不是用户配错） (0.9631ms)
+✔ ⭐失败矩阵：坏 JSON → McpError(BAD_JSON)，不是 JSON.parse 的裸 SyntaxError (0.8863ms)
+✔ ⭐失败矩阵：JSON-RPC error 对象 → McpError(RPC_ERROR) 且带上远端给的原文 (1.3985ms)
+✔ ⭐失败矩阵：超时（AbortController）→ McpError(TIMEOUT)，且真的会中止请求 (31.123ms)
+✔ 失败矩阵汇总：**每一条**都必须自带 code + hint（不许有任何一条裸漏出去） (2.8283ms)
+✔ close 之后一切请求直接被拒（McpError(ABORTED)），不是静默失败 (2.9585ms)
+✔ close 是幂等的（调两次不炸） (1.7655ms)
+✔ 缺 url / 没有 fetch → McpError(CONFIG)，且在发请求前就拦住 (0.9276ms)
+✔ tools/list：按 nextCursor **翻页合并**，且按名字去重 (1.8914ms)
+✔ tools/list：服务端原地打转（nextCursor 不变）→ 直接报错，别白翻 50 页 (0.833ms)
+✔ tools/list：没名字 / 非对象的条目被丢掉，不炸也不产出坏工具 (0.6588ms)
+✔ tools/list：不给 inputSchema 时给合法空壳（不能是 undefined / null） (0.5646ms)
+✔ tools/call：content[] 拼接成一段文本；isError 标记透传 (0.8883ms)
+✔ tools/call：服务端说 isError:true → isError 透传（与「请求失败」是两回事） (0.6022ms)
+✔ tools/call：失败（5xx）照样是 McpError，不是返回一个空结果 (0.5805ms)
+✔ Mcp-Session-Id：initialize 响应头里给的会话 id，后续请求都要带回 (0.7081ms)
+✔ 自定义请求头（鉴权）每次请求都带上，且不与协议头打架 (0.5434ms)
+✔ 404 带过会话 id → 会话过期口径（清掉本地 id，下次不带坏 id） (0.7346ms)
+(node:23632) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/mcp_connection.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+[苍玄界] MCP 协议版本不一致：服务端 2024-11-05，客户端 2025-06-18（继续按现有版本调用工具；若工具调用异常，先怀疑这里）
+[苍玄界] MCP 通知 notifications/initialized 发送失败（不影响后续调用）：服务器返回的 JSON-RPC 响应里既没有 result 也没有 error；这通常不是标准 MCP 服务端点；确认地址与传输方式（http / sse）填对了
+✔ 连上 → 工具进 pluginToolDefs；断开 → 消失 (15.859ms)
+✔ 插件**关着**时：工具注册了也不进 pluginToolDefs（关插件即消失） (4.7939ms)
+✔ ⭐连 A、连 B → 两台工具都在；**断开 A 不能把 B 的工具抹掉** (3.9755ms)
+✔ 反面对照：如果「断开」只删会话而**不重算整批**，A 的工具会留在注册表里（证明上面那条不是恒真） (2.5356ms)
+✔ 重连后远端改名 → **旧工具名不残留**（整批替换的关键后果） (1.685ms)
+✔ ⭐远端工具撞底座名（wb_read）→ 被拒且原因可见，**不静默** (1.6443ms)
+✔ 反面对照：不撞名的工具**不会**被误拒（证明上一条的拒绝不是无差别拒绝） (1.2044ms)
+✔ 同一批里两个同名远端工具 → 只留一个（另一个被拒并给原因） (1.162ms)
+✔ 逐条停用（disabled_tools）→ 工具进 defs 但 default_on === false（不默认给模型） (1.8698ms)
+✔ syncServers 幂等：连调三次 → initialize 只发生一次，工具不反复消失又出现 (1.8274ms)
+✔ syncServers：只改 disabled_tools → **不重连**（但 default_on 要跟着变） (1.5431ms)
+✔ syncServers：关掉服务器 → 工具消失；配置里删掉 → 也消失 (1.49ms)
+✔ syncServers：地址变了 → 重连（initialize 再来一次） (1.1738ms)
+✔ 连接失败 → ok:false + 人话 error，且**不留半截会话**（工具一个都不进） (0.9587ms)
+✔ 缺 id / 缺 url / 环境没 fetch → 都是 ok:false + 人话，不抛 (0.6106ms)
+✔ connectServer 失败后，**已经连着的别的服务器不受影响** (1.4948ms)
+✔ 工具 run() 转发到远端 tools/call；远端报错 → ok:false 而不是抛 (1.4947ms)
+✔ 工具 run()：远端网络炸了 → ok:false + 人话 detail（**不抛**，否则 Agent 循环当成内核异常） (1.2916ms)
+✔ serverStatus / serverToolNames / serverRejections：没连过的服务器要有确定答案 (0.5776ms)
+✔ disconnectAll：清空会话 + 注销整批（测试/卸载用） (0.9702ms)
+✔ 远端不给 description / inputSchema 时给合法兜底（别让模型看到空描述或 null 参数） (1.1141ms)
+(node:26212) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/native_adapter.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄界] SillyTavern.getContext() 抛错，按「还没就绪」处理 Error: 酒馆还没初始化
+    at Object.getContext (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/native_adapter.test.ts:152:13)
+    at getStContext (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/native.ts:198:51)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/native_adapter.test.ts:156:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3)
+[苍玄界] SillyTavern.getContext() 抛错，按「还没就绪」处理 Error: 酒馆还没初始化
+    at Object.getContext (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/native_adapter.test.ts:152:13)
+    at getStContext (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/native.ts:198:51)
+    at isStReady (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/native.ts:231:10)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/native_adapter.test.ts:157:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+[苍玄界] 宏 cx_lost_macro：注册后从 macros.registry 里读不回来（注册未生效）。常见原因是 macros.register 的第二个参数形状不对 —— 参数要写在 unnamedArgs 上，不是 minArgs/maxArgs/unnamedArgDefs。
+[苍玄界] 宏 cx_lost_args：声明了 1 个参数但 registry 里读到 0 个。ST 宏注册是静默失败的 —— 参数名必须是 unnamedArgs（MacroRegistry.js:66），minArgs 是注册后算出来的产物字段（:137），当入参传会注册成功但永不替换。
+[苍玄界] 宏 cx_rollback_me：注册后从 macros.registry 里读不回来（注册未生效）。常见原因是 macros.register 的第二个参数形状不对 —— 参数要写在 unnamedArgs 上，不是 minArgs/maxArgs/unnamedArgDefs。
+[苍玄界] SillyTavern.getContext() 还不存在，本次不注册原生适配器；宿主能力将在链上继续找（晚绑定，后续调用会重新解析）
+✔ getStContext: 没有 SillyTavern 时返回 null（不抛） (6.1375ms)
+✔ getStContext: SillyTavern.getContext 抛错时按「还没就绪」处理，不把异常放出去 (1.9873ms)
+✔ getStContext: 兼容 getContext 直接是对象（少数包装层形态） (0.4856ms)
+✔ getStContext: 没有 SillyTavern 命名空间时认裸的全局 getContext (0.4191ms)
+✔ installNativeAdapters(null) 返回空表且不抛（扩展外壳顶层就会调，那时可能还没就绪） (2.0064ms)
+✔ installNativeAdapters: 假 ST 下覆盖 17 个宿主依赖里能原生对应的那些 (0.8356ms)
+✔ installNativeAdapters: 只放取得到的接口 —— 没有的键要缺席（让链继续往下找） (0.3713ms)
+✔ installNativeAdapters: stopGenerationById 没有时回落旧名 stopGeneration (0.5874ms)
+✔ 晚绑定: 建表后换掉 ctx 实现，表里的 fn 要取到**新的**那个（不许 bind 住旧引用） (0.6659ms)
+✔ 晚绑定: 建表时 ctx 为空（还没就绪），等就绪后同一个 fn 要能工作 (1.2913ms)
+✔ 晚绑定: 上下文必须**每次调用**重新解引用（改一个字段立刻生效） (0.4293ms)
+✔ 宏名前缀: 统一加 cx_，且对已带前缀的名字幂等 (0.3487ms)
+✔ 宏名合法性: 中文名必须被拒绝（酒馆词法器认不出来，静默不替换） (1.485ms)
+✔ 宏名合法性: 带空格 / 带点 / 中文 都拒绝 (1.055ms)
+✔ 宏名前缀: 注册进去的名字真的带前缀（避开 ST 自带 131 个内置宏） (0.3693ms)
+✔ 同步守卫: handler 返回 Promise → 拒绝注册（不报错、只渲成空，这条最难查） (0.3722ms)
+✔ 同步守卫: 同步返回字符串 → 注册通过 (0.3131ms)
+✔ assertSyncMacroResult: thenable 判定（真 Promise / 类 Promise 都拦） (0.2137ms)
+✔ 自检: 注册成功且参数名对 → ok (0.3059ms)
+✔ 自检: registry 里读不回来 → 判失败并给出人话原因（静默失败的唯一防线） (0.5904ms)
+✔ 自检: 声明了参数个数但 registry 里没有 → 判失败（minArgs 当入参传的典型症状） (0.5027ms)
+✔ 自检: 失败要**回滚**（注销掉），不留一个看起来成功实际不生效的宏 (0.4613ms)
+✔ verifyMacroRegistered: 没有 registry 时明确说无法自检（不假装成功） (0.2271ms)
+✔ lookupMacro: Map 与普通对象两种 registry 存取形态都认 (0.243ms)
+✔ 没有 macros.register 时返回人话原因（不抛） (4.0208ms)
+✔ 宏 handler 抛错时试跑就要拦住（不让它进 registry 之后每帧炸） (0.7381ms)
+✔ unregisterTavernMacro: 走 registry.unregisterMacro；没接口返回 false 不抛 (0.9508ms)
+✔ 变量: 写进去能读回来（走原生 set/get） (0.9231ms)
+✔ 变量: **没写过**的键读不到（绝不凭本地缓存凭空造一个值出来） (0.3154ms)
+✔ 变量: 别的标签页写的值读不到时**返回缺席**，不拿本地缓存顶替 (0.4538ms)
+✔ 变量: 原生 get 读不到时，不回落任何本地缓存（宁可缺席） (0.4166ms)
+✔ 变量: 作用域分档 —— 脚本作用域走 local，持久作用域走 global (0.3138ms)
+✔ 变量: 没有原生 set 时明确失败，不假装写成功 (0.2681ms)
+✔ 变量: replaceVariables / updateVariablesWith 走原生，换掉旧的键 (0.8258ms)
+✔ 世界书: 原生 loadWorldInfo / saveWorldInfo / getWorldInfoNames 都接上 (0.7908ms)
+✔ 请求头: 原生 getRequestHeaders 直通（手写 CSRF 获取退役） (0.3064ms)
+✔ 明确不可用: getScriptTrees 必须在 NO_NATIVE_EQUIVALENT 里（别让后来人以为漏写了） (0.3101ms)
+✔ 明确不可用: 原生表**不许**造一个假的 getScriptTrees 出来 (0.1661ms)
+✔ NATIVE_PATHS: 关键接口都有人话对照（界面报原因时要用） (0.1818ms)
+✔ probeNativeCapabilities: 空上下文返回空数组；完整上下文返回覆盖到的名字 (1.0902ms)
+✔ P5-7 反例自检①: 喂 { entries: {...} }（对象）必须被**拍成数组** (1.791ms)
+✔ P5-7 反例自检②: 喂数组必须被**包成 { entries: {...} }**（否则 ST 落盘 0 条） (2.6291ms)
+✔ P5-7: 读→写往返不丢 extra（未知字段一个都不能丢） (0.5629ms)
+✔ P5-7: 拍平是幂等的（已是数组原样返回；已是映射原样返回） (0.2446ms)
+✔ P5-7: 两种非预期输入都不抛（读失败按「没有条目」处理，不炸界面） (0.1978ms)
+✔ P5-7: 已经是数组的宿主原样返回（某些 ST 版本直接给数组） (0.1441ms)
+✔ P5-7: 写回时第三参传 true（立刻落盘，防抖写丢） (0.2058ms)
+(node:24256) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_cangxuan.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 插件宏 图片提示词 渲染失败，按空串处理 Error: 插件宏炸了
+    at file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_cangxuan.test.ts:164:13
+    at applyPluginMacros (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/macros.ts:176:17)
+    at render (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/macros.ts:124:10)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_cangxuan.test.ts:166:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+✔ 苍玄助手插件：没有页面、3 个 portrait_* 工具、宏齐全、默认开 (3.8961ms)
+✔ 苍玄助手工具归它自己；底座工具不受影响 (1.1959ms)
+✔ 关掉苍玄助手 → 它的宏从 pluginMacros 消失（渲染面就没了占位符来源） (0.4736ms)
+✔ 关掉苍玄助手 → {{图片提示词}} 渲染退回空串（**运行层**闸，不是只看清单） (5.9355ms)
+✔ 关掉苍玄助手 → 它的 3 个工具从能力与注册清单一起消失；重开就回来 (2.0185ms)
+✔ F-A 回归闸（阶段 3 新形状）：liveToolDefs 按 ToolDef 归属过滤，不认老 { name } 写法 (2.1484ms)
+✔ 关掉苍玄助手 → 它带的技能从 pluginSkills 消失（关插件即从技能列表消失） (1.8352ms)
+✔ 源码级：苍玄助手目录不含 store / Store 的 import（插件页只拿 host + 自己那份设置） (3.8642ms)
+✔ 源码级：贡献页面的内置插件是 worldbook + mcp，且**只有 worldbook 上顶栏** (1.166ms)
+✔ 源码级：插件开关缺省值 —— 苍玄助手 / 世界书 true，生图 false (0.5938ms)
+(node:25868) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_cangxuan_manual_meta.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+✔ CangxuanConfigSchema：manual_meta 默认空数组，只接受字符串 URL (10.0102ms)
+✔ RootDataSchema.parse({}) 带出 plugins.cangxuan 的完整默认（老数据零迁移） (10.1274ms)
+✔ manual_meta 落盘往返：store 写入 → save(true) → 读回来一模一样（刷新不丢） (25.8835ms)
+✔ manual_meta 只存 URL：写进去的字符串里不许出现 base64 / dataURL（撑爆 settings.json 的老路） (8.7913ms)
+✔ manual_meta 往返：导出 → 导入一份完整数据，这段设置一字不差 (7.6995ms)
+✔ resetPluginConfig(cangxuan) 清设置：manual_meta 回空，但**不动**插件开关 (7.4612ms)
+✔ manual_meta 与开关互不干扰：关掉苍玄助手，设置照旧留着（重开还在） (15.3432ms)
+✔ v4 老数据（plugins.cangxuan 不存在）读进来：补默认，不炸、不报警 (2.371ms)
+✔ defaultRootData：cangxuan 段默认值齐全（不靠 parse 兜） (11.5762ms)
+✔ 源码级：manual_meta 的 schema 是字符串数组（URL / 路径），不是对象、不是二进制 (6.3828ms)
+(node:25312) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_gate_ui.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 反例自检 ①：能力**齐全**时，worldbook 必须是「已启用」——不许误报缺能力 (8.2938ms)
+✔ 反例自检 ②：缺**必需**能力时，worldbook 必须是「缺能力」——不许再报已启用 (2.1806ms)
+✔ ★界面与装载裁决同源：列表说「缺能力」⇔ loadablePlugins 里没有它（不许脱节） (2.1544ms)
+✔ 源码级：PluginsView 用的是 pluginStatusWithCapabilities，不是不看能力的 pluginStatus (0.9134ms)
+✔ 源码级：PluginsView 把「缺能力」的原因取出来了（pluginCapabilitySkips） (0.442ms)
+✔ 源码级：探能力**只算一次**（computed），不是每行现算 —— O(N²) 防线 (0.3185ms)
+✔ 源码级：PluginDetail 收得到「缺能力」的原因（skip prop） (0.4688ms)
+✔ 源码级：两个界面都不许自己算「缺什么」——判据只能来自注册表 (0.7928ms)
+✔ 优先级：未启用 > 缺能力 > 插件自己说的（缺配置）> 已启用 (1.552ms)
+✔ 优先级：不声明 requires 的插件不受影响（能力闸与它无关） (1.295ms)
+(node:25244) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_image.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 插件配置：RootDataSchema.parse({}) 补齐默认值，缺字段不炸；开关不在插件设置里 (12.9803ms)
+✔ 插件配置：坏值被 schema 挡住（步数 0 / 张数 9 / 未知负面预设） (1.144ms)
+✔ 插件状态与工具归属：开关在 plugin_state；关着就没有 gen_image，开着缺 Key 算没配好 (2.0938ms)
+✔ 模型名 → 版本；透明背景只有 v5 认 (0.5232ms)
+✔ 质量词按模型给（照 st-chatu8 的 AQT 映射），认不出来回落到老那串 (0.3003ms)
+✔ 提示词拼接顺序：固定正面 → 模型 prompt → 后置固定正面 → 质量词；负面前后相接 (0.5444ms)
+✔ 质量词关掉就不追加；空段不留下多余逗号 (0.398ms)
+✔ 接口地址：官网默认；反代地址补 /ai/generate-image；已经是完整地址就不重复补 (0.6648ms)
+✔ v3 的 parameters：sm / sm_dyn / dynamic_thresholding，不带 v4 那套 (1.0807ms)
+✔ SMEA DYN 依赖 SMEA：SMEA 关着就不发 sm_dyn (0.5193ms)
+✔ v4.5 的 parameters：autoSmea + v4_prompt/v4_negative_prompt + characterPrompts，不带 sm (0.6815ms)
+✔ v5：params_version=4、带 tag_hint/透明背景、ddim_v3 换成 Euler Ancestral (0.4164ms)
+✔ 多样性：开着才发 skip_cfg_above_sigma，值按像素数缩放（4.5 用 58 那个魔数） (0.5364ms)
+✔ Euler Ancestral 带上官方那两条补丁；其它采样器不带 (0.4195ms)
+✔ 种子：0 = 随机、给了就用给的、options.seed 能盖住（测试与复现用） (0.6157ms)
+✔ 没填 Key 直接抛，别发一个注定 401 的请求 (1.1701ms)
+✔ ucPreset 映射：重=0、轻=1、人像=2、不用=3 (0.4013ms)
+✔ ZIP（deflate）解出第一张图 (76.2356ms)
+✔ ZIP（stored，不压缩）也一样能解 (0.4781ms)
+✔ 不是 ZIP 就说清楚，别默默返回空 (0.4318ms)
+✔ toDataUrl：裸 base64 补前缀，已经是 dataURL 就不动 (0.2856ms)
+✔ imagesFromJson：images[] / image / data / 裸数组都能抠出来 (0.4175ms)
+✔ parseImageResponse：直连回 ZIP、反代回 JSON、偶发裸 base64 都能吃 (8.75ms)
+✔ HTTP 状态翻译成人话 (0.7551ms)
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+✔ generateImages：成功时把 ZIP 变成 dataURL 数组，带上正确的头和 body (5.3973ms)
+✔ generateImages：没填 Key 就报清楚的原因（开关不归它管） (0.7582ms)
+✔ 源码级：关插件时没有 gen_image，也没有生图器 —— 守卫在来源处，不在 generateImages 里 (2.1281ms)
+✔ generateImages：401 与 CORS（TypeError）分别给出可操作的提示 (2.0454ms)
+✔ generateImages：200 但里面没图也算失败，不能静默 (1.0437ms)
+✔ store.setPluginConfig：合并进已有配置并落盘（不是整块替换） (21.0313ms)
+✔ store.setPluginConfig：显式 undefined 的字段不写进去，enabled 键被忽略 (5.6621ms)
+✔ store.resetPluginConfig：整块回内置默认（只清设置，开关留给 setPluginEnabled） (4.4404ms)
+(node:26120) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_registry.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 存储块 plugins 校验失败，已用默认值恢复：Invalid input: expected object, received string 不是对象
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+✔ 页面注册表：availablePages(store.data) = 对话/世界书/设置（阶段 3 的 3 格） (4.3827ms)
+✔ 页面注册表：mergePages 按 order 升序、同 order 按 id；tabbarPages 过滤 inTabbar:false (13.9182ms)
+✔ pluginEnabled：plugin_state 说了算；没写的取 manifest.defaultEnabled（苍玄助手/世界书 true，生图 false） (1.0315ms)
+✔ H1 回归闸：inTabbar:false 的页面进 allPages、但不进 availablePages (0.4064ms)
+✔ 关掉生图：pluginTools 里没有 gen_image；重开就回来 (0.7421ms)
+✔ 关掉世界书：世界书页从 availablePages 消失、它的 7 个工具消失；重开就回来 (0.4276ms)
+✔ F-A 回归闸：运行时也认插件开关（关掉的插件，工具连 def 都不进这一轮） (47.8332ms)
+✔ F4 回归闸：界面工具清单用 pluginAllTools（按需工具也列得出来） (1.4579ms)
+✔ F1 回归闸：默认状态下 全局能力 不许比 DEFAULT_ON_TOOLS 多 (0.3529ms)
+✔ toolOwnerLabel：gen_image → 生图；wb_list/entry_meta → 世界书；skill 等 → 底座 (0.4423ms)
+✔ pluginStatus：未启用 > 插件自己说的（缺配置）> 已启用 (0.4474ms)
+✔ active_tab：老页名兜底（records→chat，capability/skills→settings）；未知字符串保留；非字符串被拒 (12.963ms)
+✔ store.setTab：页面不存在就回落到第一个可用页；关插件撤掉当前页时也自动回落 (15.3858ms)
+✔ v4 → v5 迁移（真实读路径 recoverRootData）：老 plugins.image.enabled 抬进 plugin_state，插件设置里不再有 enabled (1.0754ms)
+✔ v4 → v5 迁移：importAll（导入老导出文件）走同一条搬家；enabled=false 照搬成 false (0.8429ms)
+✔ v4 → v5 迁移：v5 数据里混进老的 plugins.image.enabled —— plugin_state 说了算，多余的键丢掉 (0.5048ms)
+✔ v4 → v5 迁移：没有 plugins 块 / 块是坏值也不炸（plugin_state 为空，开关按 manifest 缺省） (2.2263ms)
+✔ migrateRootData 直调：喂**手工构造的、还带老字段的原始对象**也能搬（migratePluginSwitch 之外的第二道保险） (0.5457ms)
+✔ store：setPluginConfig 忽略 enabled 键（开关只在 setPluginEnabled）；resetPluginConfig 只清设置不动开关 (6.1224ms)
+✔ 源码级：App.vue 的页面分支 = worldbook / mcp / chat（设置走 v-else），没有 portraits / capability / records (1.5842ms)
+✔ 源码级：设置里四格（接口/预设/能力/数据）＋「能力」里三段（工具/技能/插件） (1.1039ms)
+✔ 源码级：记录不占页面 —— 对话页右上角 ⋯ 打开一张「记录」Sheet (1.0554ms)
+✔ 源码级：来源插件关掉时「能力 · 工具」段有「来源已停用」兜底行（F2） (1.1947ms)
+✔ 能力闸①：能力齐全的宿主 → 世界书正常装载（页面 + 7 个工具都在） (1.9135ms)
+✔ ⭐能力闸②：必需能力缺失 → 世界书**整个不注册**，且给出人话原因 (1.2587ms)
+✔ ⭐能力闸③：只缺**可选**能力时照常装载（降级，不拦） (0.6176ms)
+✔ 能力闸④：摘掉夹具（默认测试环境：宿主还没接上）→ 不拦，交给运行时晚绑定 (0.1681ms)
+✔ ⭐静态闸：每个插件 requires 里的名字都必须在能力表里登记（拦住「只在真机上发作」的 typo） (0.431ms)
+✔ 静态闸自检：三重反例都能被抓出来（别让上面那条变成「恒空」的空转闸） (5.4376ms)
+✔ 静态闸：可选项用 ? 表达，且 ? 只出现在末尾（防止把 ? 写在中间当装饰） (0.2918ms)
+(node:5516) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_settings_contract.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ ⭐ 生图字段的每个 key 都必须真的能落盘（写错一个字母 = 能改、能存、刷新就丢、零报错） (3.3086ms)
+✔ ⭐ 派生键（size）不许出现在 schema 里，且它必须靠 patch 写真实键 (0.7251ms)
+✔ pluginSettingFields（image）与 FIELDS 同源同长度（manifest 真的接了） (0.3697ms)
+✔ pluginSettings（image）的 groups 也接上了，且默认返回 { fields: [] } 兜底 (0.9343ms)
+✔ 生图字段覆盖 GenImageConfigSchema 的**全部 24 个键**：一个不漏、也没多余的 (1.5424ms)
+✔ 24 个键逐个点名（漏掉时能一眼看出是哪个，而不是只报个数字） (0.603ms)
+✔ 每个 type:"select" 都必须有非空 options；每个选项都要 value + label (0.4975ms)
+✔ 不存在 min > max 的字段；type:"number" 必须有 min 和 max (0.3795ms)
+✔ 界面的 min/max 边界值必须能真的过 schema（否则用户能填出「保存就整份配置 parse 失败」的值） (3.8137ms)
+✔ 生图字段的 default 值必须能过 schema（界面「恢复默认」写下去的就是它） (2.8716ms)
+✔ 每个字段的 group 都在 GROUPS 里登记（否则界面会冒出一个没名字的块） (0.6131ms)
+✔ 5 个块的 id / 标题与等价基线 §2 那张表一致 (0.3571ms)
+✔ 源码级：不许再出现第二套字段类型 vocabulary（switch / PluginSettingField / ToolSettingsField） (63.2467ms)
+✔ 源码级：PluginSettingField 只剩兼容别名（定义处最多一处），或已彻底删除 (46.3333ms)
+✔ 源码级：字段类型联合里就是 9 种控件（note 也要在，它是生图那个只读行） (0.9732ms)
+✔ PluginDetail.vue：手写表单控件归零，且必须 import SettingsForm（页面级开关那一处 <Sw> 除外） (1.0924ms)
+✔ 源码级：settings_form.ts 是纯逻辑（不许 import vue / 不许 import .vue） (1.0794ms)
+✔ 扩展字段在生图声明里**至少被用过一次**（没人用的契约字段下一轮就会被人删掉或写歪） (0.6718ms)
+✔ 反闸：**所有内置插件的设置声明里，带 action 的字段必须是 0 个** (0.9375ms)
+✔ 块级扩展字段：hint 与 badgeOf **各有使用者**（block 级的真实能力） (0.8601ms)
+✔ ⭐ 等价基线 §3 的 4 处动态文案必须真的是**活的**（换 values 就要换文案） (0.7434ms)
+✔ ⭐【有意识的决定】pluginSettingFields("cangxuan") 现在**故意为空** (0.6703ms)
+(node:24248) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/plugin_stage3_contract.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 硬规矩①：plugins/builtin/*/ 下不许出现跨插件的 import（目录 = 插件边界） (31.678ms)
+✔ 硬规矩①：插件目录的相对 import 只许落在 core / agent / plugins（**不许**碰宿主外壳） (23.0393ms)
+✔ 扫描器自检：注释、模板正文、style 里的 import 不算依赖；真 import 行号对得上 (1.4786ms)
+✔ 硬规矩②：顶栏恰好 3 格 —— 对话 / 世界书 / 设置（苍玄助手去页面了） (1.2343ms)
+✔ 硬规矩②：关掉世界书 → 顶栏 2 格（对话 / 设置）；重开就回来 (0.8574ms)
+✔ ⭐mcp 的 contributes.tools 必须是**空数组**（工具是运行时从远端拉的，不能写死在 manifest 里） (0.6442ms)
+✔ 源码级：当前只有 mcp 一个插件用 registerRuntimeTools（别的插件不许偷用运行时通道） (11.0693ms)
+✔ ⭐源码级（真牙齿）：插件目录里不许出现宿主外壳的**字面量**（静态/动态 import、拼路径都算） (10.3775ms)
+✔ ⭐真牙齿闸的反例自检：静态 import / 动态 import / 拼路径**三种都抓得住**，纯注释**不误报** (1.1555ms)
+(node:32) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/presets_builtin.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ presets: 内置技能结构合法、id 唯一、都是 builtin (3.1833ms)
+✔ presets: 内置预设结构合法、id 唯一、items/output 齐全 (2.1299ms)
+✔ presets: 预设里的宏全部是我们认识的（或酒馆自带），没有拼错的宏 (1.1523ms)
+✔ presets: agent 预设引用的工具和技能都存在 (0.6894ms)
+✔ presets: 跟随全局 ⇒ 解析后是 agent（内置 agent 预设照旧跑工具循环） (1.0398ms)
+✔ presets: 立绘 / 蓝灯预设解析后 0 工具 ⇒ 仍然走普通 LLM 路径 (0.907ms)
+✔ presets: create* 每次给新副本，改副本不影响常量 (0.8049ms)
+✔ presets: applyBuiltins 只补不覆盖、补齐 active_preset_id、纯函数、幂等 (10.93ms)
+(node:26176) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/runner.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 天枢阁：没有接入备份钩子，本次写回**没有兜底**（写回前自动备份）
+✔ runner.runPlain：渲染宏 → 文本通道 → 抠 JSON → 产物 (28.5095ms)
+✔ runner.runPlain：历史里已有这条用户消息就不重复记；没 JSON 就提示 (2.4189ms)
+✔ runner.runAgent：文本通道跑完整循环，草稿镜像到 data.drafts，saveDrafts 落回世界书 (14.7752ms)
+✔ runner.runAgent：原生通道自己 fetch，带 tools，没 tool_calls 就收工 (5.7329ms)
+✔ runner：AbortSignal 已中止 → done=false；dropDrafts 清空 (3.1547ms)
+✔ runner.runAgent：连续两轮（原生）转写合法 —— 每个 tool_calls 都有配对的 tool 结果 (4.4795ms)
+✔ runner.runAgent：工具卡通过 session.turns 那条路更新（onToolUpdate 给的是界面里的对象） (3.1137ms)
+✔ runner.runAgent：原生流式会发 onDelta，delta 的 turnId 对应轮次已经发布，最终文本以 reply.text 为准 (3.6354ms)
+✔ runner.runAgent：文本通道一条 onDelta 都不发 (2.7882ms)
+✔ runner.runAgent：上下文特殊层原生展开 —— 角色分明、插在它所在的位置 (3.4027ms)
+✔ runner.runAgent：用户需求特殊层展开成一条 user 消息，并补记用户轮次 (2.151ms)
+✔ runner.runPlain：上下文特殊层原生展开（角色分明、顺序正确） (3.9006ms)
+✔ runner.runAgent：上下文层 + 用户需求层同时存在时，本轮需求只出现一次 (2.0888ms)
+✔ runner：两级能力 —— 默认跟随全局（工具走 default_on），打开后只发预设自己勾的 (6.6734ms)
+✔ runner：内置「势力整理 Agent」跟随全局 —— 照旧跑工具循环，发全局默认工具，上下文层不重复补历史 (2.7957ms)
+✔ runner：两级能力 —— 技能跟随 skill.enabled / 打开后只认预设勾的（关掉的仍然不发） (3.8829ms)
+(node:12240) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/runtime_tools.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ 注册后：插件开着时工具进表（defs / all / 默认开的那份） (4.5489ms)
+✔ 关掉插件：工具从表里消失，但 toolOwner 仍认它（不许落回 base） (1.0593ms)
+✔ 重复注册是整批替换，不是追加（重连后远端工具变少不许残留） (0.8311ms)
+✔ 撞上静态声明的工具名 → 拒绝 + 人话原因，且不夺走原归属 (0.7895ms)
+✔ 空名与同批重名都拒绝（不静默丢） (0.7577ms)
+✔ 来源标签：有 label 用 label，空 label 回落插件名 (0.5979ms)
+✔ default_on=false 的运行时工具：def 在，但不进「默认给模型」的名单 (0.5682ms)
+✔ 插件被能力闸拦下：运行时工具也不出（「关掉即消失」的第四层） (1.4685ms)
+✔ catalog：**名单外**的工具也要出现在工具目录里（真机验收抓到的漏） (31.0893ms)
+✔ 注销后彻底消失（断开服务器的那条路） (0.3442ms)
+(node:24836) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/scope_prompt.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ scope: buildScopePrompt 三种范围（0 本 / 1 本 / 多本） (1.4845ms)
+✔ scope: outOfScopeError / scopeNames / scopeEmptyNotice 文案 (0.3128ms)
+✔ scope: wb_list 标出每本从哪儿生效（全局 / 角色卡 / 未启用）+ 区分能不能读写 (1.7236ms)
+✔ scope: 读 / 搜 / 建 / 改 / 删 / meta 六个入口的越权文案一致 (1.5494ms)
+✔ scope: 范围只有 1 本时不写 world 也能命中那一本（读 / 写都算） (1.3188ms)
+✔ scope: 系统提示词里有「本次可操作范围」，且范围外的世界书名一个字都不出现 (16.7591ms)
+✔ scope: 一本都没勾时，系统提示词走「没有勾选任何世界书」文案 (1.3455ms)
+(node:23272) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/settings_form.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ ⭐inputValue：该键**不在草稿里**时读 values（这条退回 draft ?? '' 就必须红） (2.1265ms)
+✔ ⭐inputValue：values 里是数字 → 返回**字符串**（<input> 的 value 只能是字符串） (0.3511ms)
+✔ ⭐inputValue：草稿优先于 values（用户打字时不能被回写冲掉） (0.2157ms)
+✔ inputValue：草稿和 values 都没有 → 空串（不是 undefined / null / "undefined"） (0.2243ms)
+✔ inputValue：布尔 / 对象这类非标量值不许渲染成 "[object Object]" (0.2727ms)
+✔ inputValue：是纯函数（不改 draft / values） (1.0733ms)
+✔ ⭐selectValueFrom：类事件对象 { target: { value } } → 取出真正的值（bug 2 的核心） (0.2482ms)
+✔ selectValueFrom：字符串**直通**（SegBar 那条路不能被这次修复弄坏） (0.1756ms)
+✔ selectValueFrom：undefined / null / 数字 / 取不到值的对象 → 空串（绝不能写出 [object Object]） (0.3296ms)
+✔ selectValueFrom：返回的永远是字符串（写进配置的类型要稳） (0.3163ms)
+✔ ⭐回归闸：SettingsForm.vue 的原生 <select> 不许再把 $event 直接当值用 (1.5068ms)
+✔ seedValues：缺键补 default；**已有值不许被 default 覆盖** (0.2252ms)
+✔ seedValues：已有值是 **falsy**（0 / false / 空串）时同样不许被 default 覆盖 (0.1432ms)
+✔ seedValues：**只播种声明了 default 的字段**，没声明的键不凭空造出来 (0.2081ms)
+✔ seedValues：不改传进来的 values（纯函数） (0.1431ms)
+✔ clampNumber：step >= 1 取整并夹到 min/max；两侧越界都夹 (0.3206ms)
+✔ clampNumber：**step < 1 不许取整**（P4-3 删掉的那个按字段名特判的回归闸） (0.214ms)
+✔ clampNumber：小数步长同样要夹 min/max (0.1684ms)
+✔ clampNumber：真非数字（abc / NaN / undefined）回落 fallback (0.1821ms)
+✔ clampNumber：**空输入要回落 fallback，不能变成 0 再被夹到 min** (0.1675ms)
+✔ clampNumber：没给 min/max 时不夹；step 缺失按整数字段处理 (0.1131ms)
+✔ clampNumber：只有 max 没有 min（生图 seed 那种 min:0,max:4294967295）两侧独立 (0.1232ms)
+✔ buildPatch：普通字段只写自己的 key (0.2427ms)
+✔ buildPatch：命中带 patch 的 select 选项 → **展开成多个键** (0.2027ms)
+✔ buildPatch：select 未命中任何选项 → 只写 key（不许瞎展开、也不许丢） (0.14ms)
+✔ buildPatch：select 命中 patch 时**不**额外写 key 自己（尺寸那个 key 不是真配置键） (0.1332ms)
+✔ fieldValue：没有 valueFrom 时读 values[key]，并统一成**字符串**（select 要比 option.value） (0.1826ms)
+✔ fieldValue：有 valueFrom 时走 valueFrom（尺寸预设「对得上」） (0.1893ms)
+✔ fieldValue：valueFrom 优先于 values[key]（两者不一致时以 valueFrom 为准） (0.1322ms)
+✔ visibleFields：visibleIf 缺失 = 可见；返回 false = 不可见 (0.3354ms)
+✔ visibleFields：visibleIf 内部能读到**动态值**（v3 判断 / 代理判断）—— 不是只算一次 (0.274ms)
+✔ groupFields：分组顺序 = groups 声明顺序（不是字段出现顺序） (0.4679ms)
+✔ groupFields：group 有值但**没在 groups 里登记** → 用 id 当标题兜底，不许静默丢字段 (0.3146ms)
+✔ groupFields：没写 group 的字段进默认块（group 为 null） (0.5935ms)
+✔ 回归闸：SettingsGroup **不许再有 visibleIf**（组级整块隐藏在生图页没有真实用例） (0.8462ms)
+✔ groupFields：空 fields → 空数组（界面画 0 块，不是画一个空块） (0.1697ms)
+✔ variant：声明了 variant 且选项 2~4 个才画成药丸；否则回落成下拉 (0.4173ms)
+✔ segItems：把 options 转成 SegBar 要的 {value,label}（丢掉 patch 这类它不认的键） (0.4145ms)
+✔ fieldHint：hintOf 优先于静态 hint (0.2087ms)
+✔ fieldHint：hintOf 返回空串时**不回落**到 hint（作者说覆盖就覆盖） (0.1813ms)
+✔ fieldHint：hintOf 拿到的 values 是**当前值**（v3 判断那条） (0.1619ms)
+✔ groupHint：hintOf 优先于静态 hint；都没有 → 空串 (0.1747ms)
+✔ groupBadge：badgeOf 算出「N 字」这类角标；没声明返回空串 (0.2785ms)
+✔ dirtyFields：与基线相等 → 空（「恢复默认」按钮保持 disabled） (0.2756ms)
+✔ dirtyFields：改一个键 → **只报那一个**（不许整表都脏） (0.2722ms)
+✔ dirtyFields：falsy 值的变化要认得出来（0 / false / 空串 vs 有值） (0.2529ms)
+✔ dirtyFields：只看**声明过的字段**（values 里的无关键不算脏） (0.1062ms)
+✔ dirtyFields：基线有值、现在没了 → 脏；**基线没值**时不判（口径见下条） (0.1037ms)
+✔ dirtyFields：**没声明 default 的字段不参与判定**（否则「恢复默认」永远可点） (0.1602ms)
+✔ dirtyFields：顺序 = fields 声明顺序（结果稳定，UI 才好显示） (0.1694ms)
+(node:23872) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 获取变量失败, 未指定 script_id
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:293:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:297:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 读失败
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:316:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:320:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 读失败
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:344:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:348:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 读失败
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:370:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:374:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 返回的不是对象，按读失败处理
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 获取变量失败, 未指定 script_id
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:465:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:472:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 读失败
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:510:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:514:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 这次保存被**拦下**了（不是没写成功，是主动拒绝写）：启动时读数据失败，为避免用默认值覆盖你原有的数据，在你有实际改动前不会写回。你刚才的改动尚未保存 —— 请检查宿主变量接口后重试。 Error: 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+    at saveData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:857:11)
+    at saveRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:882:5)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:515:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Test.processPendingSubtests (node:internal/test_runner/test:897:7)
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 获取变量失败, 未指定 script_id
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:533:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:537:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 读取数据作用域 酒馆全局变量（跨会话） 失败，本次使用默认数据；为避免覆盖用户数据，在用户真正改动之前不会写回存储 Error: 读失败
+    at getVariables (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:562:15)
+    at readStoredRootData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:623:19)
+    at loadData (file:///C:/tavern_helper_template-main/src/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/core/storage.ts:679:26)
+    at TestContext.<anonymous> (file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/storage_scope.test.ts:566:18)
+    at Test.runInAsyncScope (node:async_hooks:227:14)
+    at Test.run (node:internal/test_runner/test:1306:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+    at Test.postRun (node:internal/test_runner/test:1447:19)
+    at Test.run (node:internal/test_runner/test:1372:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+[苍玄助手] 读数据作用域 酒馆全局变量（跨会话） 没读到 cx_assistant_v1，而这台机器的变量接口**不能枚举键** —— 分不清「没有数据」还是「没读到」，按读失败处理；为避免覆盖用户数据，在用户真正改动之前不会写回存储
+[苍玄助手] 读数据作用域 酒馆全局变量（跨会话） 没读到 cx_assistant_v1，而这台机器的变量接口**不能枚举键** —— 分不清「没有数据」还是「没读到」，按读失败处理；为避免覆盖用户数据，在用户真正改动之前不会写回存储
+[苍玄助手] 已阻止写入：这次启动**没能读到**原有数据（作用域 酒馆全局变量（跨会话） 读取失败），而用户尚未改动过任何东西。若此时写盘，就会用默认值覆盖掉存储里的真实数据。请先检查宿主变量接口；确认要覆盖可显式传 force=true。
+✔ isExtensionRuntime: 没有 __CX_SCRIPT_ID__ 也没有 getScriptId → 扩展形态（真机形态） (1.8073ms)
+✔ isExtensionRuntime: 有 __CX_SCRIPT_ID__ → 脚本形态（老用户环境不能被误判） (0.3587ms)
+✔ isExtensionRuntime: 宿主链上有 getScriptId → 脚本形态 (0.2308ms)
+✔ isExtensionRuntime: 显式声明 __CX_EXTENSION__ = true → 扩展形态（外壳可以主动标） (0.1802ms)
+✔ dataScope: 扩展形态 → global（跨刷新跨会话；chat 会随聊天丢，不合适） (1.1193ms)
+✔ dataScope: 脚本形态 → {type:script, script_id}（老数据原地不动，不搬家） (0.2274ms)
+✔ dataScope: 显式传入 scope 时以调用方为准 (0.196ms)
+✔ resolveDataScope: 扩展形态下**不是**裸的 {type:script}（那正是会抛错的形态） (0.2459ms)
+✔ scriptScope: 脚本形态的老语义原样保留（这个函数没被删） (2.2439ms)
+✔ describeStorageScope: 给出人话位置（界面/排查要用） (0.4122ms)
+✔ 读写同作用域: 扩展形态下读和写**都用 global**（病根是读一处写另一处） (8.8206ms)
+✔ 读写同作用域: 脚本形态下读和写都用带 script_id 的脚本作用域 (1.7725ms)
+✔ 读写同作用域: 作用域在会话内**稳定**（不会读时 global、写时又漂回 script） (0.2149ms)
+✔ 保护: 读失败 + 用户没动过 → **拒绝写**，绝不用默认值覆盖存储 (1.9449ms)
+✔ 保护: 读失败但**用户改过数据** → 放行（否则用户改动存不进去，同样是坏结果） (1.3721ms)
+✔ 保护: markUserTouchedData 是显式通道 —— 声明动过之后一律放行 (0.8865ms)
+✔ 保护: saveData(force=true) 可显式绕过（导入数据 / 用户手动恢复用） (0.7947ms)
+✔ 保护: 读**成功**时绝不拦（保护不能误伤正常流程） (0.3673ms)
+✔ 保护: 存储里**没有**我们的 key（全新用户）→ empty，允许写 (0.4135ms)
+✔ 保护: 读接口整个缺失 → failed，同样拦住 (0.5193ms)
+✔ 保护: 读拿到非对象 → failed（作用域语义不对，不能当「没数据」） (0.2796ms)
+✔ 保护: 读失败时**不会**留下任何写入 —— 这才是「静默数据丢失」被堵死的证据 (0.855ms)
+✔ 保护: resetLoadOutcome 之后（还没读过）允许写 —— 不误拦直接 set 的调用方 (0.3133ms)
+✔ 保护: saveRootData 不抛错，返回 false（界面内部用的强类型版） (0.9709ms)
+✔ 可见性: 拦截要 console.warn 一句人话，且 saveRootData 返回 false（不许静默拦截） (0.9369ms)
+✔ 可见性: 拦截时抛出的错误带**作用域人话**，便于用户/我们定位 (0.7951ms)
+✔ 可见性: 环境**连写入接口都没有**时，报的是根因不是保护（报错要指向根因） (0.219ms)
+✔ P4-10b: 冷启动（新进程 / 清单为空）+ ST 侧有数据 → **必须读得到** (0.8032ms)
+✔ P4-10b: getVariables 靠**应用声明的种子键**工作，不靠「本进程写过什么」 (0.2003ms)
+✔ P4-10b: ST 侧**确实没有**该键 + 不能枚举 → 记 failed 而不是 empty（不许当「空存储」覆盖） (0.313ms)
+✔ P4-10b: 上面那种情况**必须拦住写入**（这是数据丢失的最后一环） (0.6287ms)
+✔ P4-10b: 种子键可重复声明、跨多次建表累积（外壳早调 + storage 晚声明都要认） (0.2201ms)
+(node:5088) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/stores_save.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+[苍玄助手] 找不到 getVariables（不在酒馆环境？），本次使用默认数据
+✔ save: 防抖间隔是 2500ms（400ms → 2500ms 的硬要求） (0.7599ms)
+✔ save: 挂起期间多次变更不写盘；releaseSaves() 之后恰好写一次 (16.2206ms)
+✔ save: 挂起期间调 save(true) 仍然立刻写盘；release 不会重复写 (2.7604ms)
+✔ save: 挂起支持嵌套（计数到 0 才写）；releaseSaves 多调一次是幂等的 (2.4697ms)
+✔ save: 任务抛异常时 withHeldSaves() 仍然释放（finally 语义），异常前的改动照样落盘 (3.0759ms)
+✔ save: 页面隐藏时的 flushSaves() 无视挂起兜底写；release 时不会漏掉之后的改动 (6.1196ms)
+✔ save: 删掉 deep watcher 后，页签 / 会话 / 技能开关 / 预设字段仍然会落盘 (9.5801ms)
+✔ 源码级: App.vue 不再有 deep 全局 watcher，页面的写点都接上了 store.save()（防回归） (2.771ms)
+(node:26432) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/tavern_helper_template-main/tests/%E8%8B%8D%E7%8E%84%E5%8A%A9%E6%89%8B/stores_sessions.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\tavern_helper_template-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ store: 一进来就有一条会话，active 指得上（迁移/归一化保证） (13.1523ms)
+✔ store: createSession 新建并切过去；openSession 只认存在的 id (2.5774ms)
+✔ store: renameSession 去空白；空标题退回「由首条用户消息推出来」 (3.8477ms)
+✔ store: deleteSession —— 删非当前不动 active，删当前退到下一条，删最后一个自动补一条 (1.9854ms)
+✔ store: appendTurn / upsertTurn / patchTurnText 只作用于当前会话 (2.4062ms)
+✔ store: exportSession json 可往返、md 有结构且不出现 dataURL；exportSessions 是数组 (4.5936ms)
+✔ store: sessionToMarkdown / formatTime 纯函数边界 (0.4238ms)
+ℹ tests 638
+ℹ suites 0
+ℹ pass 638
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5625.1345
