@@ -3,14 +3,11 @@
 // 以前推送要 7 步：fetch → merge → 冲突了手动 checkout --ours → 重新生成产物 JSON → add → commit → push。
 // 现在：node cx_push.mjs "提交信息"
 //
-// 它做的事：
-//   1. git fetch origin
-//   2. 有落后就先 merge；**生成的产物 JSON 冲突自动重生成**（构建产物不该手动合并）
-//   3. 重新跑一次构建产物生成，保证推上去的就是当前源码产出的
-//   4. add / commit / push
+// 顺序很重要（踩过坑）：**先提交本地 → 再 merge → 再重生成产物 → 再 push**。
+// 反过来的话，工作区一脏 git 就拒绝 merge，而失败信息是空的，看起来像「莫名其妙的冲突」。
 //
 // 红线：**永远不 force push**。分叉了就报错让人来看。
-// 输出：成功 = 一行；失败 = 全文。
+// 输出：成功 = 一行；失败 = 尾部一小段。
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,16 +27,25 @@ const gitTry = (...args) => {
   try {
     return { ok: true, out: git(...args) };
   } catch (e) {
-    return { ok: false, out: (e.stdout ?? '') + (e.stderr ?? '') };
+    return { ok: false, out: ((e.stdout ?? '') + (e.stderr ?? '')).trim() };
   }
 };
 const log = (...a) => console.info('[push]', ...a);
 
-/* ---------- 1. 拉远端 ---------- */
-log('fetch…');
-git('fetch', 'origin');
-
 const branch = git('rev-parse', '--abbrev-ref', 'HEAD').trim();
+
+/* ---------- 1. 先提交本地（必须在 merge 之前：工作区脏时 git 会拒绝 merge） ---------- */
+const status = git('status', '--porcelain').trim();
+if (!status) {
+  log('工作区干净，跳过提交。');
+} else {
+  git('add', '-A');
+  git('commit', '-m', msg);
+  log('已提交本地改动。');
+}
+
+/* ---------- 2. 拉远端并对齐 ---------- */
+git('fetch', 'origin');
 const behind = gitTry('rev-list', '--count', 'HEAD..origin/' + branch);
 const behindCount = behind.ok ? Number(behind.out.trim()) : 0;
 
@@ -47,13 +53,13 @@ if (behindCount > 0) {
   log('落后 origin/' + branch + ' ' + behindCount + ' 个提交，先 merge…');
   const merged = gitTry('merge', '--no-edit', 'origin/' + branch);
   if (!merged.ok) {
-    // 生成的产物 JSON 冲突：直接取 ours 然后重生成，不让人工合并构建产物
+    // 生成的产物 JSON 冲突：取 ours 然后重生成，不让人工合并构建产物
     const conflicted = gitTry('diff', '--name-only', '--diff-filter=U');
     const files = conflicted.out.split('\n').map(s => s.trim()).filter(Boolean);
     const onlyGenerated = files.length > 0 && files.every(f => GENERATED.includes(f));
     if (!onlyGenerated) {
-      console.error('[push] 有非产物文件冲突，需要人工处理：');
-      console.error(files.join('\n'));
+      console.error('[push] 需要人工处理（不是产物冲突）：');
+      console.error(files.length ? files.join('\n') : merged.out.slice(-1500));
       console.error('\n处理完再跑一次这个脚本。');
       process.exit(1);
     }
@@ -64,7 +70,7 @@ if (behindCount > 0) {
   }
 }
 
-/* ---------- 2. 重新生成产物 ---------- */
+/* ---------- 3. 重新生成产物（保证推上去的就是当前源码产出的） ---------- */
 const buildScript = path.join(ROOT, 'build_tavern_script.mjs');
 if (fs.existsSync(buildScript)) {
   try {
@@ -74,15 +80,13 @@ if (fs.existsSync(buildScript)) {
     console.error(((e.stdout ?? '') + (e.stderr ?? '')).toString().slice(-3000));
     process.exit(1);
   }
-}
-
-/* ---------- 3. 提交 ---------- */
-const status = git('status', '--porcelain').trim();
-if (!status) {
-  log('工作区是干净的，没有要提交的东西。');
-} else {
-  git('add', '-A');
-  git('commit', '-m', msg);
+  // 生成结果和仓库里那份不一致 → 补一次提交
+  const afterBuild = git('status', '--porcelain').trim();
+  if (afterBuild) {
+    git('add', '-A');
+    git('commit', '-m', msg + '（重新生成产物）');
+    log('产物有变化，已补提交。');
+  }
 }
 
 /* ---------- 4. 推送 ---------- */

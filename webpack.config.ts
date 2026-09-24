@@ -277,6 +277,17 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
   const script_filepath = path.parse(entry.script);
 
   return (_env, argv) => ({
+    /**
+     * 给每个配置一个稳定名字，供 `--config-name` 精确选中。
+     *
+     * 为什么需要：这个文件导出 **11 个配置**，`webpack --mode development` 会一次全编。
+     * 开发时只想动扩展（src/extension），但全编会把 `dist/苍玄助手/index.html`（单文件
+     * 脚本形态的产物）也覆盖成 dev 版 —— 而 `build_tavern_script.mjs` 正是读它来生成
+     * `src/酒馆助手脚本-苍玄助手.json`，于是打包产物被 dev 版污染、bundle 相关测试全红。
+     *
+     * 名字取入口目录相对路径（正斜杠），例如 `extension`、`苍玄助手`。
+     */
+    name: path.relative(import.meta.dirname, path.dirname(entry.script)).replace(/\\/g, '/'),
     experiments: {
       outputModule: true,
     },
@@ -730,4 +741,25 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
   });
 }
 
-export default config.entries.map(parse_configuration);
+/**
+ * 只构建指定的入口：`CX_ONLY=extension webpack --mode development`。
+ *
+ * 为什么不用 `--config-name`：本文件导出的是**函数数组**（webpack-cli 在匹配
+ * `--config-name` 时不会先调用它们），实测报「Configuration with the name ... was not found」。
+ * 而全量构建会把 `dist/苍玄助手/index.html` 一起覆盖成 dev 版，污染
+ * `build_tavern_script.mjs` 的输入 —— 开发时只想动扩展，用这个环境变量把范围收窄。
+ *
+ * 不设这个变量时行为**完全不变**（发布 / CI 走的就是这条路径）。
+ */
+const only = process.env.CX_ONLY?.trim();
+const selected = only ? config.entries.filter(entry => entry.script.replace(/\\/g, '/').startsWith(only)) : config.entries;
+
+if (only) {
+  if (selected.length === 0) {
+    console.error(`\x1b[31m[webpack]\x1b[0m CX_ONLY="${only}" 没有匹配到任何入口`);
+  } else {
+    console.info(`\x1b[36m[webpack]\x1b[0m CX_ONLY="${only}" → 只构建 ${selected.length} 个入口：${selected.map(e => e.script).join(', ')}`);
+  }
+}
+
+export default selected.map(parse_configuration);

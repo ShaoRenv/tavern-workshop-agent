@@ -65,7 +65,21 @@ function runWebpack() {
   return new Promise((resolve, reject) => {
     const args = [webpackBin, '--mode', 'development'];
     if (WATCH) args.push('--watch');
-    const child = spawn(process.execPath, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, args, {
+      cwd: ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        // 只编扩展入口。
+        //
+        // ⚠️ 这条**不是优化，是正确性**：webpack.config.ts 导出 11 个入口，全量 dev 构建会把
+        // `dist/苍玄助手/index.html`（单文件脚本形态的产物）覆盖成 dev 版；而 cx_push 里的
+        // `build_tavern_script.mjs` 正是读它来生成 `src/酒馆助手脚本-苍玄助手.json`。
+        // 结果是打包产物被 dev 版污染，bundle_artifact 的两条断言（面板标题、script id 链）变红。
+        // 实测：加了这个变量后 dist/苍玄助手/index.html 时间戳不再变化。
+        CX_ONLY: process.env.CX_ONLY ?? 'src/extension',
+      },
+    });
 
     // 成功时整段吞掉；失败时只吐尾部一小段
     const tail = [];
