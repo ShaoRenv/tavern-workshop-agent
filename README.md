@@ -99,6 +99,21 @@ import 'https://testingcf.jsdelivr.net/gh/StageDog/tavern_resource/dist/酒馆�
 git config --global merge.ours.driver true
 ```
 
+### 开发闭环（改代码 → 真机生效）
+
+开发时「改代码 → 在酒馆里看到效果」以前要手工走 7 步（production 构建 → 删旧 chunk → 复制产物 → 刷新页面 → 等挂载 → 探针 → 推送）。现在压成三条命令：
+
+```bash
+node dev_deploy.mjs --watch        # 盯着 src：改代码 → 增量构建 → 部署到酒馆 → 自动重载（约 1s + 6s）
+node cx_probe.mjs <探针.js>         # 一条命令跑真机探针（可加 --reload 先刷新）
+node cx_push.mjs "提交信息"         # fetch / merge / 重生成产物 / commit / push，一条命令
+```
+
+- `dev_deploy.mjs` 默认部署到 `public/scripts/extensions/third-party/tavern-workshop-agent`（酒馆实际加载的那份），可用 `CX_DEPLOY_TARGET` 覆盖。
+- **输出口径：成功一行，失败才吐日志。** 这是刻意的 —— 构建日志几百行，成功时不该刷屏。
+- 编译报错时**不部署**（酒馆里继续跑上一版），改对了会自动恢复。dev 模式即使报错也会 emit 半成品，靠 `index.js` 引用的 chunk 是否齐全做最后一道闸，防「更新后白屏」。
+- 探针文件写成 `async () => ({ ... })` 的形式，返回值会 JSON 化打印；跑在酒馆页面里，可直接用 `SillyTavern.getContext()` 和 `import('/scripts/world-info.js')`。
+
 ## 许可证
 
 [Aladdin](LICENSE)
