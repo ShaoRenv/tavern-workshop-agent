@@ -27,6 +27,7 @@ interface Config {
 interface Entry {
   script: string;
   html?: string;
+<<<<<<< HEAD
   /**
    * true = 这个入口要打成**酒馆扩展**（dist 里多出一份 manifest.json，允许分包）。
    *
@@ -36,6 +37,8 @@ interface Entry {
    * 判定方式：入口同级目录有 manifest.json 就是扩展（官方模板也是这个布局）。
    */
   extension?: boolean;
+=======
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
 }
 
 function parse_entry(script_file: string) {
@@ -46,6 +49,7 @@ function parse_entry(script_file: string) {
   return { script: script_file };
 }
 
+<<<<<<< HEAD
 /** 入口同级有 manifest.json ⇒ 这是扩展入口（照官方模板 / ST 的发现规则） */
 function is_extension_entry(script_file: string) {
   return fs.existsSync(path.join(path.dirname(script_file), 'manifest.json'));
@@ -122,6 +126,8 @@ function prune_stale_chunks(out: string) {
   }
 }
 
+=======
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
 function common_path(lhs: string, rhs: string) {
   const lhs_parts = lhs.split(path.sep);
   const rhs_parts = rhs.split(path.sep);
@@ -161,10 +167,14 @@ function glob_script_files() {
 
 const config: Config = {
   port: 6621,
+<<<<<<< HEAD
   entries: glob_script_files().map(parse_entry).map(entry => ({
     ...entry,
     extension: is_extension_entry(entry.script),
   })),
+=======
+  entries: glob_script_files().map(parse_entry),
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
 };
 
 let io: Server;
@@ -277,6 +287,7 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
   const script_filepath = path.parse(entry.script);
 
   return (_env, argv) => ({
+<<<<<<< HEAD
     /**
      * 给每个配置一个稳定名字，供 `--config-name` 精确选中。
      *
@@ -288,6 +299,8 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
      * 名字取入口目录相对路径（正斜杠），例如 `extension`、`苍玄助手`。
      */
     name: path.relative(import.meta.dirname, path.dirname(entry.script)).replace(/\\/g, '/'),
+=======
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
     experiments: {
       outputModule: true,
     },
@@ -309,16 +322,21 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
 
         return `${is_direct === true ? 'src' : 'webpack'}://${info.namespace}/${resource_path}${is_direct || is_vue_script ? '' : '?' + info.hash}`;
       },
+<<<<<<< HEAD
       // 扩展入口固定产出 index.js / index.css（manifest.json 里就写这两个名字）；
       // 脚本入口沿用模板的「一个目录一个同名文件」。
       filename: entry.extension ? 'index.js' : `${script_filepath.name}.js`,
       ...(entry.extension ? { cssFilename: 'index.css', assetModuleFilename: '[name][ext]' } : {}),
+=======
+      filename: `${script_filepath.name}.js`,
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
       path: path.join(
         import.meta.dirname,
         'dist',
         path.relative(import.meta.dirname, script_filepath.dir).replace(/^[^\\/]+[\\/]/, ''),
       ),
       chunkFilename: `${script_filepath.name}.[contenthash].chunk.js`,
+<<<<<<< HEAD
       /**
        * publicPath 定死为 './'（相对）。
        *
@@ -329,6 +347,11 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
        */
       publicPath: entry.extension ? './' : '',
       asyncChunks: entry.extension,
+=======
+      asyncChunks: true,
+      clean: true,
+      publicPath: '',
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
       library: {
         type: 'module',
       },
@@ -455,7 +478,11 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
               loader: 'yaml-loader',
             },
           ].concat(
+<<<<<<< HEAD
             entry.html === undefined || entry.extension
+=======
+            entry.html === undefined
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
               ? ([
                   {
                     test: /\.vue\.s(a|c)ss$/,
@@ -478,10 +505,15 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
                   },
                   {
                     test: /\.s(a|c)ss$/,
+<<<<<<< HEAD
                     // 扩展要真产出一个 index.css（manifest.json 的 css 字段指向它），
                     // 所以走 MiniCssExtract；脚本形态没有独立 css 文件可伺服，只能 style-loader 内联。
                     use: [
                       entry.extension ? MiniCssExtractPlugin.loader : 'style-loader',
+=======
+                    use: [
+                      'style-loader',
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
                       { loader: 'css-loader', options: { url: false } },
                       'postcss-loader',
                       'sass-loader',
@@ -490,11 +522,15 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
                   },
                   {
                     test: /\.css$/,
+<<<<<<< HEAD
                     use: [
                       entry.extension ? MiniCssExtractPlugin.loader : 'style-loader',
                       { loader: 'css-loader', options: { url: false } },
                       'postcss-loader',
                     ],
+=======
+                    use: ['style-loader', { loader: 'css-loader', options: { url: false } }, 'postcss-loader'],
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
                     exclude: /node_modules/,
                   },
                 ] as any[])
@@ -533,6 +569,7 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
       ],
       alias: {},
     },
+<<<<<<< HEAD
     plugins: (entry.html === undefined || entry.extension
       ? [
           new MiniCssExtractPlugin(
@@ -557,6 +594,10 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
               : {},
           ),
         ]
+=======
+    plugins: (entry.html === undefined
+      ? [new MiniCssExtractPlugin()]
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
       : [
           new HtmlWebpackPlugin({
             template: path.join(import.meta.dirname, entry.html),
@@ -598,15 +639,22 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
           // globs: ['src/panel/component/*.vue'],
           resolvers: [VueUseComponentsResolver(), VueUseDirectiveResolver()],
         }),
+<<<<<<< HEAD
         // 单文件闸：**只对脚本入口**。扩展入口要正常分包（见 optimization.splitChunks）。
         ...(entry.extension ? [] : [new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 })]),
+=======
+        new webpack.optimize.LimitChunkCountPlugin({ maxChunks: 1 }),
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
         new webpack.DefinePlugin({
           __VUE_OPTIONS_API__: false,
           __VUE_PROD_DEVTOOLS__: process.env.CI !== 'true',
           __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false,
         }),
       )
+<<<<<<< HEAD
       .concat(entry.extension ? [copy_extension_assets(entry.script)] : [])
+=======
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
       .concat(
         should_obfuscate
           ? [
@@ -637,6 +685,7 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
               },
             }),
       ],
+<<<<<<< HEAD
       /**
        * 分包策略：**按入口形态分开**。
        *
@@ -682,6 +731,28 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
             },
           }
         : false,
+=======
+      splitChunks: {
+        chunks: 'async',
+        minSize: 20000,
+        minChunks: 1,
+        maxAsyncRequests: 30,
+        maxInitialRequests: 30,
+        cacheGroups: {
+          vendor: {
+            name: 'vendor',
+            test: /[\\/]node_modules[\\/]/,
+            priority: -10,
+          },
+          default: {
+            name: 'default',
+            minChunks: 2,
+            priority: -20,
+            reuseExistingChunk: true,
+          },
+        },
+      },
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
     },
     externals: ({ context, request }, callback) => {
       if (!context || !request) {
@@ -719,6 +790,7 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
         yaml: 'YAML',
         zod: 'z',
       };
+<<<<<<< HEAD
       // ⚠️ 扩展入口**不许**走宿主全局变量这条路。
       // 脚本形态能这么写，是因为酒馆助手的 iframe 里预先把 Vue/z 挂在 window 上；
       // 扩展是直接跑在酒馆页面里的，那里**没有** Vue / z 全局，
@@ -727,20 +799,37 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
         const cdn = { sass: 'https://jspm.dev/sass' };
         return callback(null, 'module-import ' + (cdn[request as keyof typeof cdn] ?? `https://testingcf.jsdelivr.net/npm/${request}/+esm`));
       }
+=======
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
       if (request in global) {
         return callback(null, 'var ' + global[request as keyof typeof global]);
       }
       const cdn = {
         sass: 'https://jspm.dev/sass',
       };
+<<<<<<< HEAD
       return callback(
         null,
         'module-import ' + (cdn[request as keyof typeof cdn] ?? `https://testingcf.jsdelivr.net/npm/${request}/+esm`),
+=======
+      const package_json = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf-8')) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      const package_versions = { ...package_json.devDependencies, ...package_json.dependencies };
+      const version = package_versions[request]?.replace(/^[~^]/, '');
+      const versioned_request = /^[.\d]+$/.test(version) ? `${request}@${version}` : request;
+      return callback(
+        null,
+        'module-import ' +
+          (cdn[request as keyof typeof cdn] ?? `https://testingcf.jsdelivr.net/npm/${versioned_request}/+esm`),
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
       );
     },
   });
 }
 
+<<<<<<< HEAD
 /**
  * 只构建指定的入口：`CX_ONLY=extension webpack --mode development`。
  *
@@ -763,3 +852,6 @@ if (only) {
 }
 
 export default selected.map(parse_configuration);
+=======
+export default config.entries.map(parse_configuration);
+>>>>>>> f447e54f4effc7980891d89ab7e9b3c9aa02737e
