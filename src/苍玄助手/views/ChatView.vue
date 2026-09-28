@@ -1,9 +1,11 @@
 <template>
   <div class="cx-body">
-    <!-- 顶栏：Agent｜聊天 + 记录（⋯）+ 对话设置 -->
+    <!-- 顶栏：记录（⋯）+ 对话设置。
+         「Agent｜聊天」开关已删（B9）：它只往 session.mode 写一个字，从没有任何读点 ——
+         跑不跑工具循环是**预设解析出来的**（isAgentPreset：跟随全局 + 有工具），
+         跟这个开关无关。留着一个改不动任何东西的控件只会骗用户。 -->
     <div class="cx-blk cx-pb10">
-      <div class="cx-frow">
-        <SegBar :model-value="session.mode" :items="MODE_ITEMS" variant="mode" class="cx-modebar-grow" @update:model-value="onModeChange" />
+      <div class="cx-frow cx-frow-end">
         <!-- 记录不占页面（阶段 2）：收进这张 Sheet -->
         <button class="cx-iconbtn" type="button" title="记录" @click="recordsOpen = true">⋯</button>
         <button class="cx-iconbtn" type="button" title="对话设置" @click="settingsOpen = true">⚙</button>
@@ -161,16 +163,15 @@ import {
   type ToolCall,
   type Turn,
 } from '../core/types.ts';
-import SegBar from '../components/SegBar.vue';
 import Sheet from '../components/Sheet.vue';
 import ToolGroup from '../components/ToolGroup.vue';
-import { timeLabel, type SegItem } from '../components/ui_types.ts';
+import { timeLabel } from '../components/ui_types.ts';
 import RecordsView from './RecordsView.vue';
 
 /**
  * 对话页。
  *
- *  - Agent｜聊天 模式开关；有草稿时出现草稿条（看 diff / 保存）
+ *  - 有草稿时出现草稿条（看 diff / 保存）
  *  - 工具调用压成一行（约 28px），同一轮里连续多条在跑完后收起成「▸ N 次工具调用」
  *  - 生图卡永远展开；失败和改动默认摊开
  *  - 底部状态行（运行中 / 就绪）+ [＋][发送/停止]
@@ -211,8 +212,6 @@ const emit = defineEmits<{
   rollback: [payload: { id: string }];
   /** 换预设 */
   'preset-change': [id: string];
-  /** 切 Agent｜聊天：写路径归 store.setMode（界面不再直接改 session.mode） */
-  'mode-change': [mode: 'agent' | 'chat'];
 }>();
 
 /**
@@ -224,14 +223,9 @@ const data = toRef(props, 'data');
 /**
  * 当前会话：用 core/types.ts 的官方挑选函数（sessions[active_session_id] → 第一条）。
  * store 里 data.session 是它的活别名（同一个对象引用），所以读谁都一样；
- * running / round / turns / mode 全走它，流式增量也是往这里的 text 上追加。
+ * running / round / turns 全走它，流式增量也是往这里的 text 上追加。
  */
 const session = computed(() => pickActiveSession(data.value));
-
-const MODE_ITEMS: SegItem[] = [
-  { value: 'agent', label: 'Agent' },
-  { value: 'chat', label: '聊天' },
-];
 
 const text = ref('');
 const diffOpen = ref(false);
@@ -259,10 +253,6 @@ function onPresetChange(event: Event) {
   emit('preset-change', target.value);
 }
 
-/** Agent｜聊天：只发事件，改由 App.vue 调 store.setMode（store 内部会落盘） */
-function onModeChange(value: string) {
-  if (value === 'agent' || value === 'chat') emit('mode-change', value);
-}
 const fileEl = ref<HTMLInputElement | null>(null);
 const bottomEl = ref<HTMLElement | null>(null);
 

@@ -647,18 +647,56 @@ function writeVar(scope: unknown, key: string, value: unknown): void {
 /**
  * 当前**启用**的全局世界书名。
  *
- * ST 原生只给 `getWorldInfoNames()`（全部名字），「哪些启用了」要从
- * `extensionSettings.world_info.globalSelect` 读。这是原生就有的数据，
- * 不是我们造的。读不到返回空数组（不抛）。
+ * 两条来源，**按顺序试，先拿到的算数**：
+ *
+ *  1. `SillyTavern.getContext().extensionSettings.world_info.globalSelect`
+ *     —— ST 原生数据。⚠️ **1.18.0 上这个位置已经没有了**（实测 extensionSettings
+ *     里根本没有 world_info 这个键），所以这条在真机上恒为空。
+ *  2. `TavernHelper.getGlobalWorldbookNames()` —— 酒馆助手自己的接口，
+ *     它从 `world_info.globalSelect`（world-info.js 的模块级导出）读，真机上是对的。
+ *
+ * ⚠️ **为什么必须补第 2 条（真机实测的 P0）**：本函数注册成原生适配器，
+ * 而 hostFn 的解析链是「注入 → **原生适配器** → TavernHelper → 全局同名函数」——
+ * 原生适配器**优先级高于** TavernHelper。于是 1.18.0 上这条恒返回 `[]` 的实现
+ * 把酒馆助手那份**正确的答案整个盖住了**：`current()` 永远只拿到角色卡 / 聊天那两路，
+ * 全局世界书一本都列不出来。连带 B4（默认勾「当前生效的书」）永远不触发，
+ * `wb_list` 也永远把全局书标成「未启用」。
+ *
+ * 读不到就返回空数组（不抛）—— 列表工具不该因为一个接口缺失就废掉。
  */
 function globalWorldbookSelection(): string[] {
-  const settings = getStContext()?.extensionSettings;
-  if (!settings || typeof settings !== 'object') return [];
-  const worldInfo = settings.world_info;
-  if (!worldInfo || typeof worldInfo !== 'object') return [];
-  const selected = (worldInfo as Record<string, unknown>).globalSelect;
-  if (!Array.isArray(selected)) return [];
-  return selected.filter((name): name is string => typeof name === 'string');
+  const native = globalWorldbookSelectionNative();
+  if (native.length > 0) return native;
+  return globalWorldbookSelectionHelper();
+}
+
+/** 第 1 条来源：ST 原生 `extensionSettings.world_info.globalSelect`（1.18.0 上已无此键） */
+function globalWorldbookSelectionNative(): string[] {
+  try {
+    const settings = getStContext()?.extensionSettings;
+    if (!settings || typeof settings !== 'object') return [];
+    const worldInfo = (settings as Record<string, unknown>).world_info;
+    if (!worldInfo || typeof worldInfo !== 'object') return [];
+    const selected = (worldInfo as Record<string, unknown>).globalSelect;
+    if (!Array.isArray(selected)) return [];
+    return selected.filter((name): name is string => typeof name === 'string');
+  } catch {
+    return [];
+  }
+}
+
+/** 第 2 条来源：酒馆助手的 `getGlobalWorldbookNames()`（1.18.0 上真正有数据的那个） */
+function globalWorldbookSelectionHelper(): string[] {
+  try {
+    const scope = globalThis as Record<string, any>;
+    const helper = scope.TavernHelper;
+    if (!helper || typeof helper.getGlobalWorldbookNames !== 'function') return [];
+    const names = helper.getGlobalWorldbookNames();
+    if (!Array.isArray(names)) return [];
+    return names.filter((name): name is string => typeof name === 'string');
+  } catch {
+    return [];
+  }
 }
 
 function describeError(error: unknown): string {

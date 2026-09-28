@@ -88,19 +88,19 @@ test('runner：工具层走草稿视图 —— 建完能读到、连着改两处
     if (round === 1) {
       return [
         '先读再看。',
-        '<SystemQuery>{"name":"wb_read","args":{"world":"天枢阁","uid":"42"}}</SystemQuery>',
-        '<SystemQuery>{"name":"entry_create","args":{"world":"天枢阁","name":"新条目","content":"刚建出来的条目"}}</SystemQuery>',
+        '<SystemQuery>{"name":"wb_read","args":{"world":"天枢阁","uids":["42"]}}</SystemQuery>',
+        '<SystemQuery>{"name":"wb_write","args":{"world":"天枢阁","action":"create","name":"新条目","content":"刚建出来的条目"}}</SystemQuery>',
       ].join('\n');
     }
     if (round === 2) {
-      return '<SystemQuery>{"name":"entry_edit","args":{"world":"天枢阁","uid":"42","old_string":"总部在苍梧山","new_string":"总部位于苍梧山巅"}}</SystemQuery>';
+      return '<SystemQuery>{"name":"wb_write","args":{"world":"天枢阁","action":"update","uid":"42","content":"总部位于苍梧山巅"}}</SystemQuery>';
     }
     if (round === 3) {
       // 改过之后先重读（observe-guard 的版本 CAS 会要求这一点），再基于第一处改动继续改：
-      // 没有草稿视图，第二处的 old_string 根本找不到
+      // 没有草稿视图，第二处改的就是旧正文了
       return [
-        '<SystemQuery>{"name":"wb_read","args":{"world":"天枢阁","uid":"42"}}</SystemQuery>',
-        '<SystemQuery>{"name":"entry_edit","args":{"world":"天枢阁","uid":"42","old_string":"总部位于苍梧山巅","new_string":"总部位于苍梧山巅（云海之上）"}}</SystemQuery>',
+        '<SystemQuery>{"name":"wb_read","args":{"world":"天枢阁","uids":["42"]}}</SystemQuery>',
+        '<SystemQuery>{"name":"wb_write","args":{"world":"天枢阁","action":"update","uid":"42","content":"总部位于苍梧山巅（云海之上）"}}</SystemQuery>',
         // 分页读要能看到刚建的条目
         '<SystemQuery>{"name":"wb_read","args":{"world":"天枢阁","limit":5}}</SystemQuery>',
       ].join('\n');
@@ -115,7 +115,7 @@ test('runner：工具层走草稿视图 —— 建完能读到、连着改两处
     name: 'agent',
     items: [{ type: 'message', id: 'a1-sys', role: 'system', content: '你是助手' }],
     use_global_caps: true,
-    tools: ['wb_read', 'entry_create', 'entry_edit', 'submit'],
+    tools: ['wb_read', 'wb_write', 'submit'],
     max_rounds: 6,
   });
   const box = runBox();
@@ -137,7 +137,7 @@ test('runner：工具层走草稿视图 —— 建完能读到、连着改两处
     ['create', 'edit', 'edit'],
   );
   assert.equal(data.drafts[0].session_id, data.sessions[0].id, '草稿要归属当前会话');
-  // 第二处改动的 old_string 只存在于第一处改动的成果里
+  // 第二处改动基于第一处改动的成果（草稿视图把它算进去了）
   assert.match(data.drafts[2].after, /云海之上/);
   // 分页读到了刚建的条目（视图把 create 也算上）
   const readCall = box.updates.find(item => item.call.name === 'wb_read' && /刚建出来的条目/.test(item.call.detail));
@@ -160,7 +160,7 @@ test('runner：没读过就改 → observe-guard 拦下（NOT_OBSERVED），草�
   globalThis.generateRaw = async () => {
     round++;
     if (round === 1) {
-      return '<SystemQuery>{"name":"entry_edit","args":{"world":"天枢阁","uid":"42","old_string":"总部在苍梧山","new_string":"总部位于苍梧山巅"}}</SystemQuery>';
+      return '<SystemQuery>{"name":"wb_write","args":{"world":"天枢阁","action":"update","uid":"42","content":"总部位于苍梧山巅"}}</SystemQuery>';
     }
     return '<SystemQuery>{"name":"submit","args":{"summary":"收到"}}</SystemQuery>';
   };
@@ -171,7 +171,7 @@ test('runner：没读过就改 → observe-guard 拦下（NOT_OBSERVED），草�
     name: 'agent',
     items: [{ type: 'message', id: 'a2-sys', role: 'system', content: 's' }],
     use_global_caps: true,
-    tools: ['entry_edit', 'submit'],
+    tools: ['wb_write', 'submit'],
     max_rounds: 4,
   });
   const box = runBox();
@@ -185,7 +185,7 @@ test('runner：没读过就改 → observe-guard 拦下（NOT_OBSERVED），草�
   });
   assert.equal(result.done, true);
   assert.equal(data.drafts.length, 0, '被拦下就不该有草稿');
-  const editCall = box.updates.find(item => item.call.name === 'entry_edit');
+  const editCall = box.updates.find(item => item.call.name === 'wb_write');
   assert.equal(editCall.call.ok, false);
   assert.match(editCall.call.detail, /entry has not been read — wb_read it, then retry/);
   assert.match(editCall.call.detail, /cannot modify "天枢阁"/);

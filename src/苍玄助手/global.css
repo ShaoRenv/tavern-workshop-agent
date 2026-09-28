@@ -408,6 +408,11 @@ body {
   align-items: center;
 }
 
+/* 行内元素靠右（对话页顶栏：左边原来是模式开关，删了之后只剩右边两个按钮） */
+.cx-frow-end {
+  justify-content: flex-end;
+}
+
 .cx-frow > input,
 .cx-frow > select,
 .cx-frow > textarea {
@@ -1772,6 +1777,33 @@ body {
 .cx-capbody,
 .cx-setbody {
   border-top: 1px solid var(--qx-hair);
+}
+
+/*
+ * B41 完整版：内置预设的「只读」提示框（SettingsView 的预设段）。
+ * 样式跟着既有 .cx-ext-warn（2251 行）那套走：文字色用 --qx-warn，
+ * 底色是同一个色的低透明度版本 —— 工程里没有 --qx-warn-dim 这个 token，
+ * 不为一个提示框单独发明 token。
+ */
+.cx-robox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(251, 191, 36, 0.12);
+  color: var(--qx-warn);
+  font-size: 11.5px;
+  line-height: 1.75;
+}
+
+.cx-robox b {
+  font-weight: 700;
+}
+
+/* 只读的预设行：整行点下去也不该有「可编辑」的暗示 */
+.cx-mrow.ro {
+  cursor: default;
 }
 
 /* 「改提示词 / 参数 →「能力」页」：整行可点，够 40px */

@@ -30,7 +30,6 @@ test('sessions: makeSession 默认值 / titleFromText / sessionTitle', () => {
   assert.equal(made.title, DEFAULT_SESSION_TITLE);
   assert.equal(made.created_at, 0);
   assert.equal(made.updated_at, 0);
-  assert.equal(made.mode, 'agent');
   assert.deepEqual(made.turns, []);
   assert.equal(makeSession({ id: 'x', title: 'T' }).id, 'x');
 
@@ -56,7 +55,6 @@ test('sessions: makeSession 默认值 / titleFromText / sessionTitle', () => {
     updated_at: 9,
     turns: 1,
     preset_id: '',
-    mode: 'agent',
     running: false,
   });
 });
@@ -79,7 +77,6 @@ test('sessions: v1 老数据（只有 session）迁移成一条记录，内容�
     active_tab: 'chat',
     active_preset_id: 'p1',
     session: {
-      mode: 'chat',
       preset_id: 'p-old',
       turns: legacyTurns,
       running: false,
@@ -97,7 +94,6 @@ test('sessions: v1 老数据（只有 session）迁移成一条记录，内容�
   assert.equal(session.id, 'sess-legacy');
   assert.deepEqual(session.turns, legacyTurns, '轮次必须原样搬过来');
   assert.equal(session.preset_id, 'p-old');
-  assert.equal(session.mode, 'chat');
   assert.equal(session.round, 2);
   assert.equal(session.started_at, 100);
   assert.equal(session.created_at, 100, 'created_at 缺就用 started_at');

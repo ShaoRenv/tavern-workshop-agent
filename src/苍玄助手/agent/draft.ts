@@ -422,14 +422,29 @@ export class DraftStore {
         const merged = applyChangesToEntries(entries, changes);
         warnings.push(...merged.warnings.map(text => world + '：' + text));
         await wb.writeAll(world, merged.entries);
-        for (const change of changes) doneIds.add(change.id);
-        worlds.push({ world, ok: true, applied: changes.length, total: changes.length });
+
+        // ---- 写后回读校验（B3）：`writeAll` 不抛 ≠ 写成功 ----
+        // 适配层形状对不上时 ST 会安静地写个空的（阶段 5 那次就是 0 条落盘、零报错）。
+        const verify = await verifyWrite(wb, world, merged.entries);
+        if (!verify.ok) {
+          const detail = verify.error ?? verify.problems.join('；');
+          warnings.push(world + '：**写回后回读对不上** —— ' + detail + '（草稿已保留，请核对后再试）');
+        }
+
+        // ⚠️ 校验没过时**不摘草稿**：那样用户还有得救（草稿仓里留着，改完能重试）。
+        // 摘了就等于「界面说成功、数据没写进去、草稿也没了」—— 最坏的一种组合。
+        if (verify.ok) {
+          for (const change of changes) doneIds.add(change.id);
+        }
+        worlds.push({ world, ok: verify.ok, applied: changes.length, total: changes.length, verify });
       } catch (error) {
         worlds.push({ world, ok: false, applied: 0, total: changes.length, error: errorText(error) });
       }
     }
     this.items = this.items.filter(item => !doneIds.has(item.id));
-    const applied = worlds.reduce((sum, item) => sum + item.applied, 0);
+    const applied = worlds.reduce((sum, item) => sum + (item.ok ? item.applied : 0), 0);
+    // ⚠️ 回读没过的也算 failed（B3）：`writeAll` 没抛错但数据没落盘时，
+    // 旧口径会把它算成 applied —— 那正是「界面显示成功、实际 0 条」的来源。
     const failed = worlds.reduce((sum, item) => sum + (item.ok ? 0 : item.total), 0);
     return { ok: failed === 0, applied, failed, worlds, warnings, backed_up: backedUp, remain: this.items.slice() };
   }
@@ -459,7 +474,23 @@ export class DraftStore {
       // ② 把备份里的整本 entries 写回去
       await wb.writeAll(world, entries);
 
-      return { ok: true, world, restored: entries.length, backed_up_before_rollback: safety.ok, warnings };
+      // ③ 回读校验（B3）：阶段 5 那次「界面说换回去 4 条、实际 0 条」就发生在这里。
+      const verify = await verifyWrite(wb, world, entries);
+      if (!verify.ok) {
+        const detail = verify.error ?? verify.problems.join('；');
+        warnings.push(world + '：**回滚后回读对不上** —— ' + detail);
+      }
+
+      return {
+        ok: verify.ok,
+        world,
+        // restored 报**真的读回来**的条数，不是「我以为写进去的」条数
+        restored: verify.actual,
+        backed_up_before_rollback: safety.ok,
+        verify,
+        warnings,
+        error: verify.ok ? undefined : (verify.error ?? verify.problems.join('；')),
+      };
     } catch (error) {
       return { ok: false, error: errorText(error) };
     }
@@ -471,6 +502,92 @@ export interface ApplyWorldResult {
   applied: number;
   total: number;
   error?: string;
+  /**
+   * 写回之后**回读校验**的结果（B3）。
+   *
+   * `undefined` = 没校验（不该发生，除非回读本身抛了）；
+   * `ok: false` = **写进去的和读回来的对不上** —— 这是「界面在撒谎」的唯一解药。
+   */
+  verify?: VerifyResult;
+}
+
+/**
+ * 回读校验的结果（B3）。
+ *
+ * ─────────────────────────── 为什么非要有这个 ───────────────────────────
+ *
+ * 阶段 5 那份报告里最刺眼的一句（`reports/阶段5-世界书读写全坏-真机发现.md` §7.3）：
+ *
+ * > 「`rollback()`/`writeAll` 只看有没有抛错，不看写进去的能不能读回来 ——
+ * >   这次界面显示『换回去 4 条』而实际 0 条，就是**界面在替底层撒谎**。」
+ *
+ * `writeAll` 不抛 ≠ 写成功。适配层形状对不上时，ST 会**安安静静地写个空的**
+ * （那次就是把数组传给了期望 `{ entries }` 的 `saveWorldInfo`，0 条落盘、零报错）。
+ * 所以唯一可信的验收方式是：**写完再读一次，比对**。
+ */
+export interface VerifyResult {
+  ok: boolean;
+  /** 期望的条目数（写进去的那份） */
+  expected: number;
+  /** 回读到的条目数 */
+  actual: number;
+  /** 对不上时的逐条差异，人话（ok=true 时为空） */
+  problems: string[];
+  /** 回读本身失败时的人话（此时 actual 记 0） */
+  error?: string;
+}
+
+/**
+ * 写回后回读校验（B3）：读一次，和刚写进去的比。
+ *
+ * 比三件事（按「用户会先注意到哪个」排）：
+ *   ① **条目数** —— 0 条落盘是那次事故的形态，最该先报；
+ *   ② **uid 集合** —— 少一条 / 多一条都说明写歪了；
+ *   ③ **正文** —— 条数对但内容是旧的是另一种形态（缓存没失效时会这样）。
+ *
+ * ⚠️ 只比**我们真的写过的东西**（uid / content），不逐字段全比：
+ * 宿主可能给条目补默认字段、或把 `extra` 里的东西挪个位置 —— 那些不算失败。
+ * 拿「字段全等」当判据会天天误报，最后没人看这条警告（比没有更糟）。
+ *
+ * **不抛**：回读失败是一种结果（`ok:false` + error），不是异常。
+ */
+export async function verifyWrite(wb: WorldbookPort, world: string, expected: WbEntry[]): Promise<VerifyResult> {
+  const want = Array.isArray(expected) ? expected : [];
+  let actual: WbEntry[];
+  try {
+    actual = await wb.readAll(world);
+  } catch (error) {
+    return { ok: false, expected: want.length, actual: 0, problems: [], error: errorText(error) };
+  }
+
+  const problems: string[] = [];
+  if (actual.length !== want.length) {
+    problems.push('条目数对不上：写进去 ' + want.length + ' 条，读回来 ' + actual.length + ' 条');
+  }
+
+  // uid 集合：用 Map 保留「读回来那份」的引用，方便下面比正文
+  const byUid = new Map(actual.map(entry => [entry.uid, entry]));
+  const missing = want.filter(entry => !byUid.has(entry.uid)).map(entry => entry.uid);
+  if (missing.length) {
+    problems.push('这些条目写进去了却读不到：' + missing.slice(0, 5).join('、') + (missing.length > 5 ? ' 等 ' + missing.length + ' 条' : ''));
+  }
+
+  // 正文：只在两边都有这条时比（uid 已经缺了的上面报过了，别重复报）
+  const changed: string[] = [];
+  for (const entry of want) {
+    const got = byUid.get(entry.uid);
+    if (!got) continue;
+    if (got.content !== entry.content) changed.push(entry.uid);
+  }
+  if (changed.length) {
+    problems.push(
+      '这些条目读回来的正文和写进去的不一样（可能是旧内容）：' +
+        changed.slice(0, 5).join('、') +
+        (changed.length > 5 ? ' 等 ' + changed.length + ' 条' : ''),
+    );
+  }
+
+  return { ok: problems.length === 0, expected: want.length, actual: actual.length, problems };
 }
 
 export interface ApplyReport {
@@ -502,6 +619,13 @@ export interface RollbackResult {
    * ⚠️ false 表示「这次回滚不可撤销」—— 界面必须显示出来，不能让用户以为还能回头。
    */
   backed_up_before_rollback?: boolean;
+  /**
+   * 回滚后回读校验的结果（B3）。
+   *
+   * ⚠️ `restored` 现在报的是**回读到的**条数，不是「以为写进去的」条数 ——
+   * 阶段 5 那次界面显示「换回去 4 条」而实际 0 条，就是因为旧代码报的是后者。
+   */
+  verify?: VerifyResult;
   warnings?: string[];
   error?: string;
 }
@@ -646,32 +770,45 @@ export function applyChangesToEntries(entries: WbEntry[], changes: DraftChange[]
       continue;
     }
     if (change.kind === 'edit') {
-      next[index] = { ...next[index], content: change.after };
+      // ⚠️ edit **不只改正文**（B15-B19 修的 bug）：`wb_write` 一次 update 可以同时改
+      // 「正文 + 蓝绿灯 + 顺序」，而 kind='edit' 原来只把 content 换掉 ——
+      // 属性那半静默丢了（草稿弹窗显示要改，落地后没改）。
+      // 所以 edit = 换正文 **加上** payload 里出现的属性字段。
+      next[index] = applyMetaFields({ ...next[index], content: change.after }, payload);
       continue;
     }
     if (change.kind === 'meta') {
-      const current = next[index];
-      next[index] = {
-        ...current,
-        name: 'name' in payload ? payloadText(payload, 'name') : current.name,
-        strategy:
-          'strategy' in payload || 'constant' in payload
-            ? payloadStrategy(payload, current.strategy)
-            : current.strategy,
-        keys: 'keys' in payload ? payloadKeys(payload) : current.keys,
-        keys_secondary:
-          'keys_secondary' in payload ? payloadSecondary(payload, current.keys_secondary) : current.keys_secondary,
-        scan_depth: 'scan_depth' in payload ? payloadScanDepth(payload, current.scan_depth) : current.scan_depth,
-        enabled: 'enabled' in payload ? payloadBool(payload, 'enabled', current.enabled) : current.enabled,
-        position: 'position' in payload ? payloadNumber(payload, 'position', current.position) : current.position,
-        depth: 'depth' in payload ? payloadNumber(payload, 'depth', current.depth) : current.depth,
-        order: 'order' in payload ? payloadNumber(payload, 'order', current.order) : current.order,
-      };
+      next[index] = applyMetaFields(next[index], payload);
       continue;
     }
     warnings.push('未知草稿类型：' + String(change.kind));
   }
   return { entries: next, warnings };
+}
+
+/**
+ * 把 payload 里**出现过的**属性字段盖到条目上（没出现的一律原样保留）。
+ *
+ * 抽出来是因为 `edit` 与 `meta` 两种草稿都要用它：
+ *  - `edit`：换了正文，顺带改属性（B15-B19 之后 wb_write 的 update 会一次带多个字段）；
+ *  - `meta`：只改属性，不碰正文。
+ * 「只改填了的字段」这条语义在**一个地方**实现，两处不会走偏。
+ */
+function applyMetaFields(entry: WbEntry, payload: Record<string, unknown>): WbEntry {
+  return {
+    ...entry,
+    name: 'name' in payload ? payloadText(payload, 'name') : entry.name,
+    strategy:
+      'strategy' in payload || 'constant' in payload ? payloadStrategy(payload, entry.strategy) : entry.strategy,
+    keys: 'keys' in payload ? payloadKeys(payload) : entry.keys,
+    keys_secondary:
+      'keys_secondary' in payload ? payloadSecondary(payload, entry.keys_secondary) : entry.keys_secondary,
+    scan_depth: 'scan_depth' in payload ? payloadScanDepth(payload, entry.scan_depth) : entry.scan_depth,
+    enabled: 'enabled' in payload ? payloadBool(payload, 'enabled', entry.enabled) : entry.enabled,
+    position: 'position' in payload ? payloadNumber(payload, 'position', entry.position) : entry.position,
+    depth: 'depth' in payload ? payloadNumber(payload, 'depth', entry.depth) : entry.depth,
+    order: 'order' in payload ? payloadNumber(payload, 'order', entry.order) : entry.order,
+  };
 }
 
 /** 草稿卡一行文案 */

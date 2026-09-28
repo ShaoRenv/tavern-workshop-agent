@@ -39,7 +39,7 @@ test('store: 一进来就有一条会话，active 指得上（迁移/归一化�
     assert.equal(box.store.activeSessionId, 'sess-default');
     assert.equal(box.store.activeSession, box.store.sessions[0], 'activeSession 就是列表里那条');
     assert.deepEqual(box.store.sessionMetas, [
-      { id: 'sess-default', title: DEFAULT_SESSION_TITLE, created_at: 0, updated_at: 0, turns: 0, preset_id: '', mode: 'agent', running: false },
+      { id: 'sess-default', title: DEFAULT_SESSION_TITLE, created_at: 0, updated_at: 0, turns: 0, preset_id: '', running: false },
     ]);
   } finally {
     box.done();
@@ -55,7 +55,7 @@ test('store: createSession 新建并切过去；openSession 只认存在的 id',
     assert.equal(store.sessions.length, 2);
     assert.equal(store.activeSessionId, second.id);
     assert.equal(second.title, '第二个');
-    assert.equal(second.mode, store.sessions[0].mode);
+    assert.equal(second.preset_id, store.sessions[0].preset_id, '新会话跟随当前预设');
     assert.notEqual(second.id, first);
 
     const blank = store.createSession('   ');

@@ -49,7 +49,6 @@ test('v3 迁移: v2 老数据补覆盖项 / 事件 / 草稿归属，且不报警
         title: '甲',
         created_at: 100,
         updated_at: 200,
-        mode: 'agent',
         preset_id: 'p1',
         turns: [turnOfVersion2()],
         running: false,
@@ -111,7 +110,7 @@ test('v3 迁移: v1 → v3 一次到位（会话、事件、草稿归属一起�
   const result = migrateRootData(
     RootDataSchema.parse({
       version: 1,
-      session: { mode: 'chat', preset_id: 'p-old', turns: [turnOfVersion2()], running: false, round: 1, started_at: 100 },
+      session: { preset_id: 'p-old', turns: [turnOfVersion2()], running: false, round: 1, started_at: 100 },
       drafts: [draft('d1')],
     }),
   );

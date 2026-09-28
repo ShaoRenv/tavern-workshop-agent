@@ -515,6 +515,34 @@ export class TavernWorldbookPort implements WorldbookPort {
     return hits.slice(0, limit);
   }
 
+  /**
+   * 刷一次宿主的「世界书名单」缓存。
+   *
+   * ⚠️ **真机实测（B1）：`saveWorldInfo` 建完新书，`getWorldInfoNames()` 里看不到它。**
+   * 建完立刻读回是**读得到**的（`loadWorldInfo` 直接读文件，不走缓存），
+   * 但列表要等 `updateWorldInfoList()` 之后才认这个新名字：
+   *
+   * ```
+   * 建之前 14 本 → 建完 getWorldInfoNames() 还是 14 本（新书不在）
+   *              → await updateWorldInfoList() → 15 本 ✅
+   * ```
+   *
+   * 不刷的后果：`wb_list`（走 `list()`）**看不见刚建的书**，模型会以为没建成功、
+   * 于是反复重试或报「建不出来」—— 而书其实已经躺在磁盘上了。
+   *
+   * 取不到这个接口时静默跳过（它不在能力表里，属于可选能力）。
+   */
+  private async refreshWorldbookList(): Promise<void> {
+    const update = hostFn('updateWorldInfoList');
+    if (typeof update !== 'function') return;
+    try {
+      await update();
+    } catch (error) {
+      // 刷不动不该让「建书」这一步失败：书已经建好了，只是名单可能滞后
+      console.warn('[苍玄助手] 刷新世界书名单失败（新书可能暂时列不出来）', error);
+    }
+  }
+
   /** 新建世界书；同名已存在时直接报错，**绝不覆盖** */
   async createWorldbook(name: string): Promise<void> {
     const target = asString(name).trim();
@@ -526,11 +554,13 @@ export class TavernWorldbookPort implements WorldbookPort {
     const create = hostFn('createWorldbook');
     if (create) {
       await create(target, []);
+      await this.refreshWorldbookList();
       return;
     }
     const createOrReplace = requireHostFn('createOrReplaceWorldbook');
     const created = await createOrReplace(target, []);
     if (created === false) throw new Error('世界书已存在，换个名字：' + target);
+    await this.refreshWorldbookList();
   }
 
   /** 删除世界书；不存在时静默返回 */

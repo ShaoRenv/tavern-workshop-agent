@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const core = '../../src/苍玄助手/core/';
-const { loadRoles, loadWorlds, loadEntries, toUiTools, fetchModels, parsePortraitFile } = await import(core + 'adapters.ts');
+const { loadRoles, loadWorlds, loadEntries, toUiTools, fetchModels, parsePortraitFile, defaultWorldbookSelection } = await import(core + 'adapters.ts');
 const { setHostBridge } = await import(core + 'storage.ts');
 
 function installHost(over = {}) {
@@ -212,6 +212,57 @@ test('adapters: getModelList 返回空表时继续直连兜底', async () => {
     console.warn = originalWarn;
     globalThis.fetch = originalFetch;
     setHostBridge(null);
+  }
+});
+
+/* ============================ 世界书默认勾选（B4） ============================ */
+
+/** 造一条勾选状态（schema 默认值 + 覆盖项） */
+function sel(over = {}) {
+  return { character_ids: [], worldbook_names: [], entry_uid: [], demand: '', user_edited: false, ...over };
+}
+
+function w(name, current) {
+  return { name, current };
+}
+
+test('B4: 从没勾过 → 勾上当前生效的那几本', () => {
+  const worlds = [w('甲', true), w('乙', false), w('丙', true)];
+  assert.deepEqual(defaultWorldbookSelection(worlds, sel()), ['甲', '丙']);
+});
+
+test('B4: 用户亲手动过（含「一本都不要」）→ 一律不动', () => {
+  const worlds = [w('甲', true), w('丙', true)];
+  // 勾 0 本 + 动过 = 明确的选择，刷新不许替他勾回来
+  assert.equal(defaultWorldbookSelection(worlds, sel({ user_edited: true })), null);
+  // 勾着东西但没标 user_edited（老数据手写的选择）也不动
+  assert.equal(defaultWorldbookSelection(worlds, sel({ worldbook_names: ['乙'] })), null);
+  // 动过且勾着东西，同样不动
+  assert.equal(defaultWorldbookSelection(worlds, sel({ user_edited: true, worldbook_names: ['乙'] })), null);
+});
+
+test('B4: 一本当前生效的都没有 / 读不到世界书 → 不动（不用空数组覆盖）', () => {
+  assert.equal(defaultWorldbookSelection([], sel()), null, '没读到世界书');
+  assert.equal(defaultWorldbookSelection([w('甲', false), w('乙', false)], sel()), null, '一本都没启用');
+});
+
+test('B4: 契约 —— App.vue 在 refreshAll 里、refreshEntries 之前补默认值', () => {
+  // 这三条是**顺序**契约，写错了不报错但会闪空列表 / 白跑一次宿主 IO
+  const app = readFileSync('src/苍玄助手/App.vue', 'utf8');
+  assert.ok(app.includes('defaultWorldbookSelection'), 'App.vue 要真的调它');
+  const body = /async function refreshAll\(\)[\s\S]*?\n}/.exec(app);
+  assert.ok(body, '找不到 refreshAll');
+  const iDefault = body[0].indexOf('applyWorldbookDefault()');
+  const iEntries = body[0].indexOf('await refreshEntries()');
+  assert.ok(iDefault >= 0 && iEntries >= 0, 'refreshAll 里两件事都要有');
+  assert.ok(iDefault < iEntries, '先补默认值再读条目（否则先按空选择读一遍）');
+  // 世界书页的三个写点都要记 user_edited，否则「清空后刷新又被勾回来」
+  const page = readFileSync('src/苍玄助手/plugins/builtin/worldbook/Page.vue', 'utf8');
+  assert.ok(page.includes('user_edited = true'), '世界书页要记用户动过');
+  for (const fn of ['toggleWorld', 'selectAllWorlds', 'clearWorlds']) {
+    const body = new RegExp('function ' + fn + '\\([^)]*\\)[\\s\\S]*?\\n}').exec(page);
+    assert.ok(body, '找不到 ' + fn);
+    assert.ok(body[0].includes('markWorldsEdited()'), fn + ' 要记 user_edited（不能只 touch）');
   }
 });
 

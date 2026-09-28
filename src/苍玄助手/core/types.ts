@@ -393,6 +393,54 @@ function toPresetItem(raw: unknown, index: number, presetId: string): unknown {
   return { ...raw, type: 'message', id };
 }
 
+/* ============================ 工具页覆盖项 ============================ */
+
+/**
+ * 用户在工具页改过的东西。**类型契约在 core/ports.ts**（ToolOverride / ToolOverrideMap），
+ * 这里只补一份 zod schema 做持久化校验；字段全可选，没改的用内置默认。
+ *
+ * 两边形状必须一致：store 的 setToolOverride 用 ports 的类型收参、写这里的数据，
+ * 谁改歪了 tsc 会直接报出来。
+ *
+ * ⚠️ **位置必须在 `PresetCoreSchema` 之前**：预设现在也有一个 `tool_overrides`（B45），
+ * 而 `const` 不提升 —— 放后面会 TDZ 报错（`Cannot access before initialization`），
+ * 真踩过（改完 B45 当场把 60 个测试文件全炸了）。
+ * 这一段与预设无关，纯粹是「先定义被用到的 schema」这条依赖顺序要求。
+ */
+export const ToolOverrideSchema = z.object({
+  /**
+   * **工具级开关**（三态：缺省 = 跟随 / true = 手动开 / false = 手动关）。
+   *
+   * ⚠️ 这个字段**必须**在这里声明，否则会被 zod 当未知键丢掉 ——
+   * 真机验收当场踩的坑：切到「手动关」→ store 里确实写进了 `enabled: false`
+   * （诊断确认）→ **刷新一次就没了**，因为逐块恢复走的是这份 schema。
+   * 与当初 `plugins.image.enabled` 是同一类坑：**加了字段忘了加 schema**。
+   */
+  enabled: z.boolean().optional(),
+  /** 覆盖「进模型的那段说明」 */
+  description: z.string().optional(),
+  /** 覆盖参数 schema 里某个参数的 description（键 = 参数名） */
+  param_descriptions: z.record(z.string(), z.string()).optional(),
+  /** 覆盖参数默认值（键 = 参数名；写进 schema 的 default） */
+  param_defaults: z.record(z.string(), z.unknown()).optional(),
+  /** 单次调用超时（毫秒） */
+  timeout_ms: z.number().int().positive().optional(),
+  /** 工具专属配置（生图 API 之类），由工具自己解释 */
+  config: z.record(z.string(), z.unknown()).optional(),
+  /** 界面上标「已改过」用的时间戳 */
+  edited_at: z.number().optional(),
+});
+
+/**
+ * 工具名 → 覆盖项（`RootData.tool_overrides` 与 `Preset.tool_overrides` 共用这份 schema）。
+ *
+ * 输出类型显式声明成 ports.ts 的 `ToolOverrideMap`：两处拿到的都是契约类型，
+ * 应用层不会看到第二份定义。
+ */
+export const ToolOverrideMapSchema = z
+  .record(z.string(), ToolOverrideSchema.optional())
+  .prefault({}) as unknown as z.ZodType<ToolOverrideMap>;
+
 /**
  * 预设（v4）：**只有一种**，是不是 agent 由**解析后的工具集**决定
  * （见下面的 resolveCaps / isAgentPreset）。
@@ -410,6 +458,24 @@ const PresetCoreSchema = z.object({
   tools: z.array(z.string()).default([]),
   skills: z.array(z.string()).default([]),
   max_rounds: z.number().int().positive().default(12),
+  /**
+   * 工具提示词覆盖项 —— **跟着这个预设走**（B45，用户定案 T3「甲」）。
+   *
+   * ─────────────────────────── 两层结构 ───────────────────────────
+   *
+   * | 层 | 作用 | 谁写 |
+   * |---|---|---|
+   * | `RootData.tool_overrides` | **当前生效**的那份（临时区） | 用户在工具页改 → 立即生效 |
+   * | `Preset.tool_overrides`（本字段） | 预设里存的那份 | 用户点「存进预设」/ 切预设时写入 |
+   *
+   * **为什么两层都要**：用户可能「临时改一句试试效果，不想存」—— 那就只改临时区；
+   * 而切换预设时，新预设存的那份会**整体覆盖**临时区（见 `stores/app.ts` 的 `selectPreset`）。
+   *
+   * ⚠️ 默认值是 `{}` 而不是「继承上一份」：老数据 / 新预设都没有这个字段，
+   * 视为「全部跟随内置默认」。这比「沿用当前临时区」安全 ——
+   * 后者会让「切到一份干净预设」这个动作带上上一份的残留。
+   */
+  tool_overrides: ToolOverrideMapSchema,
 });
 
 export const PresetSchema = z.preprocess(migratePresetItems, PresetCoreSchema);
@@ -509,48 +575,6 @@ export const ToolCallSchema = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCallSchema>;
 
-/* ============================ 工具页覆盖项 ============================ */
-
-/**
- * 用户在工具页改过的东西。**类型契约在 core/ports.ts**（ToolOverride / ToolOverrideMap），
- * 这里只补一份 zod schema 做持久化校验；字段全可选，没改的用内置默认。
- *
- * 两边形状必须一致：store 的 setToolOverride 用 ports 的类型收参、写这里的数据，
- * 谁改歪了 tsc 会直接报出来。
- */
-export const ToolOverrideSchema = z.object({
-  /**
-   * **工具级开关**（三态：缺省 = 跟随 / true = 手动开 / false = 手动关）。
-   *
-   * ⚠️ 这个字段**必须**在这里声明，否则会被 zod 当未知键丢掉 ——
-   * 真机验收当场踩的坑：切到「手动关」→ store 里确实写进了 `enabled: false`
-   * （诊断确认）→ **刷新一次就没了**，因为逐块恢复走的是这份 schema。
-   * 与当初 `plugins.image.enabled` 是同一类坑：**加了字段忘了加 schema**。
-   */
-  enabled: z.boolean().optional(),
-  /** 覆盖「进模型的那段说明」 */
-  description: z.string().optional(),
-  /** 覆盖参数 schema 里某个参数的 description（键 = 参数名） */
-  param_descriptions: z.record(z.string(), z.string()).optional(),
-  /** 覆盖参数默认值（键 = 参数名；写进 schema 的 default） */
-  param_defaults: z.record(z.string(), z.unknown()).optional(),
-  /** 单次调用超时（毫秒） */
-  timeout_ms: z.number().int().positive().optional(),
-  /** 工具专属配置（生图 API 之类），由工具自己解释 */
-  config: z.record(z.string(), z.unknown()).optional(),
-  /** 界面上标「已改过」用的时间戳 */
-  edited_at: z.number().optional(),
-});
-
-/**
- * 工具名 → 覆盖项（RootData.tool_overrides 的运行时 schema）。
- *
- * 输出类型显式声明成 ports.ts 的 `ToolOverrideMap`：RootData['tool_overrides']
- * 拿到的就是契约类型，应用层不会看到第二份定义。
- */
-export const ToolOverrideMapSchema = z
-  .record(z.string(), ToolOverrideSchema.optional())
-  .prefault({}) as unknown as z.ZodType<ToolOverrideMap>;
 
 /* ============================ 会话事件日志 ============================ */
 
@@ -625,8 +649,6 @@ export const SessionSchema = z.object({
   created_at: z.number().default(0),
   /** 最后活动时间（毫秒） */
   updated_at: z.number().default(0),
-  /** 'agent' | 'chat'，界面上那个开关 */
-  mode: z.enum(['agent', 'chat']).default('agent'),
   preset_id: z.string().default(''),
   /**
    * 轮次（v1 就在的字段）。UI / 测试都读它，**读路径不动**；
@@ -780,7 +802,6 @@ export interface SessionMeta {
   /** 轮数 = turns.length */
   turns: number;
   preset_id: string;
-  mode: Session['mode'];
   running: boolean;
 }
 
@@ -792,7 +813,6 @@ export function toSessionMeta(session: Session): SessionMeta {
     updated_at: session.updated_at,
     turns: session.turns.length,
     preset_id: session.preset_id,
-    mode: session.mode,
     running: session.running,
   };
 }
@@ -966,6 +986,16 @@ export const SelectionSchema = z.object({
   worldbook_names: z.array(z.string()).default([]),
   entry_uid: z.array(z.string()).default([]),
   demand: z.string().default(''),
+  /**
+   * 用户有没有**亲手**动过世界书勾选（勾 / 取消 / 全选 / 清空）。
+   *
+   * 只为一件事存在：新用户从没勾过时，界面替他勾上「当前生效的书」（B4）。
+   * 一旦这个标记为 true，「勾 0 本」就是他明确的选择，刷新不许再替他勾回来。
+   *
+   * 加字段**不涨 DATA_VERSION**：新字段 + 默认 false 对老数据是「缺省补齐」，
+   * 不是结构搬迁（口径同 external_plugins / wb_backups）。
+   */
+  user_edited: z.boolean().default(false),
 });
 export type Selection = z.infer<typeof SelectionSchema>;
 

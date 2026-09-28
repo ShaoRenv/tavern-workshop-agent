@@ -1,10 +1,14 @@
 /**
  * 三个守卫（横切策略，工具本身不认识它们）+ 观察记录：
  *
- *  - observe-guard：entry_edit / entry_meta / entry_delete 之前必须先读过该条目
+ *  - observe-guard：wb_write（action=update/delete）之前必须先读过该条目
  *      · 没读过        → code:'NOT_OBSERVED'，文案照 DSH
  *      · 读过但版本变了 → code:'STALE'
  *      · wb_read / wb_search 成功后 record 观察（版本取**草稿视图**算出来的）
+ *
+ * ⚠️ B15-B19 之后写工具只剩一个 `wb_write`，所以要**按 action 分流**：
+ * create 不要求先读（还没有这条，读什么），update/delete 才要求。
+ * 不分流的话「新建条目」会被守卫拦下 —— 那是把保护写成阻碍。
  *  - prune-guard  ：detail 超过 8192 就标记 pruned（**不改 detail 本体**，原文留给会话日志）；
  *                   真正给模型看的那份由 loop 调 pruneForModel() 修剪。
  *  - repeat-guard ：(工具名, 规范化参数 JSON) 计数，第 3/5/8 次往 contexts 里塞建议，绝不阻断。
@@ -152,7 +156,15 @@ export function createRepeatGuard(): RepeatGuard {
 
 /* ============================ observe ============================ */
 
-const WRITE_TOOLS = ['entry_edit', 'entry_meta', 'entry_delete'];
+/** 需要「先读过再改」的写工具：B15-B19 合并后只剩 wb_write，靠 action 分流 */
+const WRITE_TOOLS = ['wb_write'];
+
+/** 这次 wb_write 是不是「改已有的条目」（create 不需要先读） */
+function needsObservation(name: string, args: Record<string, unknown>): boolean {
+  if (!WRITE_TOOLS.includes(name)) return false;
+  const action = asText(args.action).trim();
+  return action === 'update' || action === 'delete';
+}
 
 async function readEntry(port: WorldbookPort | undefined, world: string, uid: string): Promise<WbEntry | undefined> {
   if (!port) return undefined;
@@ -183,9 +195,8 @@ export function createObserveGuard(
   }): Promise<{ world: string; uids: string[] } | null> => {
     const world = targetWorld(input.ctx, input.args.world);
     if (!world || !port) return null;
-    const single = asText(input.args.uid).trim();
+    // B16：wb_read 删掉了 uid 单数参数，只认 uids（数组）
     const many = Array.isArray(input.args.uids) ? input.args.uids.map(item => asText(item).trim()).filter(Boolean) : [];
-    if (single) return { world, uids: [single] };
     if (many.length) return { world, uids: many };
     // 分页读：和 wb_read 的默认一致，只记这一页
     const offset = Math.max(0, asInt(input.args.offset, 0));
@@ -248,7 +259,7 @@ export function createObserveGuard(
       observations.record(world, entry.uid, entryVersion(entry));
     },
     async before(input) {
-      if (!WRITE_TOOLS.includes(input.name)) return null;
+      if (!needsObservation(input.name, input.args)) return null;
       const uid = asText(input.args.uid).trim();
       const world = targetWorld(input.ctx, input.args.world);
       if (!uid || !world) return null; // 参数不全/范围不明，交给工具自己报错

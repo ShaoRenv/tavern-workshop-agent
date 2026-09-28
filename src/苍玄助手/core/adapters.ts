@@ -9,7 +9,7 @@
  *  - 每个函数内部 try/catch，失败一律返回空数组 / {ok:false} + console.warn
  *  - loadEntries 只回 uid/name/group，**不把 content 带进界面模型**（正文交给 Agent 按需读）
  */
-import type { ApiSettings } from './types.ts';
+import type { ApiSettings, Selection } from './types.ts';
 import type { UiEntry, UiRole, UiTool, UiWorld } from '../components/ui_types.ts';
 import type { SettingsSchema, WbEntry } from './ports.ts';
 import { collectCharacters, describePortraitResult, readPortraitMetaFromFile, type RoleSource } from './portrait.ts';
@@ -65,6 +65,35 @@ export async function loadWorlds(): Promise<UiWorld[]> {
     console.warn('[苍玄助手] 读取世界书名失败，返回空列表', error);
     return [];
   }
+}
+
+/**
+ * 世界书页勾选的**兜底默认值**：用户从没勾过任何一本时，勾上「当前生效的书」。
+ *
+ * 为什么要有它：`selection.worldbook_names` 的默认是 `[]`，于是新用户打开面板看到的是
+ * 0 / N 本 —— Agent 的「可操作范围」是空的，在它调 `wb_list` 之前什么都干不了。
+ * 而酒馆里真正在生效的世界书（全局启用 + 角色卡 / 聊天绑定）本来就是用户的意图，
+ * 拿它当默认既符合直觉，也不用用户先手动勾一遍。
+ *
+ * 返回值是**该不该改**，不是改完的整份数据（写盘走 store.patchSelection，跟别处一个口径）：
+ *  - `null` = 什么都不用做
+ *  - `string[]` = 把 worldbook_names 换成它
+ *
+ * 三个刻意的选择：
+ *  1. **只在「从没勾过」时补**（`user_edited: false`）—— 用户主动清空过（勾 0 本）是他的决定，
+ *     刷新一次又替他勾回来等于不听话。标记由世界书页的清空 / 全选 / 逐本勾选写。
+ *  2. **只勾 list() 里真实存在的名字** —— current() 可能返回一本已经被删掉的书
+ *     （酒馆变量里残留），勾上它只会让条目区一直读失败。
+ *  3. 一本当前生效的都没有（没绑世界书 / 不在酒馆里）就**不动**，绝不用空数组覆盖用户的选择。
+ *
+ * 纯函数：不碰入参。
+ */
+export function defaultWorldbookSelection(worlds: UiWorld[], selection: Selection): string[] | null {
+  if (selection.user_edited) return null;
+  if (selection.worldbook_names.length > 0) return null;
+
+  const picked = worlds.filter(world => world.current).map(world => world.name);
+  return picked.length > 0 ? picked : null;
 }
 
 /**

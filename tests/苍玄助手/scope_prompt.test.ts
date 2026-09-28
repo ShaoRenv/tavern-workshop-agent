@@ -126,9 +126,11 @@ test('scope: wb_list 标出每本从哪儿生效（全局 / 角色卡 / 未启�
   assert.match(scoped.detail, /别本 —— 全局/);
   assert.ok(scoped.detail.includes('别本'), '没勾的也要列出来（用户要知道它存在、是全局的）');
   assert.match(scoped.detail, /别本 —— 全局　[^\n]*（不在本次范围，不可读写）/, '范围外必须标出不可读写');
+  // B15-B19：wb_list 的 brief 简化成「世界书 N 本 · 可读写 M 本」——
+  // 绑定范围的统计（全局/角色卡各几本）原来是 brief 里的一行小结，现在归 detail 的逐行标注。
+  // 用户要的是「每本标出从哪生效」，那个仍在 detail 里（上面两行钉着）。
   assert.match(scoped.brief, /可读写 1 本/);
-  assert.match(scoped.brief, /当前角色卡 1 本/);
-  assert.match(scoped.brief, /全局 1 本/);
+  assert.ok(!/全局 1 本/.test(scoped.brief), 'brief 不再重复统计，避免和 detail 两处维护');
 
   // in_scope_only=true 就只列勾选的（老行为留给想收窄的调用）
   const onlyScoped = await registry.byName('wb_list').run({ in_scope_only: true }, ctxOf(port, ['甲本']));
@@ -142,18 +144,19 @@ test('scope: wb_list 标出每本从哪儿生效（全局 / 角色卡 / 未启�
   assert.ok(!none.detail.includes('（不在本次范围') === false, '全部都应标不可读写');
 });
 
-test('scope: 读 / 搜 / 建 / 改 / 删 / meta 六个入口的越权文案一致', async () => {
+test('scope: 读 / 看结构 / 搜 / 写（三种 action）的越权文案一致', async () => {
   const port = makePort({ 甲本: [entry('1', 'A', '甲本正文')], 别本: [entry('9', 'Z', '别本正文')] });
   const registry = createRegistry(port);
   const ctx = ctxOf(port, ['甲本']);
 
+  // B15-B19：入口从 6 个变成 4 个（wb_write 靠 action 分流成三条）
   const cases = [
-    ['wb_read', { world: '别本', uid: '9' }],
+    ['wb_read', { world: '别本', uids: ['9'] }],
+    ['wb_outline', { world: '别本' }],
     ['wb_search', { keyword: '正文', worlds: ['别本'] }],
-    ['entry_create', { world: '别本', name: 'n', content: 'c' }],
-    ['entry_edit', { world: '别本', uid: '9', old_string: '别本正文', new_string: 'x' }],
-    ['entry_delete', { world: '别本', uid: '9' }],
-    ['entry_meta', { world: '别本', uid: '9', strategy: 'constant' }],
+    ['wb_write', { world: '别本', action: 'create', name: 'n', content: 'c' }],
+    ['wb_write', { world: '别本', action: 'update', uid: '9', content: 'x' }],
+    ['wb_write', { world: '别本', action: 'delete', uid: '9' }],
   ];
   for (const [name, args] of cases) {
     const result = await registry.byName(name).run(args, ctx);
@@ -182,17 +185,17 @@ test('scope: 范围只有 1 本时不写 world 也能命中那一本（读 / 写
   const port = makePort({ 甲本: [entry('1', 'A', '风起。云涌。')] });
   const registry = createRegistry(port);
 
-  const read = await registry.byName('wb_read').run({ uid: '1' }, ctxOf(port, ['甲本']));
+  const read = await registry.byName('wb_read').run({ uids: ['1'] }, ctxOf(port, ['甲本']));
   assert.equal(read.ok, true, read.detail);
   assert.match(read.detail, /风起/);
 
   const drafts = { items: [], add(world, uid, kind, before, after, label) { this.items.push({ world, uid, kind, before, after, label }); }, count() { return this.items.length; } };
-  const edit = await registry.byName('entry_edit').run({ uid: '1', old_string: '风起', new_string: '雷落' }, ctxOf(port, ['甲本'], { drafts }));
+  const edit = await registry.byName('wb_write').run({ action: 'update', uid: '1', content: '雷落。云涌。' }, ctxOf(port, ['甲本'], { drafts }));
   assert.equal(edit.ok, true, edit.detail);
   assert.equal(drafts.items[0].world, '甲本', '唯一一本就算没写 world 也命中它');
 
   // 范围不止一本又没写 world → 要求指明
-  const multi = await registry.byName('wb_read').run({ uid: '1' }, ctxOf(port, ['甲本', '乙本']));
+  const multi = await registry.byName('wb_read').run({ uids: ['1'] }, ctxOf(port, ['甲本', '乙本']));
   assert.equal(multi.ok, false);
   assert.match(multi.detail, /请指明 world（本次可操作范围：甲本、乙本）/);
 });

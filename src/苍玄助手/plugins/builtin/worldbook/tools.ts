@@ -1,21 +1,33 @@
 /**
- * 世界书插件的 7 个工具：wb_list / wb_search / wb_read / entry_create / entry_edit / entry_delete / entry_meta
+ * 世界书插件的 **5 个工具**：wb_list / wb_outline / wb_read / wb_search / wb_write
  *
- * 两条铁律：
- *  1) entry_edit 只做 old_string → new_string 的精确替换，绝不整条重写；
- *  2) 所有写操作只落草稿，不碰真数据（真写入由 agent/draft.ts 的 apply() 调 WorldbookPort.writeAll）。
+ * ── 这一版相对上一版的改动（B15-B19，用户已批设计稿）──
  *
- * 阶段 3：本文件从 `agent/tools_worldbook.ts` 搬进插件目录。搬的时候**只搬世界书专属**的部分 ——
- * 参数归一化 / 结果包装 / JSON Schema 小工厂 / 操作范围话术都是与世界书无关的通用件，留在底座
- * `agent/toolkit.ts`，由本文件单向 import。这样依赖方向始终是 plugins → core / agent。
+ *  | 旧 | 新 | 为什么 |
+ *  |---|---|---|
+ *  | `wb_list` / `wb_search` / `wb_read` | 保留 | 名字够清楚 |
+ *  | — | **`wb_outline`** ★ 新增 | 219 条的书要的是「看清结构」，不是「第 1-20 条」 |
+ *  | `entry_create`+`entry_edit`+`entry_delete`+`entry_meta` | **`wb_write`** 合并 | 一个工具 = 一个人真的会做的动作，不是一套 API 一个工具 |
  *
- * 端口注入口径（阶段 3 契约）：`contributes.tools` 是**静态** ToolDef[]，模块加载时拿不到宿主对象，
- * 所以 `createWorldbookTools()` 是**零参**的，7 个工具一律从 `ctx.wb` 取世界书端口
- * （跟 ctx.genImage / ctx.askUser 同一个路子）。
+ * **三条设计原则**（用户定的）：
+ *  1. **工具摆数据，skill 教判断** —— 工具里不放任何「结论」。
+ *     所以 `wb_outline` **不标**「死条目 / 单字关键词 / 重名」——
+ *     那是判断，交给模型 + `世界书工程` skill。
+ *  2. **提示词只写三件事**：干什么 / 什么时候用 / 返回什么。
+ *     领域知识（蓝绿灯语义、position 8 个位置、预算机制）全进 skill，不进工具描述。
+ *  3. **必填最少，其余走默认** —— 1788 条真实数据里绝大多数只用
+ *     `comment`/`content`/`key`/`constant`。
+ *
+ * **两条铁律不变**：
+ *  1) 所有写操作只落草稿，不碰真数据（真写入由 agent/draft.ts 的 apply() 调 WorldbookPort.writeAll）；
+ *  2) 改之前先读 —— 由 agent/guards.ts 的 observe-guard 强制执行。
+ *
+ * **端口注入口径（阶段 3 契约）**：`contributes.tools` 是**静态** ToolDef[]，模块加载时拿不到宿主对象，
+ * 所以 `createWorldbookTools()` 是**零参**的，工具一律从 `ctx.wb` 取世界书端口。
  */
 import type { ToolContext, ToolDef, ToolErrorCode, WbEntry } from '../../../core/ports.ts';
 import { uid, type DraftChange, type DraftKind } from '../../../core/types.ts';
-import { changedLines, diffStat, encodeMetaFields, formatDiff, formatStat, lineDiff } from '../../../agent/draft.ts';
+import { changedLines, formatDiff, lineDiff } from '../../../agent/draft.ts';
 import {
   allowedWorlds,
   asBool,
@@ -184,18 +196,6 @@ const PAGE_LIMIT_DEFAULT = 5;
 const PAGE_LIMIT_MAX = 30;
 const CONTENT_LIMIT_DEFAULT = 2000;
 
-function countOccurrences(haystack: string, needle: string): number {
-  if (!needle) return 0;
-  let count = 0;
-  let from = 0;
-  for (;;) {
-    const index = haystack.indexOf(needle, from);
-    if (index < 0) return count;
-    count++;
-    from = index + needle.length;
-  }
-}
-
 function headLine(world: string, total: number, from: number, count: number): string {
   if (count <= 0) return '世界书「' + world + '」· 共 ' + total + ' 条 · 本页空';
   return '世界书「' + world + '」· 共 ' + total + ' 条 · 本次给第 ' + (from + 1) + '-' + (from + count) + ' 条';
@@ -218,19 +218,256 @@ function pageTrailer(total: number, offset: number, limit: number): string {
   );
 }
 
+/* ============================ position / 字段渲染（wb_read 用）============================ */
+
+/**
+ * position 的数字 → 人话。
+ *
+ * 表来自 TavernWeave 手册 §6.2（`references/注入位置与顺序.md`），**照抄不解释** ——
+ * 工具只负责把数字翻译成名字，不负责教「该用哪个」（那是 skill 的事）。
+ * 未知值原样显示数字，不猜（真实数据里 position 只出现过 0/1/3/4）。
+ */
+const POSITION_LABELS: Record<number, string> = {
+  0: '角色定义之前',
+  1: '角色定义之后',
+  2: '作者注顶部',
+  3: '作者注底部',
+  4: '系统深度（at_depth）',
+  5: '示例消息之前',
+  6: '示例消息之后',
+  7: 'Outlet',
+};
+
+function positionLabel(position: number): string {
+  return POSITION_LABELS[position] ?? '未知位置';
+}
+
+/** 条目类型的人话（wb_read 的「类型:」一行） */
+function typeLabel(entry: WbEntry): string {
+  if (entry.strategy === 'constant') return '常亮（蓝灯，每轮都进 prompt）';
+  if (entry.strategy === 'vectorized') return '向量化（按向量相似度触发）';
+  if (!entry.keys.length) return '关键词触发（绿灯）—— ⚠️ 但没给关键词';
+  return '关键词触发（绿灯）';
+}
+
+/**
+ * 高级字段：从 `extra` 里挑出「模型读了 skill 之后可能会想去改」的那几个。
+ *
+ * ⚠️ **只列存在的**。真实数据里 `group` 用了 **0 次**、`probability` 只有 2 条不是 100 ——
+ * 所以绝大多数条目这一行是空的，不会平白占上下文。
+ */
+const ADVANCED_FIELDS: Array<[string, string]> = [
+  ['group', '分组'],
+  ['group_weight', '分组权重'],
+  ['sticky', '粘住轮数'],
+  ['cooldown', '冷却轮数'],
+  ['delay', '延迟轮数'],
+  ['probability', '触发概率'],
+  ['useProbability', '用概率'],
+  ['role', '注入角色'],
+  ['matchWholeWords', '全词匹配'],
+  ['excludeRecursion', '禁止递归'],
+  ['preventRecursion', '阻止递归'],
+  ['delayUntilRecursion', '延迟到递归'],
+  ['automationId', '自动化 id'],
+  ['vectorized', '向量化'],
+  ['selectiveLogic', '次关键词逻辑'],
+];
+
+function renderAdvancedFields(entry: WbEntry): string {
+  const extra = (entry.extra ?? {}) as Record<string, unknown>;
+  const shown: string[] = [];
+  for (const [key, label] of ADVANCED_FIELDS) {
+    const value = extra[key];
+    if (value === undefined || value === null || value === '') continue;
+    if (typeof value === 'boolean' && value === false) continue; // false 是默认值，不占行
+    shown.push(label + '=' + (typeof value === 'object' ? JSON.stringify(value) : String(value)));
+  }
+  return shown.join(' · ');
+}
+
+/**
+ * `wb_read` 的单条渲染 —— **删掉 wb_check 之后，判定所需的全部信息必须在这里摆全**。
+ *
+ * 判定依据全在字段上（用户指正原话：「能不能触发只需要了解世界书是否开启、蓝绿灯、key
+ * 就可以判断出来」），所以这里把 开/类型/主关键词/次关键词/扫描深度/概率/位置/顺序 全列出来，
+ * 让模型**自己**判断，而不是给一个「能不能触发」的结论。
+ */
+export function renderEntryDetailed(entry: WbEntry, index: number, maxContent: number): string {
+  const extra = (entry.extra ?? {}) as Record<string, unknown>;
+  const lines: string[] = [];
+
+  lines.push('[' + (index + 1) + '] uid=' + entry.uid + '  「' + (entry.name || '(无标题)') + '」');
+  lines.push('');
+  lines.push('正文：');
+  lines.push(clip(entry.content, maxContent, '\n…（正文已截断，用 max_content 调大）') || '(空)');
+  lines.push('');
+  lines.push('────────────────────────');
+  lines.push('启用：      ' + (entry.enabled ? '是' : '否'));
+  lines.push('类型：      ' + typeLabel(entry));
+  lines.push('主关键词：  ' + (entry.keys.length ? JSON.stringify(entry.keys) : '（无）'));
+  lines.push(
+    '次关键词：  ' +
+      (entry.keys_secondary.keys.length
+        ? entry.keys_secondary.logic + ' ' + JSON.stringify(entry.keys_secondary.keys)
+        : '（无）'),
+  );
+  lines.push(
+    '扫描深度：  ' +
+      (entry.scan_depth === 'same_as_global' ? '跟随全局（当前 ' + GLOBAL_SCAN_DEPTH_HINT + '）' : String(entry.scan_depth) + ' 楼'),
+  );
+  const probability = extra.probability;
+  lines.push('概率：      ' + (probability === undefined || probability === null ? '100%' : String(probability) + '%'));
+  lines.push('位置：      ' + positionLabel(entry.position) + ' (pos=' + entry.position + ')');
+  lines.push('顺序：      ' + entry.order + '（越大越靠近最新消息）');
+  if (entry.position === 4) lines.push('深度：      ' + entry.depth + ' 楼');
+
+  const advanced = renderAdvancedFields(entry);
+  if (advanced) lines.push('[高级字段] ' + advanced);
+
+  // 「一个字段都不丢」的承诺要有据可查：告诉模型还剩几个没列出来的扩展字段
+  const known = new Set(['probability', ...ADVANCED_FIELDS.map(([key]) => key)]);
+  const rest = Object.keys(extra).filter(key => !known.has(key));
+  if (rest.length) lines.push('[其他字段] 本条目还有 ' + rest.length + ' 个扩展字段，已原样保留（写回时不会丢）');
+
+  return lines.join('\n');
+}
+
+/**
+ * 「跟随全局」时全局扫描深度是多少楼。
+ *
+ * ⚠️ 这是个**提示**，不是权威值：真实值在酒馆的 `world_info_depth` 里，
+ * 而那个字段在 ST 1.18.0 上取不到（原生 `extensionSettings` 没有 world_info）。
+ * 实测本机是 2（手册说 4 是 DEFAULT_DEPTH，不是当前值）。
+ * 所以文案写「当前 2」时带「（本机实测）」口径，读不到就不显示这个提示。
+ */
+const GLOBAL_SCAN_DEPTH_HINT = '2 楼（本机实测）';
+
+/* ============================ wb_outline 用：分节 ============================ */
+
+/**
+ * 人类的分节约定：`====分节名====_开始` / `====分节名====_结束` 成对出现。
+ *
+ * 真实制卡人就是这么组织大书的（`我的苍玄界` 219 条里用了多组）。
+ * **配对**才认：只有 `_开始` 没有 `_结束` 时，那对条目按普通条目处理 ——
+ * 免得一个手滑的标题把后面几百条全吞进一个假分节里。
+ */
+const SECTION_OPEN = /^={2,}\s*(.+?)\s*={2,}\s*_?开始/;
+const SECTION_CLOSE = /^={2,}\s*(.+?)\s*={2,}\s*_?结束/;
+
+export interface OutlineSection {
+  /** 分节名；'' 表示「分节之外」的条目 */
+  name: string;
+  entries: WbEntry[];
+}
+
+/**
+ * 把一本书切成若干节（纯函数，可单测）。
+ *
+ * 分节标记条目**本身也进列表**（真实数据里它们是带 `[mvu_plot]` 前缀的真实条目，
+ * 藏起来反而让模型对不上号），只是同时充当分节边界。
+ */
+export function groupIntoSections(entries: WbEntry[]): OutlineSection[] {
+  const sections: OutlineSection[] = [];
+  let current: OutlineSection = { name: '', entries: [] };
+  // 先扫一遍：哪些分节名是**成对**的（只有成对才当分节）
+  const opens = new Map<string, number>();
+  const closes = new Map<string, number>();
+  for (const entry of entries) {
+    const open = SECTION_OPEN.exec(entry.name.trim());
+    if (open) opens.set(open[1], (opens.get(open[1]) ?? 0) + 1);
+    const close = SECTION_CLOSE.exec(entry.name.trim());
+    if (close) closes.set(close[1], (closes.get(close[1]) ?? 0) + 1);
+  }
+  const paired = new Set<string>();
+  for (const [name, count] of opens) if ((closes.get(name) ?? 0) > 0 && count > 0) paired.add(name);
+
+  for (const entry of entries) {
+    const trimmed = entry.name.trim();
+    const open = SECTION_OPEN.exec(trimmed);
+    if (open && paired.has(open[1])) {
+      if (current.entries.length || current.name) sections.push(current);
+      current = { name: open[1], entries: [entry] };
+      continue;
+    }
+    current.entries.push(entry);
+    const close = SECTION_CLOSE.exec(trimmed);
+    if (close && paired.has(close[1]) && current.name === close[1]) {
+      sections.push(current);
+      current = { name: '', entries: [] };
+    }
+  }
+  if (current.entries.length || current.name) sections.push(current);
+  return sections;
+}
+
+/** 一行条目：`标题  1601字  绿 keys=["江念"]  pos0` —— 只摆字段，不做任何标记 */
+function outlineLine(entry: WbEntry): string {
+  const state = entry.enabled ? '' : '停用  ';
+  const size = String(entry.content.length) + '字';
+  let kind: string;
+  if (!entry.enabled) kind = '';
+  else if (entry.strategy === 'constant') kind = '蓝';
+  else if (entry.strategy === 'vectorized') kind = '向量';
+  else kind = '绿';
+  const keys = entry.keys.length ? ' keys=' + JSON.stringify(entry.keys) : ' keys=[]';
+  const depth = entry.position === 4 ? ' depth' + entry.depth : '';
+  return (
+    '  ' +
+    state +
+    (entry.name || '(无标题)') +
+    '  ' +
+    size +
+    '  ' +
+    kind +
+    (kind ? keys : '') +
+    '  pos' +
+    entry.position +
+    depth +
+    '  order' +
+    entry.order
+  );
+}
+
+/** 一节的小结：`(23 条 · 21 绿灯)` —— 数出来的，不是判断出来的 */
+function sectionSummary(section: OutlineSection): string {
+  const total = section.entries.length;
+  const blue = section.entries.filter(entry => entry.enabled && entry.strategy === 'constant').length;
+  const green = section.entries.filter(
+    entry => entry.enabled && entry.strategy !== 'constant' && entry.strategy !== 'vectorized',
+  ).length;
+  const off = section.entries.filter(entry => !entry.enabled).length;
+  const parts = [String(total) + ' 条'];
+  if (blue) parts.push(String(blue) + ' 蓝灯');
+  if (green) parts.push(String(green) + ' 绿灯');
+  if (off) parts.push(String(off) + ' 停用');
+  return '(' + parts.join(' · ') + ')';
+}
+
+/** 渲染整本 outline（纯函数，可单测） */
+export function renderOutline(world: string, entries: WbEntry[]): string {
+  const sections = groupIntoSections(entries);
+  const lines: string[] = ['《' + world + '》 ' + entries.length + ' 条'];
+  for (const section of sections) {
+    if (section.name) lines.push('├─ ====' + section.name + '==== ' + sectionSummary(section));
+    else if (sections.length > 1) lines.push('├─ （分节之外） ' + sectionSummary(section));
+    for (const entry of section.entries) lines.push(outlineLine(entry));
+  }
+  return lines.join('\n');
+}
+
+/* ============================ 5 个工具 ============================ */
 export function createWorldbookTools(): ToolDef[] {
+  /* ------------------------------------------------------------------ wb_list */
+
   const wbList: ToolDef = {
     name: 'wb_list',
     group: 'knowledge',
     title: '列世界书',
-    desc: '列出世界书 + 它从哪儿生效（全局 / 角色卡 / 未启用）',
-    model_description:
-      '列出世界书，并标出每本的绑定范围：全局（所有聊天都生效）/ 当前角色卡 / 当前聊天 / 未启用，' +
-      '外加条目数与启用数。为什么要看范围：同样一次改动，动全局书会影响所有聊天，动角色卡书只影响当前角色，' +
-      '而「未启用」的书本来就还没生效——用户说「改一下世界书」时，先用这个工具确认他指的是哪本、影响面多大，' +
-      '别猜。参数 in_scope_only=true 只列本次勾选范围内的（可读写的那几本）。',
+    desc: '列出酒馆里的世界书',
+    model_description: '列出酒馆里的世界书。不确定用户指哪本时先调它。',
     parameters: schemaObject({
-      in_scope_only: schemaBoolean('只列本次勾选范围内的世界书，默认 false 列全部（含未勾选的）'),
+      in_scope_only: schemaBoolean('只列本次勾选范围内的世界书，默认 false 列全部'),
     }),
     default_on: true,
     run: async (args, ctx) => {
@@ -253,10 +490,8 @@ export function createWorldbookTools(): ToolDef[] {
       }
 
       const inScopeOnly = asBool(args.in_scope_only, false);
-      // 默认列**全部**：用户说「改一下世界书」时，模型得先知道有哪些、哪本没启用
       const shown = inScopeOnly ? scopes.filter(item => allowedSet.has(item.name)) : scopes;
       const rows: string[] = [];
-      const byScope: Record<string, string[]> = { 全局: [], 当前角色卡: [], 当前聊天: [], 未启用: [], 未知: [] };
       for (const item of shown) {
         let stat = '（条目数读不到）';
         try {
@@ -266,10 +501,8 @@ export function createWorldbookTools(): ToolDef[] {
         } catch {
           stat = '（条目数读不到）';
         }
-        // 不在本次范围的顺手标出来，模型就知道哪些能直接用、哪些要先让用户勾
         const writable = allowedSet.has(item.name) ? '' : '（不在本次范围，不可读写）';
         rows.push('- ' + item.name + ' —— ' + item.label + '　' + stat + writable);
-        (byScope[item.label] ?? byScope['未知']).push(item.name);
       }
 
       if (!rows.length) {
@@ -281,36 +514,57 @@ export function createWorldbookTools(): ToolDef[] {
         );
       }
 
-      const summary = ['全局', '当前角色卡', '当前聊天', '未启用']
-        .filter(kind => byScope[kind].length)
-        .map(kind => kind + ' ' + byScope[kind].length + ' 本')
-        .join(' · ');
-
-      const detail = [
-        '世界书共 ' + rows.length + ' 本（' + summary + '）：',
-        ...rows,
-        '',
-        '说明：全局的改动会影响所有聊天；当前角色卡只影响这个角色；未启用表示它现在没生效（要用得去「世界书」页勾上）。',
-        '本次可读写的是：' + (allowed.length ? scopeNames(allowed) : '（一本都没勾，先用 scopeEmptyNotice 那条口径告诉用户）') + '。',
-      ].join('\n');
-
-      return resultOk(
-        '世界书 ' + rows.length + ' 本 · ' + summary + ' · 可读写 ' + allowed.length + ' 本',
-        detail,
-      );
+      return resultOk('世界书 ' + rows.length + ' 本 · 可读写 ' + allowed.length + ' 本', rows.join('\n'));
     },
   };
+
+  /* --------------------------------------------------------------- wb_outline */
+
+  const wbOutline: ToolDef = {
+    name: 'wb_outline',
+    group: 'knowledge',
+    title: '看结构',
+    desc: '看一本书的结构',
+    model_description: '看一本书的结构：分节、每节条目、每条的状态。改之前先看它。',
+    parameters: schemaObject({
+      world: schemaString('世界书名；不填 = 本轮只选中一本时用那本'),
+      max_entries: schemaInteger('最多列多少条，默认 500（一本 219 条的书一屏看完）', {
+        minimum: 1,
+        maximum: 5000,
+      }),
+    }),
+    default_on: true,
+    run: async (args, ctx) => {
+      const pick = resolveWorld(ctx, args.world);
+      if (pick.error || !pick.world)
+        return resultFail('没指定世界书', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
+
+      const all = await ctx.wb.readAll(pick.world);
+      if (!all.length) {
+        return resultOk('《' + pick.world + '》是空的', '世界书「' + pick.world + '」里一条条目都没有。');
+      }
+      const maxEntries = asInt(args.max_entries, 500, 1, 5000);
+      const entries = all.slice(0, maxEntries);
+      const text = renderOutline(pick.world, entries);
+      const trailer =
+        all.length > entries.length
+          ? '\n\n（只列了前 ' + entries.length + ' 条，共 ' + all.length + ' 条；用 max_entries 调大）'
+          : '';
+      return resultOk('《' + pick.world + '》 ' + all.length + ' 条', text + trailer);
+    },
+  };
+
+  /* ---------------------------------------------------------------- wb_search */
 
   const wbSearch: ToolDef = {
     name: 'wb_search',
     group: 'knowledge',
     title: '搜条目',
-    desc: '按关键词搜条目，只给摘要',
-    model_description:
-      '在世界书里按关键词搜条目，只返回命中摘要和 uid，不返回全文。先用它定位，再用 wb_read 读全文。worlds 不填就用本轮勾选的范围；范围外的世界书搜不到，也别去试。',
+    desc: '按关键词找条目',
+    model_description: '按关键词找条目。',
     parameters: schemaObject(
       {
-        keyword: schemaString('要搜的关键词，2-6 个字最好'),
+        keyword: schemaString('要搜的关键词'),
         worlds: schemaArray('要搜的世界书名；不填 = 本轮选中的世界书', schemaString('世界书名')),
         limit: schemaInteger('最多返回几条，默认 20，最大 100', { minimum: 1, maximum: 100 }),
       },
@@ -322,7 +576,8 @@ export function createWorldbookTools(): ToolDef[] {
       if (!keyword) return resultFail('没给关键词', 'wb_search 需要 keyword 参数。', 'INVALID_ARGS');
       const limit = asInt(args.limit, 20, 1, 100);
       const allowed = allowedWorlds(ctx);
-      if (!allowed.length) return resultFail('超出范围', outOfScopeError(allowed, asTextArray(args.worlds).join('、')), 'SCOPE_DENIED');
+      if (!allowed.length)
+        return resultFail('超出范围', outOfScopeError(allowed, asTextArray(args.worlds).join('、')), 'SCOPE_DENIED');
       let worlds = asTextArray(args.worlds);
       if (worlds.length) {
         const outside = worlds.filter(name => !allowed.includes(name));
@@ -352,18 +607,18 @@ export function createWorldbookTools(): ToolDef[] {
     },
   };
 
+  /* ------------------------------------------------------------------ wb_read */
+
   const wbRead: ToolDef = {
     name: 'wb_read',
     group: 'knowledge',
     title: '读条目',
-    desc: '按 uid 读，或分页读全本',
-    model_description:
-      '读条目正文。给 uid（或 uids）就读指定条目；不给 uid 就按 offset/limit 分页读整本世界书（返回里有 [分页] 一行，按 next_offset 继续读）。只能读本次勾选范围内的世界书；改之前一定要先读。',
+    desc: '读条目',
+    model_description: '读条目。改之前一定要读。',
     parameters: schemaObject({
       world: schemaString('世界书名；不填 = 本轮只选中一本时用那本'),
-      uid: schemaString('要读的条目 uid（单个）'),
-      uids: schemaArray('要读的条目 uid 列表（批量）', schemaString('条目 uid')),
-      offset: schemaInteger('从第几条开始（0 起），默认 0', { minimum: 0 }),
+      uids: schemaArray('要读的条目 uid 列表（可批量）', schemaString('条目 uid')),
+      offset: schemaInteger('从第几条开始（0 起），默认 0；只在没给 uids 时有意义', { minimum: 0 }),
       limit: schemaInteger('这一页读几条，默认 ' + PAGE_LIMIT_DEFAULT + '，最大 ' + PAGE_LIMIT_MAX, {
         minimum: 1,
         maximum: PAGE_LIMIT_MAX,
@@ -372,21 +627,22 @@ export function createWorldbookTools(): ToolDef[] {
         minimum: 200,
         maximum: 20000,
       }),
-      with_index: schemaBoolean('额外附上本世界书的 uid+标题索引，方便挑 uid，默认 false'),
     }),
     default_on: true,
     run: async (args, ctx) => {
       const pick = resolveWorld(ctx, args.world);
-      if (pick.error || !pick.world) return resultFail('没指定世界书', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
+      if (pick.error || !pick.world)
+        return resultFail('没指定世界书', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
       const world = pick.world;
       const maxContent = asInt(args.max_content, CONTENT_LIMIT_DEFAULT, 200, 20000);
-      const uidArg = asText(args.uid).trim();
-      const uids = uidArg ? [uidArg] : asTextArray(args.uids);
+      const uids = asTextArray(args.uids).map(value => asText(value).trim()).filter(Boolean);
+
       let entries: WbEntry[];
       let total: number;
       let offset = 0;
       let limit: number;
       let paged = false;
+
       if (uids.length) {
         entries = await ctx.wb.readByUid(world, uids);
         total = entries.length;
@@ -398,7 +654,7 @@ export function createWorldbookTools(): ToolDef[] {
               world +
               '」里没有 ' +
               uids.join('、') +
-              ' 这些 uid。先用 wb_search 或带 with_index 的 wb_read 找 uid。',
+              ' 这些 uid。先用 wb_search 或 wb_outline 找 uid。',
           );
         }
       } else {
@@ -409,377 +665,251 @@ export function createWorldbookTools(): ToolDef[] {
         limit = asInt(args.limit, PAGE_LIMIT_DEFAULT, 1, PAGE_LIMIT_MAX);
         entries = all.slice(offset, offset + limit);
       }
+
       const body = entries.length
-        ? entries.map((entry, index) => renderEntry(entry, offset + index, maxContent)).join('\n\n')
+        ? entries.map((entry, index) => renderEntryDetailed(entry, offset + index, maxContent)).join('\n\n')
         : '（空）';
       const parts = [headLine(world, total, offset, entries.length), '', body];
       if (paged) parts.push('', pageTrailer(total, offset, limit));
-      if (asBool(args.with_index, false)) {
-        const all = paged ? await ctx.wb.readAll(world) : null;
-        const indexLines = (all ?? []).map((entry, i) => i + 1 + '. ' + entry.uid + ' · ' + (entry.name || '(无标题)'));
-        if (indexLines.length) parts.push('', 'uid 索引（共 ' + indexLines.length + ' 条）：' + indexLines.join(' | '));
-      }
       return resultOk(entries.length ? '读到 ' + entries.length + ' 条' : '这一页是空的', parts.join('\n'));
     },
   };
 
-  const entryCreate: ToolDef = {
-    name: 'entry_create',
+  /* ----------------------------------------------------------------- wb_write */
+
+  const wbWrite: ToolDef = {
+    name: 'wb_write',
     group: 'write',
-    title: '新建条目',
-    desc: '在世界书里加一条新条目',
-    model_description:
-      '新建一条世界书条目。内容只进草稿，等用户确认后才写回酒馆。strategy=constant 是蓝灯常驻，selective 是绿灯按关键词触发（绿灯记得给 keys）。',
+    title: '写条目',
+    desc: '新建 / 修改 / 删除条目',
+    model_description: '新建、修改或删除世界书条目。改完要回读确认。',
     parameters: schemaObject(
       {
-        world: schemaString('写进哪本世界书；不填 = 本轮只选中一本时用那本'),
-        name: schemaString('条目标题（TavernHelper 里的 comment）'),
-        content: schemaString('条目正文'),
-        strategy: schemaString(
-          '激活策略：constant（蓝灯常驻）/ selective（绿灯关键词）/ vectorized（向量化），默认 selective',
-          {
-            enum: ['constant', 'selective', 'vectorized'],
-          },
-        ),
-        constant: schemaBoolean('简写：true 等价于 strategy=constant'),
-        keys: schemaArray('绿灯触发关键词', schemaString('关键词')),
-        keys_secondary: schemaObject(
-          {
-            logic: schemaString('次关键词逻辑：and_any / and_all / not_all / not_any', {
-              enum: ['and_any', 'and_all', 'not_all', 'not_any'],
-            }),
-            keys: schemaArray('次关键词列表', schemaString('关键词')),
-          },
-          [],
-          '次级触发关键词（TavernHelper 的 keys_secondary）：logic 是多个次关键词之间怎么组合，keys 是关键词本身',
-        ),
-        scan_depth: schemaInteger('扫描深度；不填 = 跟随全局'),
-        enabled: schemaBoolean('是否启用，默认 true'),
-        position: schemaInteger('插入位置，原值直传，默认 0'),
-        depth: schemaInteger('深度，默认 4'),
-        order: schemaInteger('顺序，默认 100'),
+        world: schemaString('世界书名；不填 = 本轮只选中一本时用那本'),
+        action: schemaString('要做什么：create 新建 / update 修改 / delete 删除', {
+          enum: ['create', 'update', 'delete'],
+        }),
+        uid: schemaString('update / delete 必填：条目 uid'),
+        content: schemaString('正文；create 必填，update 时给了就整条替换'),
+        name: schemaString('标题'),
+        keys: schemaArray('触发关键词（绿灯用）', schemaString('关键词')),
+        constant: schemaBoolean('true = 常亮（蓝灯，每轮都进 prompt）；false = 按关键词触发'),
+        depth: schemaInteger('深度（只在 position=4 时有意义）'),
+        position: schemaInteger('插入位置 0-7'),
+        order: schemaInteger('顺序；越大越靠近最新消息'),
+        enabled: schemaBoolean('是否启用'),
       },
-      ['name', 'content'],
+      ['action'],
     ),
     default_on: true,
     run: async (args, ctx) => {
       const pick = resolveWriteWorld(ctx, args.world);
-      if (pick.error || !pick.world) return resultFail('不能写', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
-      const name = asText(args.name).trim();
-      if (!name) return resultFail('新建条目必须有 name', 'entry_create 需要 name（条目标题）。', 'INVALID_ARGS');
-      const content = asText(args.content);
-      const strategy = asStrategy(args.strategy, 'constant' in args, args.constant);
-      const payload: Record<string, unknown> = {
-        name,
-        content,
-        strategy,
-        keys: asTextArray(args.keys),
-        enabled: asBool(args.enabled, true),
-        position: asInt(args.position, 0),
-        depth: asInt(args.depth, 4),
-        order: asInt(args.order, 100),
-        keys_secondary: {
-          logic: asText((args.keys_secondary as Record<string, unknown> | undefined)?.logic).trim() || 'and_any',
-          keys: asTextArray((args.keys_secondary as Record<string, unknown> | undefined)?.keys),
-        },
-      };
-      if (
-        'scan_depth' in args &&
-        args.scan_depth !== null &&
-        args.scan_depth !== undefined &&
-        asText(args.scan_depth) !== ''
-      ) {
-        payload.scan_depth =
-          asText(args.scan_depth) === 'same_as_global' ? 'same_as_global' : asInt(args.scan_depth, 4);
-      }
-      const entryUid = asText(args.uid).trim() || newEntryUid();
-      pushDraft(ctx, {
-        kind: 'create',
-        world: pick.world,
-        uid: entryUid,
-        label: name,
-        before: '',
-        after: content,
-        payload,
-      });
-      const diff = formatDiff(lineDiff('', content), { only_changed: true });
-      return resultOk(
-        '草稿 · 新建「' + name + '」',
-        '已把新条目放进草稿（还没有写回酒馆，等用户确认）。\n世界书：' +
-          pick.world +
-          '\nuid：' +
-          entryUid +
-          '\n标题：' +
-          name +
-          '\n策略：' +
-          strategyLabel(strategy) +
-          '\n' +
-          ((payload.keys as string[]).length ? '关键词：' + (payload.keys as string[]).join('、') + '\n' : '') +
-          '\n' +
-          clip(diff, 2000),
+      if (pick.error || !pick.world)
+        return resultFail('不能写', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
+      const action = asText(args.action).trim();
+      if (action === 'create') return runCreate(args, ctx, pick.world);
+      if (action === 'update') return runUpdate(args, ctx, pick.world);
+      if (action === 'delete') return runDelete(args, ctx, pick.world);
+      return resultFail(
+        'action 不认识',
+        'wb_write 的 action 只能是 create / update / delete，你给的是「' + action + '」。',
+        'INVALID_ARGS',
       );
     },
   };
 
-  const entryEdit: ToolDef = {
-    name: 'entry_edit',
-    group: 'write',
-    title: '改条目',
-    desc: 'old_string → new_string 精确替换',
-    model_description:
-      '精确替换条目正文里的一段文字：把 old_string 原样改成 new_string，其余一个字都不动，禁止整条重写。old_string 必须先在正文里出现过；如果命中多处又不唯一，就多给几句上下文让它唯一，或者显式传 replace_all=true。改之前先 wb_read。改动只进草稿，等用户确认。',
-    parameters: schemaObject(
-      {
-        world: schemaString('世界书名；不填 = 本轮只选中一本时用那本'),
-        uid: schemaString('要改的条目 uid'),
-        old_string: schemaString('要替换掉的原文片段，必须和正文一字不差'),
-        new_string: schemaString('替换成的新文字；空串表示删掉这段'),
-        replace_all: schemaBoolean('old_string 命中多处时是否全部替换，默认 false（不唯一就报错）'),
-      },
-      ['uid', 'old_string', 'new_string'],
-    ),
-    default_on: true,
-    run: async (args, ctx) => {
-      const pick = resolveWriteWorld(ctx, args.world);
-      if (pick.error || !pick.world) return resultFail('不能改', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
-      const entryUid = asText(args.uid).trim();
-      if (!entryUid) return resultFail('没给 uid', 'entry_edit 需要 uid；先用 wb_search / wb_read 找到 uid。', 'INVALID_ARGS');
-      const oldString = asText(args.old_string);
-      const newString = asText(args.new_string);
-      if (!oldString)
-        return resultFail('old_string 不能为空', 'entry_edit 必须给出要被替换的原文（old_string），不能整条重写。', 'INVALID_ARGS');
-      const found = await ctx.wb.readByUid(pick.world, [entryUid]);
-      if (!found.length)
-        return resultFail(
-          '没找到 uid ' + entryUid,
-          '世界书「' + pick.world + '」里没有 uid ' + entryUid + '，先用 wb_read 看看。',
-        );
-      const entry = found[0];
-      const before = entry.content;
-      const count = countOccurrences(before, oldString);
-      if (count === 0) {
-        return resultFail(
-          'old_string 在正文里找不到',
-          'uid ' +
-            entryUid +
-            '（' +
-            (entry.name || '无标题') +
-            '）的正文里没有这段文字。原文片段必须一字不差。\n先 wb_read 把正文读出来再改。\n你给的 old_string：\n' +
-            clip(oldString, 400),
-        );
-      }
-      const replaceAll = asBool(args.replace_all, false);
-      if (count > 1 && !replaceAll) {
-        return resultFail(
-          'old_string 命中 ' + count + ' 处，不唯一',
-          'uid ' +
-            entryUid +
-            ' 里「' +
-            clip(oldString, 80, '…') +
-            '」出现了 ' +
-            count +
-            ' 次。要么把 old_string 前后多带几句让它唯一，要么显式 replace_all=true 全换掉。',
-        );
-      }
-      // 两个分支都必须按**字面量**替换：String.replace(old, new) 会把 new_string 里的
-      // $& / $1 / $' / $$ 当成替换模式，跟 replace_all 的 split/join 语义不一致。
-      const after = before.split(oldString).join(newString);
-      if (after === before)
-        return resultFail('内容没有变化', 'old_string 和 new_string 一样，这次替换没有产生任何改动。');
-      const diff = lineDiff(before, after);
-      const stat = diffStat(diff);
-      pushDraft(ctx, {
-        kind: 'edit',
-        world: pick.world,
-        uid: entryUid,
-        label: entry.name || entryUid,
-        before,
-        after,
-        payload: {
-          old_string: oldString,
-          new_string: newString,
-          replace_all: replaceAll,
-          add: stat.add,
-          del: stat.del,
-        },
-      });
-      return resultOk(
-        'uid ' + entryUid + ' · ' + formatStat(stat),
-        '已把改动放进草稿（还没有写回酒馆，等用户确认）。\n世界书：' +
-          pick.world +
-          '\nuid：' +
-          entryUid +
-          '（' +
-          (entry.name || '无标题') +
-          '）\n替换 ' +
-          (replaceAll ? count : 1) +
-          ' 处，' +
-          formatStat(stat) +
-          '\n\ndiff：\n' +
-          formatDiff(changedLines(diff)) +
-          '\n\n改后的正文：\n' +
-          clip(after, 3000),
-      );
-    },
-  };
-
-  const entryDelete: ToolDef = {
-    name: 'entry_delete',
-    group: 'write',
-    title: '删条目',
-    desc: '删掉一条条目',
-    model_description:
-      '删除一条世界书条目。删之前先 wb_read 确认 uid 和标题对得上；不确定时先 ask_user。删除只进草稿，等用户确认。',
-    parameters: schemaObject(
-      {
-        world: schemaString('世界书名；不填 = 本轮只选中一本时用那本'),
-        uid: schemaString('要删的条目 uid'),
-        expect_name: schemaString('可选：条目标题，填了就必须和实际标题一致，防删错'),
-      },
-      ['uid'],
-    ),
-    default_on: true,
-    run: async (args, ctx) => {
-      const pick = resolveWriteWorld(ctx, args.world);
-      if (pick.error || !pick.world) return resultFail('不能删', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
-      const entryUid = asText(args.uid).trim();
-      if (!entryUid) return resultFail('没给 uid', 'entry_delete 需要 uid。', 'INVALID_ARGS');
-      const found = await ctx.wb.readByUid(pick.world, [entryUid]);
-      if (!found.length)
-        return resultFail('没找到 uid ' + entryUid, '世界书「' + pick.world + '」里没有 uid ' + entryUid + '。', 'NOT_FOUND');
-      const entry = found[0];
-      const expect = asText(args.expect_name).trim();
-      if (expect && expect !== entry.name) {
-        return resultFail(
-          '标题对不上，先别删',
-          '你给的 expect_name「' + expect + '」和实际标题「' + entry.name + '」不一致，删之前先 wb_read 确认。',
-        );
-      }
-      pushDraft(ctx, {
-        kind: 'delete',
-        world: pick.world,
-        uid: entryUid,
-        label: entry.name || entryUid,
-        before: entry.content,
-        after: '',
-        payload: { name: entry.name, uid: entryUid },
-      });
-      return resultOk(
-        '草稿 · 删除「' + (entry.name || entryUid) + '」',
-        '已把删除放进草稿（还没有写回酒馆，等用户确认）。\n世界书：' +
-          pick.world +
-          '\nuid：' +
-          entryUid +
-          '\n标题：' +
-          (entry.name || '(无标题)') +
-          '\n\n原正文（删掉后要恢复就用它）：\n' +
-          clip(entry.content, 2000),
-      );
-    },
-  };
-
-  const entryMeta: ToolDef = {
-    name: 'entry_meta',
-    group: 'write',
-    title: '改条目属性',
-    desc: '改蓝绿灯 / 深度 / 关键词 / 顺序',
-    model_description:
-      '只改条目的属性，不碰正文：蓝绿灯（constant）、触发关键词（keys）、深度（depth）、顺序（order）、插入位置（position）、开关（enabled）、标题（name）。只传要改的字段。默认关闭，仅在用户明确要求调整这些属性时才会开。',
-    parameters: schemaObject(
-      {
-        world: schemaString('世界书名；不填 = 本轮只选中一本时用那本'),
-        uid: schemaString('条目 uid'),
-        name: schemaString('新标题'),
-        strategy: schemaString('激活策略', { enum: ['constant', 'selective', 'vectorized'] }),
-        constant: schemaBoolean('简写：true = 蓝灯常驻，false = 绿灯'),
-        keys: schemaArray('新的触发关键词（整组替换）', schemaString('关键词')),
-        keys_secondary: schemaObject(
-          {
-            logic: schemaString('次关键词逻辑：and_any / and_all / not_all / not_any', {
-              enum: ['and_any', 'and_all', 'not_all', 'not_any'],
-            }),
-            keys: schemaArray('次关键词列表（整组替换）', schemaString('关键词')),
-          },
-          [],
-          '次级触发关键词（TavernHelper 的 keys_secondary）：只传要改的 logic / keys，整组替换',
-        ),
-        scan_depth: schemaString('扫描深度：整数，或 same_as_global 跟随全局'),
-        enabled: schemaBoolean('条目开关'),
-        position: schemaInteger('插入位置'),
-        depth: schemaInteger('深度'),
-        order: schemaInteger('顺序'),
-      },
-      ['uid'],
-    ),
-    default_on: false,
-    run: async (args, ctx) => {
-      const pick = resolveWriteWorld(ctx, args.world);
-      if (pick.error || !pick.world) return resultFail('不能改', pick.error ?? '需要 world 参数。', pick.code ?? 'INVALID_ARGS');
-      const entryUid = asText(args.uid).trim();
-      if (!entryUid) return resultFail('没给 uid', 'entry_meta 需要 uid。', 'INVALID_ARGS');
-      const found = await ctx.wb.readByUid(pick.world, [entryUid]);
-      if (!found.length)
-        return resultFail('没找到 uid ' + entryUid, '世界书「' + pick.world + '」里没有 uid ' + entryUid + '。', 'NOT_FOUND');
-      const entry = found[0];
-      const fields: Record<string, unknown> = {};
-      if ('name' in args) fields.name = asText(args.name);
-      if ('strategy' in args || 'constant' in args)
-        fields.strategy = asStrategy(args.strategy, 'constant' in args, args.constant);
-      if ('keys' in args) fields.keys = asTextArray(args.keys);
-      if ('keys_secondary' in args) {
-        fields.keys_secondary = {
-          logic:
-            asText((args.keys_secondary as Record<string, unknown> | undefined)?.logic).trim() ||
-            entry.keys_secondary.logic,
-          keys: asTextArray((args.keys_secondary as Record<string, unknown> | undefined)?.keys),
-        };
-      }
-      if ('scan_depth' in args)
-        fields.scan_depth =
-          asText(args.scan_depth) === 'same_as_global'
-            ? 'same_as_global'
-            : asInt(args.scan_depth, entry.scan_depth === 'same_as_global' ? 4 : entry.scan_depth);
-      if ('enabled' in args) fields.enabled = asBool(args.enabled, entry.enabled);
-      if ('position' in args) fields.position = asInt(args.position, entry.position);
-      if ('depth' in args) fields.depth = asInt(args.depth, entry.depth);
-      if ('order' in args) fields.order = asInt(args.order, entry.order);
-      if (!Object.keys(fields).length) {
-        return resultFail(
-          '没给要改的字段',
-          'entry_meta 至少要传 name / strategy / keys / keys_secondary / scan_depth / enabled / position / depth / order 里的一个。',
-        );
-      }
-      const beforeFields: Record<string, unknown> = {};
-      for (const key of Object.keys(fields)) {
-        beforeFields[key] = (entry as unknown as Record<string, unknown>)[key];
-      }
-      pushDraft(ctx, {
-        kind: 'meta',
-        world: pick.world,
-        uid: entryUid,
-        label: entry.name || entryUid,
-        before: encodeMetaFields(beforeFields),
-        after: encodeMetaFields(fields),
-        payload: { ...fields, before_fields: beforeFields },
-      });
-      return resultOk(
-        '草稿 · 属性「' + (entry.name || entryUid) + '」',
-        '已把属性改动放进草稿（还没有写回酒馆）。\n世界书：' +
-          pick.world +
-          '\nuid：' +
-          entryUid +
-          '\n\n' +
-          formatDiff(changedLines(lineDiff(encodeMetaFields(beforeFields), encodeMetaFields(fields)))),
-      );
-    },
-  };
-
-  return [wbList, wbSearch, wbRead, entryCreate, entryEdit, entryDelete, entryMeta];
+  return [wbList, wbOutline, wbRead, wbSearch, wbWrite];
 }
+
+/* ============================ wb_write 的三个动作 ============================ */
+
+/** 把「填了才改」的可选字段收成一份 patch（不填的键不出现在结果里） */
+function collectPatch(args: Record<string, unknown>, entry?: WbEntry): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if ('name' in args) patch.name = asText(args.name);
+  if ('content' in args) patch.content = asText(args.content);
+  if ('keys' in args) patch.keys = asTextArray(args.keys);
+  if ('constant' in args) patch.strategy = asBool(args.constant, false) ? 'constant' : 'selective';
+  if ('enabled' in args) patch.enabled = asBool(args.enabled, entry ? entry.enabled : true);
+  if ('position' in args) patch.position = asInt(args.position, entry ? entry.position : 0);
+  if ('depth' in args) patch.depth = asInt(args.depth, entry ? entry.depth : 4);
+  if ('order' in args) patch.order = asInt(args.order, entry ? entry.order : 100);
+  return patch;
+}
+
+/**
+ * 死条目检查（B18）：`非蓝灯 + 无关键词 + 非向量化` = **任何消息都不会激活它**。
+ *
+ * ⚠️ **只警告，不拦截**（设计稿 §1.7 定案）。理由：真实数据里 4 条死条目有 2 条是
+ * **故意的分节标记**（`====CG系统====_开始`），拦下来会把正常做法堵死。
+ * 所以返回一句提醒，让模型自己决定要不要补关键词 —— 判断归模型，工具只摆事实。
+ */
+function deadEntryNotice(patch: Record<string, unknown>): string {
+  const strategy = patch.strategy;
+  if (strategy === 'constant' || strategy === 'vectorized') return '';
+  const keys = patch.keys;
+  if (Array.isArray(keys) && keys.length > 0) return '';
+  return '\n\n⚠️ 这条既不是常亮、又没有关键词 —— 它不会被任何消息触发（除非它是分节标记这类骨架）。要让它生效就补 keys，或设 constant=true。';
+}
+
+async function runCreate(
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+  world: string,
+): Promise<ReturnType<typeof resultOk>> {
+  if (!('content' in args) || !asText(args.content).trim()) {
+    return resultFail('create 必须给 content', 'wb_write 的 action=create 时必须有 content（条目正文）。', 'INVALID_ARGS');
+  }
+  const patch = collectPatch(args);
+  if (!('name' in args)) patch.name = '';
+  if (!('strategy' in patch)) patch.strategy = 'selective';
+  if (!('keys' in patch)) patch.keys = [];
+  if (!('enabled' in patch)) patch.enabled = true;
+  if (!('position' in patch)) patch.position = 0;
+  if (!('depth' in patch)) patch.depth = 4;
+  if (!('order' in patch)) patch.order = 100;
+  patch.keys_secondary = { logic: 'and_any', keys: [] };
+
+  const label = asText(patch.name).trim() || '(无标题)';
+  const entryUid = newEntryUid();
+  pushDraft(ctx, {
+    kind: 'create',
+    world,
+    uid: entryUid,
+    label,
+    before: '',
+    after: asText(patch.content),
+    payload: patch,
+  });
+
+  return resultOk(
+    '草稿 · 新建「' + label + '」',
+    '已把新条目放进草稿（还没有写回酒馆，等用户确认）。\n世界书：' +
+      world +
+      '\nuid：' +
+      entryUid +
+      '\n标题：' +
+      label +
+      '\n' +
+      (patch.strategy === 'constant' ? '常亮（蓝灯）' : '关键词触发') +
+      (Array.isArray(patch.keys) && (patch.keys as string[]).length
+        ? '　关键词：' + (patch.keys as string[]).join('、')
+        : '') +
+      deadEntryNotice(patch),
+  );
+}
+
+async function runUpdate(
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+  world: string,
+): Promise<ReturnType<typeof resultOk>> {
+  const entryUid = asText(args.uid).trim();
+  if (!entryUid) return resultFail('update 必须给 uid', 'wb_write 的 action=update 时要指明 uid。', 'INVALID_ARGS');
+  const found = await ctx.wb.readByUid(world, [entryUid]);
+  if (!found.length)
+    return resultFail('没找到 uid ' + entryUid, '世界书「' + world + '」里没有 uid ' + entryUid + '。', 'NOT_FOUND');
+  const entry = found[0];
+
+  const patch = collectPatch(args, entry);
+  delete patch.name;
+  if (!Object.keys(patch).length)
+    return resultFail(
+      '没给要改的字段',
+      'action=update 至少要传 content / name / keys / constant / depth / position / order / enabled 里的一个。',
+    );
+
+  // 标题是单独一步（它不在 entryVersion 的正文语义里，但草稿要能显示改名）
+  const newName = 'name' in args ? asText(args.name) : entry.name;
+  const before = entry.content;
+  const after = 'content' in patch ? asText(patch.content) : before;
+
+  pushDraft(ctx, {
+    kind: 'edit',
+    world,
+    uid: entryUid,
+    label: newName || entryUid,
+    before,
+    after,
+    payload: { ...patch, ...(newName !== entry.name ? { name: newName } : {}) },
+  });
+
+  const changes = Object.keys(patch)
+    .map(key => key + '=' + JSON.stringify(patch[key]))
+    .join(' · ');
+  const merged = { ...patch };
+  if (!('strategy' in merged)) merged.strategy = entry.strategy;
+  if (!('keys' in merged)) merged.keys = entry.keys;
+
+  return resultOk(
+    '草稿 · 改 uid ' + entryUid + '「' + (newName || '(无标题)') + '」',
+    '已把改动放进草稿（还没有写回酒馆，等用户确认）。\n世界书：' +
+      world +
+      '\nuid：' +
+      entryUid +
+      '\n改了：' +
+      changes +
+      ('content' in patch
+        ? '\n\ndiff：\n' +
+          formatDiff(changedLines(lineDiff(before, after))) +
+          '\n\n改后的正文：\n' +
+          clip(after, 3000)
+        : '') +
+      deadEntryNotice(merged),
+  );
+}
+
+async function runDelete(
+  args: Record<string, unknown>,
+  ctx: ToolContext,
+  world: string,
+): Promise<ReturnType<typeof resultOk>> {
+  const entryUid = asText(args.uid).trim();
+  if (!entryUid) return resultFail('delete 必须给 uid', 'wb_write 的 action=delete 时要指明 uid。', 'INVALID_ARGS');
+  const found = await ctx.wb.readByUid(world, [entryUid]);
+  if (!found.length)
+    return resultFail('没找到 uid ' + entryUid, '世界书「' + world + '」里没有 uid ' + entryUid + '。', 'NOT_FOUND');
+  const entry = found[0];
+
+  // 防删错：给了 name 就必须和实际标题一致
+  if ('name' in args) {
+    const expect = asText(args.name).trim();
+    if (expect && expect !== entry.name) {
+      return resultFail(
+        '标题对不上，先别删',
+        '你给的 name「' + expect + '」和实际标题「' + entry.name + '」不一致，删之前先 wb_read 确认。',
+      );
+    }
+  }
+
+  pushDraft(ctx, {
+    kind: 'delete',
+    world,
+    uid: entryUid,
+    label: entry.name || entryUid,
+    before: entry.content,
+    after: '',
+    payload: { name: entry.name, uid: entryUid },
+  });
+
+  return resultOk(
+    '草稿 · 删除「' + (entry.name || entryUid) + '」',
+    '已把删除放进草稿（还没有写回酒馆，等用户确认）。\n世界书：' +
+      world +
+      '\nuid：' +
+      entryUid +
+      '\n标题：' +
+      (entry.name || '(无标题)') +
+      '\n\n原正文（删掉后要恢复就用它）：\n' +
+      clip(entry.content, 2000),
+  );
+}
+
+/* ============================ 供 UI 用 ============================ */
 
 /** 供 UI 预览用：把一条条目渲染成 wb_read 里的那种文本 */
 export function previewEntry(entry: WbEntry, index = 0, maxContent = CONTENT_LIMIT_DEFAULT): string {
-  return renderEntry(entry, index, maxContent);
+  return renderEntryDetailed(entry, index, maxContent);
 }
 
 /** 供 UI 用：把一段正文的改动写成人看的 +/- 文本 */

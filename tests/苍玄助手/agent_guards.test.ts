@@ -88,37 +88,44 @@ test('observe-guard：没读过就改 → NOT_OBSERVED（DSH 文案）', async (
   const guard = createObserveGuard(port, observations);
   const ctx = ctxOf(['甲本'], undefined, port);
 
-  // meta / delete 同样要先读过（uid 2 没读过）
+  // update / delete 同样要先读过（uid 2 没读过）
+  // B15-B19：四个写工具合并成一个 wb_write，靠 action 分流
   assert.equal(
-    (await guard.before({ name: 'entry_meta', args: { world: '甲本', uid: '2' }, ctx, round: 1 }))?.code,
+    (await guard.before({ name: 'wb_write', args: { world: '甲本', action: 'update', uid: '2' }, ctx, round: 1 }))?.code,
     'NOT_OBSERVED',
   );
   assert.equal(
-    (await guard.before({ name: 'entry_delete', args: { world: '甲本', uid: '2' }, ctx, round: 1 }))?.code,
+    (await guard.before({ name: 'wb_write', args: { world: '甲本', action: 'delete', uid: '2' }, ctx, round: 1 }))?.code,
     'NOT_OBSERVED',
+  );
+  // create **不**要求先读（还没有这条，读什么）
+  assert.equal(
+    await guard.before({ name: 'wb_write', args: { world: '甲本', action: 'create', content: 'x' }, ctx, round: 1 }),
+    null,
+    'create 不该被守卫拦下',
   );
 
-  const blocked = await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 1 });
+  const blocked = await guard.before({ name: 'wb_write', args: { world: '甲本', action: 'update', uid: '1' }, ctx, round: 1 });
   assert.ok(blocked, '必须先读');
   assert.equal(blocked.ok, false);
   assert.equal(blocked.code, 'NOT_OBSERVED');
   assert.equal(blocked.detail, 'cannot modify "甲条目": entry has not been read — wb_read it, then retry');
   assert.match(blocked.brief, /甲条目/);
 
-  // wb_read 成功后记录观察 → 放行
+  // wb_read 成功后记录观察 → 放行（B16：只认 uids）
   await guard.after(
-    { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 1 },
+    { name: 'wb_read', args: { world: '甲本', uids: ['1'] }, ctx, round: 1 },
     { ok: true, brief: '读到 1 条', detail: '...' },
   );
-  assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 1 }), null);
+  assert.equal(await guard.before({ name: 'wb_write', args: { world: '甲本', action: 'update', uid: '1' }, ctx, round: 1 }), null);
 
   // 只读工具不管
   assert.equal(await guard.before({ name: 'wb_list', args: {}, ctx, round: 1 }), null);
   // 条目本身不存在 → 交给工具报 NOT_FOUND，不当成「没读过」
-  assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '不存在' }, ctx, round: 1 }), null);
+  assert.equal(await guard.before({ name: 'wb_write', args: { world: '甲本', action: 'update', uid: '不存在' }, ctx, round: 1 }), null);
   // 唯一一本时不用写 world
   assert.equal(
-    await guard.before({ name: 'entry_edit', args: { uid: '1' }, ctx: ctxOf(['甲本'], undefined, port), round: 1 }),
+    await guard.before({ name: 'wb_write', args: { action: 'update', uid: '1' }, ctx: ctxOf(['甲本'], undefined, port), round: 1 }),
     null,
     '本轮只勾一本时按那本解析',
   );
@@ -131,24 +138,24 @@ test('observe-guard：读过之后条目变了 → STALE', async () => {
   const ctx = ctxOf(['甲本'], undefined, port);
 
   await guard.after(
-    { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 1 },
+    { name: 'wb_read', args: { world: '甲本', uids: ['1'] }, ctx, round: 1 },
     { ok: true, brief: '', detail: '' },
   );
-  assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 1 }), null);
+  assert.equal(await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '1' }, ctx, round: 1 }), null);
 
   // 模拟外部改动（别人改了世界书 / 草稿又动过）
   port.worlds.set('甲本', [entry('1', '甲条目', '被别人改过的正文')]);
-  const stale = await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 2 });
+  const stale = await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '1' }, ctx, round: 2 });
   assert.ok(stale);
   assert.equal(stale.code, 'STALE');
   assert.match(stale.detail, /条目在读过之后变了，重新 wb_read 再改/);
 
   // 重新读过就放行
   await guard.after(
-    { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 2 },
+    { name: 'wb_read', args: { world: '甲本', uids: ['1'] }, ctx, round: 2 },
     { ok: true, brief: '', detail: '' },
   );
-  assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 2 }), null);
+  assert.equal(await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '1' }, ctx, round: 2 }), null);
 });
 
 test('observe-guard：记录的是草稿视图的版本（草稿改过也算「读过之后变了」）', async () => {
@@ -159,10 +166,10 @@ test('observe-guard：记录的是草稿视图的版本（草稿改过也算「�
   const ctx = ctxOf(['甲本'], undefined, view);
 
   await guard.after(
-    { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 1 },
+    { name: 'wb_read', args: { world: '甲本', uids: ['1'] }, ctx, round: 1 },
     { ok: true, brief: '', detail: '' },
   );
-  assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 1 }), null);
+  assert.equal(await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '1' }, ctx, round: 1 }), null);
 
   // 又往草稿里塞了一处改动 → 视图版本变了
   drafts.addChange({
@@ -174,7 +181,7 @@ test('observe-guard：记录的是草稿视图的版本（草稿改过也算「�
     after: '草稿改过',
     payload: {},
   });
-  const stale = await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 1 });
+  const stale = await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '1' }, ctx, round: 1 });
   assert.ok(stale, '草稿视图的版本变了也要 STALE');
   assert.equal(stale.code, 'STALE');
 });
@@ -192,9 +199,9 @@ test('observe-guard：分页读只记读到的那一页；wb_search 也记观察
     { ok: true, brief: '', detail: '' },
   );
   // 第 4、5 条读过 → 放行；第 1 条没读 → 拦
-  assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '4' }, ctx, round: 1 }), null);
-  assert.equal(await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '5' }, ctx, round: 1 }), null);
-  const notObserved = await guard.before({ name: 'entry_edit', args: { world: '甲本', uid: '1' }, ctx, round: 1 });
+  assert.equal(await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '4' }, ctx, round: 1 }), null);
+  assert.equal(await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '5' }, ctx, round: 1 }), null);
+  const notObserved = await guard.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '1' }, ctx, round: 1 });
   assert.equal(notObserved?.code, 'NOT_OBSERVED');
 
   const guard2 = createObserveGuard(port, createObservationLog());
@@ -204,11 +211,11 @@ test('observe-guard：分页读只记读到的那一页；wb_search 也记观察
     { ok: true, brief: '', detail: '' },
   );
   assert.equal(
-    await guard2.before({ name: 'entry_edit', args: { world: '甲本', uid: '7' }, ctx: ctx2, round: 1 }),
+    await guard2.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '7' }, ctx: ctx2, round: 1 }),
     null,
   );
   assert.equal(
-    (await guard2.before({ name: 'entry_edit', args: { world: '甲本', uid: '8' }, ctx: ctx2, round: 1 }))?.code,
+    (await guard2.before({ name: 'wb_write', args: { action: 'update', world: '甲本', uid: '8' }, ctx: ctx2, round: 1 }))?.code,
     'NOT_OBSERVED',
   );
 });
@@ -244,7 +251,7 @@ test('prune-guard：8192 不动、8193 标记 pruned，detail 本体一字不改
 test('repeat-guard：第 3/5/8 次才建议、绝不阻断、参数规范化', async () => {
   const guard = createRepeatGuard();
   const ctx = ctxOf(['甲本'], undefined, makePort({}));
-  const input = { name: 'wb_read', args: { world: '甲本', uid: '1' }, ctx, round: 1 };
+  const input = { name: 'wb_read', args: { world: '甲本', uids: ['1'] }, ctx, round: 1 };
   const counts = [];
   let result = { ok: true, brief: 'b', detail: 'd' };
   for (let times = 1; times <= 8; times++) {
@@ -257,10 +264,10 @@ test('repeat-guard：第 3/5/8 次才建议、绝不阻断、参数规范化', a
   assert.equal(note.source, 'repeat-guard');
   assert.match(note.text, /换个方法|收工/);
 
-  // 参数键顺序不同算同一组
-  const swapped = { name: 'wb_read', args: { uid: '1', world: '甲本' }, ctx, round: 2 };
+  // 参数键顺序不同算同一组（B16：wb_read 只认 uids）
+  const swapped = { name: 'wb_read', args: { uids: ['1'], world: '甲本' }, ctx, round: 2 };
   assert.equal(stableStringify({ a: 1, b: 2 }), stableStringify({ b: 2, a: 1 }));
-  assert.equal(guard.countOf('wb_read', { world: '甲本', uid: '1' }), 8);
+  assert.equal(guard.countOf('wb_read', { world: '甲本', uids: ['1'] }), 8);
   assert.equal(
     (await guard.after(swapped, { ok: true, brief: 'b', detail: 'd' })).contexts,
     undefined,
@@ -275,7 +282,7 @@ test('repeat-guard：第 3/5/8 次才建议、绝不阻断、参数规范化', a
 
   // 新用户消息 → reset
   guard.reset();
-  assert.equal(guard.countOf('wb_read', { world: '甲本', uid: '1' }), 0);
+  assert.equal(guard.countOf('wb_read', { world: '甲本', uids: ['1'] }), 0);
   assert.equal((await guard.after(input, { ok: true, brief: 'b', detail: 'd' })).contexts, undefined);
 });
 

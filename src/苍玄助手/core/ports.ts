@@ -207,7 +207,11 @@ export interface ToolResult {
 export interface ToolDef {
   name: string;
   /** 分组，设置页里按组显示 */
-  group: 'knowledge' | 'write' | 'skill' | 'image' | 'flow' | 'external';
+  /**
+   * `file` = 文件落盘（B21 的 write_file / read_file）。单开一组是因为它们
+   * 跟「改世界书」「生图」都不沾边，塞进任何一组都会让那组的语义变模糊。
+   */
+  group: 'knowledge' | 'write' | 'skill' | 'image' | 'flow' | 'external' | 'file';
   title: string;
   /** 给人看的一句话 */
   desc: string;
@@ -285,7 +289,7 @@ export interface ToolOverride {
    *
    * 三态语义（缺省 = 跟随）：
    *   - `undefined` → **跟随全局**：能不能发由来源处与 `default_on` 决定（旧口径不变）；
-   *   - `true`  → 用户**显式打开**（只对「按需工具」有意义：把 entry_meta 这类默认关的打开）；
+   *   - `true`  → 用户**显式打开**（只对「按需工具」有意义：把 portrait_prompt 这类默认关的打开）；
    *   - `false` → 用户**显式关掉**：这条工具**不再发给模型**，不管来源处开没开。
    *
    * ⚠️ 这是对旧口径的一次**有意反转**（原计划 A6 明确否决过「工具级开关」，理由是

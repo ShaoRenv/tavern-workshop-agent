@@ -65,6 +65,20 @@ import { createWorldbookPort } from '../core/worldbook.ts';
 
 export interface RunArgs {
   data: RootData;
+  /**
+   * 共享纪律（B40）：每个 skill 正文前拼一段。
+   *
+   * 由装配方（App.vue）从 ST 文件读好塞进来 —— runner 不做 I/O，
+   * 拿不到就是空串（不注入，技能照常能用）。
+   */
+  shared_discipline?: string;
+  /**
+   * 读技能参考文件（B48）：装配方从 ST 文件读好交给工具。
+   *
+   * 签名与 `agent/tools_skill.ts` 的 RegistryOptions.readSkillFile 一致。
+   * 不注入 = 工具只用 `ctx.skills[i].files` 里带着的那份。
+   */
+  read_skill_file?: (skill: { id: string; name: string; summary: string; body: string }, fileName: string) => string | undefined;
   /** 本轮用户说的话（普通预设时就是用户需求） */
   input: string;
   /** 本轮附的图（dataURL） */
@@ -236,7 +250,7 @@ function balancedEnd(text: string, start: number, open: string, close: string): 
  *      否则模型照样能调、界面却写着「来源已停用」，两边打脸。
  *
  * 注意用 pluginAllTools（插件注册的全部工具）而不是 pluginTools：
- * 按需工具（世界书的 entry_meta）_def_ 要在，能不能发由 resolveCaps 按 default_on 决定。
+ * 按需工具（立绘的 portrait_prompt）_def_ 要在，能不能发由 resolveCaps 按 default_on 决定。
  */
 export function liveToolDefs<T extends { name: string }>(defs: T[], state: PluginStateHost): T[] {
   const fromPlugins = new Set(pluginAllTools(state));
@@ -603,6 +617,16 @@ export function createRunner(): Runner {
         // 插件工具并进注册表；哪些插件开着由 plugin_state 决定（关掉即消失的第一道闸）。
         // ⚠️ 传的是**内层映射**，不是整份 RootData —— 传错会让开关全部失效（曾因此漏掉一个真 bug）。
         plugin_state: args.data.plugin_state,
+        // B40：共享纪律由装配方从 ST 文件读好塞进来；拿不到就是空串（不注入）
+        shared_discipline: args.shared_discipline,
+        /**
+         * B48：参考文件的内容在 ST 真文件里，工具自己读不到 ——
+         * 装配方把「按技能 + 路径取内容」的能力注入进来。
+         *
+         * 返回 undefined = 这个技能里没有这个文件（工具据此报可读清单）。
+         * 不注入时回落到 `ctx.skills[i].files`（测试 / 独立预览的路径）。
+         */
+        readSkillFile: args.read_skill_file,
       });
       // 守卫默认装上（observe + prune + repeat）；新用户消息 = 新一轮，先把计数和观察清零
       const guards = registry.guards();

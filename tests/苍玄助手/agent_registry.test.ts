@@ -115,21 +115,27 @@ function sampleArgs(params) {
 
 /* ============================ 清单 / 默认开关 ============================ */
 
-test('registry: 16 个全集 / 默认装配 15 个、顺序按 TOOL_NAMES、分组一致', () => {
+test('registry: 14 个全集 / 默认装配 13 个、顺序按 TOOL_NAMES、分组一致', () => {
   const registry = createRegistry(makePort());
   // 全部工具名（含默认关的 gen_image 等）—— 这是「底座眼里的全集」
-  assert.equal(TOOL_NAMES.length, 16);
+  //
+  // ⚠️ B15-B19：世界书 7 → 5（entry_create/edit/delete/meta 合并成 wb_write，新增 wb_outline）→ 16 → 14。
+  // ⚠️ B24：portrait_meta 删掉（用户：「不要元数据」）→ 14 → 13。
+  // ⚠️ B21：新增 write_file / read_file → 13 → 15。
+  assert.equal(TOOL_NAMES.length, 15);
   assert.deepEqual(
     [...TOOL_NAMES],
     [
-      'wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete', 'entry_meta',
-      'portrait_list', 'portrait_meta', 'portrait_prompt',
-      'skill', 'read_skill_file', 'create_skill', 'gen_image', 'submit', 'ask_user',
+      'wb_list', 'wb_outline', 'wb_read', 'wb_search', 'wb_write',
+      'portrait_list', 'portrait_prompt',
+      'skill', 'read_skill_file', 'create_skill',
+      'write_file', 'read_file',
+      'gen_image', 'submit', 'ask_user',
     ],
-    'TOOL_NAMES 就是阶段 3 的 16 个（顺序 = 设置页显示顺序）',
+    'TOOL_NAMES 就是现在的 15 个（顺序 = 设置页显示顺序）',
   );
   // 默认装配：image 插件默认关 → gen_image 不在
-  assert.equal(registry.names().length, 15);
+  assert.equal(registry.names().length, 14);
   assert.deepEqual(
     registry.names(),
     [...TOOL_NAMES].filter(name => name !== 'gen_image'),
@@ -137,9 +143,14 @@ test('registry: 16 个全集 / 默认装配 15 个、顺序按 TOOL_NAMES、分�
   );
   assert.deepEqual(registry.audit(), { ok: false, missing: ['gen_image'], extra: [] }, 'audit 报缺 gen_image 是预期的');
   // ports.ts 给 ToolDef['group'] 加了 'external'（工具页要显示外部工具），分组表必须齐
-  assert.deepEqual(Object.keys(TOOL_GROUP_LABELS).sort(), ['external', 'flow', 'image', 'knowledge', 'skill', 'write']);
+  assert.deepEqual(Object.keys(TOOL_GROUP_LABELS).sort(), ['external', 'file', 'flow', 'image', 'knowledge', 'skill', 'write']);
   for (const def of registry.defs) {
-    assert.ok(def.title && def.desc && def.model_description.length > 10, def.name + ' 缺文案');
+    // ⚠️ 阈值从 >10 放宽到 >=8（B15-B19）：世界书的 model_description 现在是
+    // 用户批准的**一句话**（「干什么 / 什么时候用 / 返回什么」三件事），
+    // 最短的是 wb_search 的「按关键词找条目。」= 8 字。
+    // 原来 >10 是给「200 字领域教学」那种长文案定的 —— 那个方向已被否决。
+    // 这里保留的意图是「不许空 / 不许占位符」，8 字的中文已经完全够表达。
+    assert.ok(def.title && def.desc && def.model_description.length >= 8, def.name + ' 缺文案');
     assert.ok(Object.keys(TOOL_GROUP_LABELS).includes(def.group), def.name + ' 分组不对');
     assert.equal(typeof def.run, 'function');
   }
@@ -149,26 +160,27 @@ test('registry: 16 个全集 / 默认装配 15 个、顺序按 TOOL_NAMES、分�
   assert.equal(registry.port().list instanceof Function, true);
 });
 
-test('registry: 默认开关 —— DEFAULT_ON_TOOLS 11 个，装配里 default_on 也正好 11 个', () => {
+test('registry: 默认开关 —— DEFAULT_ON_TOOLS 10 个，装配里 default_on 也正好 10 个', () => {
   const registry = createRegistry(makePort());
-  // 阶段 3：DEFAULT_ON_TOOLS 从 9 → 11（+ portray_list / portrait_meta 两个只读工具）
-  assert.equal(DEFAULT_ON_TOOLS.length, 11);
+  // ⚠️ B15-B19：世界书 7 → 5（5 个全默认开）→ 11 → 10；
+  // B24 删 portrait_meta → 9；B21 的 write_file/read_file 是**按需**的（不默认给）→ 仍是 9。
+  assert.equal(DEFAULT_ON_TOOLS.length, 9);
   assert.deepEqual([...DEFAULT_ON_TOOLS], [
-    'wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete',
-    'portrait_list', 'portrait_meta',
+    'wb_list', 'wb_outline', 'wb_read', 'wb_search', 'wb_write',
+    'portrait_list',
     'skill', 'read_skill_file', 'submit',
   ]);
   assert.deepEqual(
     registry.defs.filter(def => def.default_on).map(def => def.name),
     [
-      // 世界书默认给的 6 个
-      'wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete',
-      // 阶段 3 新增：苍玄助手默认给的 2 个（portrait_prompt 是按需的）
-      'portrait_list', 'portrait_meta',
+      // 世界书 5 个全默认开（合并 entry_meta 进 wb_write 之后不再有按需工具）
+      'wb_list', 'wb_outline', 'wb_read', 'wb_search', 'wb_write',
+      // 苍玄助手默认给的 1 个（portrait_prompt 是按需的）
+      'portrait_list',
       // 底座技能 3 + 流程 1
       'skill', 'read_skill_file', 'submit',
     ],
-    '装配里 default_on 的一共 11 个（顺序 = TOOL_NAMES）',
+    '装配里 default_on 的一共 9 个（顺序 = TOOL_NAMES）',
   );
 
   // 装配里 default_on 的那批必须与 DEFAULT_ON_TOOLS **逐个相等**（一个不多一个不少）
@@ -178,8 +190,10 @@ test('registry: 默认开关 —— DEFAULT_ON_TOOLS 11 个，装配里 default_
     'DEFAULT_ON_TOOLS 就是装配默认给的这批',
   );
 
-  // 默认关的 3 个（它们在装配里，只是不默认给）：entry_meta / portrait_prompt / create_skill
-  for (const name of ['entry_meta', 'portrait_prompt', 'create_skill']) {
+  // 默认关的 4 个（它们在装配里，只是不默认给）：
+  // portrait_prompt / create_skill / write_file / read_file
+  // （entry_meta 已经合并进 wb_write 并改成默认开）
+  for (const name of ['portrait_prompt', 'create_skill', 'write_file', 'read_file']) {
     assert.equal(registry.byName(name).default_on, false, name + ' 应该默认关');
   }
   // gen_image 的 default_on 也一直是 false（阶段 2 就是），但默认状态下它连 def 都没有 ——
@@ -204,20 +218,20 @@ test('registry（第一道闸）：插件开关直接决定装配 —— 关掉�
   // 这条钉最早的那层（比 runner 更早），阶段 2 验收的 F-A 就是漏了后面那层。
   const port = makePort();
 
-  // 关世界书：wb 7 个全没，portrait 3 个还在
+  // 关世界书：wb 5 个全没，portrait 3 个还在
   const wbOff = new ToolRegistry(port, { plugin_state: { worldbook: { enabled: false } } });
   assert.deepEqual(
     wbOff.names(),
-    ['portrait_list', 'portrait_meta', 'portrait_prompt', 'skill', 'read_skill_file', 'create_skill', 'submit', 'ask_user'],
-    '关世界书 → 只剩苍玄助手 3 + 底座 5 = 8',
+    ['portrait_list', 'portrait_prompt', 'skill', 'read_skill_file', 'create_skill', 'write_file', 'read_file', 'submit', 'ask_user'],
+    '关世界书 → 只剩苍玄助手 2 + 底座 7 = 9',
   );
 
-  // 关苍玄助手：portrait 3 个全没，wb 7 个还在
+  // 关苍玄助手：portrait 3 个全没，wb 5 个还在
   const cxOff = new ToolRegistry(port, { plugin_state: { cangxuan: { enabled: false } } });
   assert.deepEqual(
     cxOff.names(),
-    ['wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete', 'entry_meta', 'skill', 'read_skill_file', 'create_skill', 'submit', 'ask_user'],
-    '关苍玄助手 → 只剩世界书 7 + 底座 5 = 12',
+    ['wb_list', 'wb_outline', 'wb_read', 'wb_search', 'wb_write', 'skill', 'read_skill_file', 'create_skill', 'write_file', 'read_file', 'submit', 'ask_user'],
+    '关苍玄助手 → 只剩世界书 5 + 底座 7 = 12',
   );
 
   // 只开生图：gen_image 才进得来
@@ -226,8 +240,8 @@ test('registry（第一道闸）：插件开关直接决定装配 —— 关掉�
   });
   assert.deepEqual(
     imageOnly.names(),
-    ['skill', 'read_skill_file', 'create_skill', 'gen_image', 'submit', 'ask_user'],
-    '只开生图 → 底座技能 3 + gen_image + 流程 2 = 6',
+    ['skill', 'read_skill_file', 'create_skill', 'write_file', 'read_file', 'gen_image', 'submit', 'ask_user'],
+    '只开生图 → 底座技能 3 + 文件 2 + gen_image + 流程 2 = 8',
   );
 
   // 三个插件全关：一个插件工具都不该剩下
@@ -236,15 +250,15 @@ test('registry（第一道闸）：插件开关直接决定装配 —— 关掉�
   });
   assert.deepEqual(
     allOff.names(),
-    ['skill', 'read_skill_file', 'create_skill', 'submit', 'ask_user'],
-    '三个插件全关 → 只剩底座那 5 个',
+    ['skill', 'read_skill_file', 'create_skill', 'write_file', 'read_file', 'submit', 'ask_user'],
+    '三个插件全关 → 只剩底座那 7 个',
   );
 
-  // 全开：16 个一个不少
+  // 全开：15 个一个不少
   const allOn = new ToolRegistry(port, {
     plugin_state: { cangxuan: { enabled: true }, worldbook: { enabled: true }, image: { enabled: true } },
   });
-  assert.deepEqual(allOn.names(), [...TOOL_NAMES], '三个都开 → 恰好 16 个（= TOOL_NAMES 全集）');
+  assert.deepEqual(allOn.names(), [...TOOL_NAMES], '三个都开 → 恰好 15 个（= TOOL_NAMES 全集）');
   assert.deepEqual(allOn.audit(), { ok: true, missing: [], extra: [] }, '全开时 audit 干净');
 
   // 装配与**聚合函数**必须一致（两边都读同一份 plugin_state）
@@ -294,6 +308,10 @@ test('registry: 每个工具的 parameters 都是合法且可序列化的 JSON S
         assert.ok(ALLOWED_SCHEMA_KEYS.has(schemaKey), def.name + '.' + key + ': 未知关键字 ' + schemaKey);
       if (schema.type === 'object') {
         // 嵌套对象也必须有 description（原生 tools 通道里模型只看得到这里写的东西）
+        //
+        // ⚠️ B15-B19：wb_write 合并了旧 4 个写工具，参数里**不再有嵌套对象**
+        // （keys_secondary 已下沉到 skill，不进工具提示词）→ 这条对 wb_write 不适用。
+        if (def.name === 'wb_write') continue;
         assert.ok(
           schema.properties && Object.keys(schema.properties).length > 0,
           def.name + '.' + key + ' 嵌套对象没 properties',
@@ -356,17 +374,12 @@ test('registry: 用 zod.fromJSONSchema 真解释一遍 —— 合法参数过、
   }
 });
 
-test('registry: 嵌套对象参数都自带 description（keys_secondary / create_skill.files 元素）', () => {
+test('registry: 嵌套对象参数都自带 description（create_skill.files 元素）', () => {
   // 回归 task-9 的 P3-3：以前 schemaObject() 不给嵌套对象写 description，模型只看得到子字段。
+  //
+  // ⚠️ B15-B19：wb_write 的 keys_secondary 已下沉到 skill（不进工具提示词），
+  // 所以这里只剩 create_skill.files 一个嵌套对象。
   const registry = createRegistry(makePort());
-  for (const name of ['entry_create', 'entry_meta']) {
-    const nested = registry.byName(name).parameters.properties.keys_secondary;
-    assert.equal(nested.type, 'object');
-    assert.equal(typeof nested.description, 'string', name + '.keys_secondary 应该有 description');
-    assert.ok(nested.description.length > 10, name + '.keys_secondary 的 description 要能说清用途');
-    assert.match(nested.description, /次关键词|keys_secondary/);
-    assert.ok(nested.properties.logic.description && nested.properties.keys.description);
-  }
 
   const filesItem = registry.byName('create_skill').parameters.properties.files.items;
   assert.equal(filesItem.type, 'object');
@@ -378,7 +391,7 @@ test('registry: 嵌套对象参数都自带 description（keys_secondary / creat
 test('registry: specs() / pick() 只发勾上的工具且顺序固定', () => {
   const registry = createRegistry(makePort());
   const all = registry.specs();
-  assert.equal(all.length, 15, '默认装配 15 个（gen_image 因生图插件默认关缺席）');
+  assert.equal(all.length, 14, '默认装配 14 个（gen_image 因生图插件默认关缺席）');
   assert.deepEqual(
     all.map(spec => spec.name),
     [...TOOL_NAMES].filter(name => name !== 'gen_image'),
@@ -395,10 +408,10 @@ test('registry: specs() / pick() 只发勾上的工具且顺序固定', () => {
     '按注册表顺序而不是传入顺序',
   );
   assert.deepEqual(registry.pick(['不存在的工具']), []);
-  assert.equal(registry.pick([]).length, 15, '空数组 = 全给');
+  assert.equal(registry.pick([]).length, 14, '空数组 = 全给');
 });
 
-test('registry: 默认装配的 15 个工具拿空对象调用都不炸，且都给出人话 brief', async () => {
+test('registry: 默认装配的 14 个工具拿空对象调用都不炸，且都给出人话 brief', async () => {
   const port = makePort({ 天枢阁: [entry('1', 'A', 'a')] });
   const { ctx } = ctxOf(port, {
     worlds: ['天枢阁'],
@@ -412,130 +425,155 @@ test('registry: 默认装配的 15 个工具拿空对象调用都不炸，且都
     assert.equal(typeof result.detail, 'string');
   }
 });
+/* ============================ wb_write 的语义 ============================ */
 
-/* ============================ entry_edit 的 old_string 语义 ============================ */
-
-test('entry_edit: 0 命中 → 报错、草稿不动、世界书不写', async () => {
-  const port = makePort({ 天枢阁: [entry('1', 'A', '风起。云涌。')] });
+test('wb_write: create 必填 content；缺了要拒', async () => {
+  const port = makePort({ 天枢阁: [] });
   const { ctx, drafts } = ctxOf(port);
-  const result = await createRegistry(port)
-    .byName('entry_edit')
-    .run({ world: '天枢阁', uid: '1', old_string: '不存在的一段', new_string: 'X' }, ctx);
-  assert.equal(result.ok, false);
-  assert.match(result.brief, /找不到/);
-  assert.match(result.detail, /一字不差/);
+  const write = createRegistry(port).byName('wb_write');
+  for (const args of [
+    { world: '天枢阁', action: 'create' },
+    { world: '天枢阁', action: 'create', content: '   ' },
+  ]) {
+    const result = await write.run(args, ctx);
+    assert.equal(result.ok, false, JSON.stringify(args));
+    assert.match(result.brief, /content/);
+  }
   assert.equal(drafts.count(), 0);
   assert.equal(port.writes.length, 0);
 });
 
-test('entry_edit: 多命中不加 replace_all → 报错并给上下文建议；草稿不动', async () => {
-  const port = makePort({ 天枢阁: [entry('1', 'A', '风起。云涌。风起。')] });
+test('wb_write: action 不认识要报错并说清只能是哪三个', async () => {
+  const port = makePort({ 天枢阁: [] });
   const { ctx, drafts } = ctxOf(port);
-  const result = await createRegistry(port)
-    .byName('entry_edit')
-    .run({ world: '天枢阁', uid: '1', old_string: '风起', new_string: '雷落' }, ctx);
+  const result = await createRegistry(port).byName('wb_write').run({ world: '天枢阁', action: '改名' }, ctx);
   assert.equal(result.ok, false);
-  assert.match(result.brief, /命中 2 处，不唯一/);
-  assert.match(result.detail, /replace_all=true/);
+  assert.match(result.detail, /create \/ update \/ delete/);
   assert.equal(drafts.count(), 0);
 });
 
-test('entry_edit: replace_all 全换（split/join，字面量安全），草稿记全量 before/after', async () => {
-  const port = makePort({ 天枢阁: [entry('1', 'A', '风起。云涌。风起。')] });
+test('wb_write: create 落草稿，payload 完整（strategy/keys/position/order）', async () => {
+  const port = makePort({ 天枢阁: [] });
   const { ctx, drafts } = ctxOf(port);
   const result = await createRegistry(port)
-    .byName('entry_edit')
-    .run({ world: '天枢阁', uid: '1', old_string: '风起', new_string: '雷落', replace_all: true }, ctx);
+    .byName('wb_write')
+    .run({ world: '天枢阁', action: 'create', name: '新条目', content: '刚建出来的条目', keys: ['新'], constant: true, order: 50 }, ctx);
   assert.equal(result.ok, true, result.detail);
-  assert.match(result.detail, /替换 2 处/);
   const change = drafts.list()[0];
-  assert.equal(change.kind, 'edit');
-  assert.equal(change.uid, '1');
-  assert.equal(change.label, 'A');
-  assert.equal(change.before, '风起。云涌。风起。');
-  assert.equal(change.after, '雷落。云涌。雷落。');
-  assert.deepEqual(change.payload, { old_string: '风起', new_string: '雷落', replace_all: true, add: 1, del: 1 });
+  assert.equal(change.kind, 'create');
+  assert.equal(change.label, '新条目');
+  assert.equal(change.after, '刚建出来的条目');
+  assert.equal(change.payload.name, '新条目');
+  assert.equal(change.payload.strategy, 'constant');
+  assert.deepEqual(change.payload.keys, ['新']);
+  assert.equal(change.payload.order, 50);
   assert.equal(port.writes.length, 0, '草稿阶段不许写回');
 });
 
-test('entry_edit: 唯一命中时只换一处，其余一字不动；落地后 extra 还在', async () => {
+test('wb_write: create 不给 keys 也不给 constant → 警告但不拦（可能是分节标记）', async () => {
+  const port = makePort({ 天枢阁: [] });
+  const { ctx, drafts } = ctxOf(port);
+  const result = await createRegistry(port)
+    .byName('wb_write')
+    .run({ world: '天枢阁', action: 'create', name: '死条目', content: 'x' }, ctx);
+  assert.equal(result.ok, true, '只警告不拦截 —— 真实数据里 4 条死条目有 2 条是故意的分节标记');
+  assert.match(result.detail, /不会被任何消息触发/);
+  assert.equal(drafts.count(), 1, '警告归警告，草稿照落');
+});
+
+test('wb_write: update 只改填了的字段，其余一字不动；落地后 extra 还在', async () => {
   const port = makePort({ 天枢阁: [entry('42', '天枢阁', '总部在苍梧山，掌门为凌霄真人')] });
   const { ctx, drafts } = ctxOf(port);
   const result = await createRegistry(port)
-    .byName('entry_edit')
-    .run({ world: '天枢阁', uid: '42', old_string: '总部在苍梧山', new_string: '总部位于苍梧山巅' }, ctx);
+    .byName('wb_write')
+    .run({ world: '天枢阁', action: 'update', uid: '42', content: '总部位于苍梧山巅，掌门为凌霄真人' }, ctx);
   assert.equal(result.ok, true, result.detail);
-  assert.equal(drafts.list()[0].after, '总部位于苍梧山巅，掌门为凌霄真人');
+  const change = drafts.list()[0];
+  assert.equal(change.kind, 'edit');
+  assert.equal(change.after, '总部位于苍梧山巅，掌门为凌霄真人');
+  assert.equal('name' in change.payload, false, '没填 name 就不该出现在 payload 里');
   const report = await drafts.apply(port);
   assert.equal(report.ok, true);
   assert.equal(port.writes[0].entries[0].content, '总部位于苍梧山巅，掌门为凌霄真人');
+  assert.equal(port.writes[0].entries[0].name, '天枢阁', '没改的标题原样保留');
   assert.equal(port.writes[0].entries[0].extra.raw_field, 'keep-me');
   assert.equal(drafts.count(), 0, '写成功才清草稿');
 });
 
-test('entry_edit: old_string 为空 / 只给 new_string → 拒绝整条重写', async () => {
-  const port = makePort({ 天枢阁: [entry('1', 'A', 'abc')] });
+test('wb_write: update 能只改属性（蓝绿灯 / 顺序），不碰正文', async () => {
+  const port = makePort({ 天枢阁: [entry('1', 'A', '正文不动')] });
   const { ctx, drafts } = ctxOf(port);
-  const edit = createRegistry(port).byName('entry_edit');
-  for (const args of [
-    { world: '天枢阁', uid: '1', new_string: '整条新内容' },
-    { world: '天枢阁', uid: '1', old_string: '', new_string: 'x' },
-  ]) {
-    const result = await edit.run(args, ctx);
-    assert.equal(result.ok, false, JSON.stringify(args));
-    assert.equal(drafts.count(), 0);
-  }
-  const same = await edit.run({ world: '天枢阁', uid: '1', old_string: 'abc', new_string: 'abc' }, ctx);
-  assert.equal(same.ok, false);
-  assert.match(same.brief, /没有变化/);
-  assert.equal(drafts.count(), 0);
-  const noUid = await edit.run({ world: '天枢阁', old_string: 'abc', new_string: 'abd' }, ctx);
-  assert.equal(noUid.ok, false);
-  assert.match(noUid.brief, /uid/);
+  const result = await createRegistry(port)
+    .byName('wb_write')
+    .run({ world: '天枢阁', action: 'update', uid: '1', constant: true, order: 7 }, ctx);
+  assert.equal(result.ok, true, result.detail);
+  const change = drafts.list()[0];
+  assert.equal(change.payload.strategy, 'constant');
+  assert.equal(change.payload.order, 7);
+  assert.equal('content' in change.payload, false, '没给 content 就不该动正文');
+  await drafts.apply(port);
+  assert.equal(port.writes[0].entries[0].content, '正文不动');
+  assert.equal(port.writes[0].entries[0].strategy, 'constant');
 });
 
-test('entry_edit: 写范围受 ctx.worlds 限制；uid 不存在要报错', async () => {
+test('wb_write: update 没给 uid / 没给任何字段 → 都拒，草稿不动', async () => {
+  const port = makePort({ 天枢阁: [entry('1', 'A', 'abc')] });
+  const { ctx, drafts } = ctxOf(port);
+  const write = createRegistry(port).byName('wb_write');
+  const noUid = await write.run({ world: '天枢阁', action: 'update', content: 'x' }, ctx);
+  assert.equal(noUid.ok, false);
+  assert.match(noUid.brief, /uid/);
+  const noFields = await write.run({ world: '天枢阁', action: 'update', uid: '1' }, ctx);
+  assert.equal(noFields.ok, false);
+  assert.match(noFields.brief, /没给要改的字段/);
+  assert.equal(drafts.count(), 0);
+});
+
+test('wb_write: delete 落草稿；给了 name 就必须和实际标题一致（防删错）', async () => {
+  const port = makePort({ 天枢阁: [entry('1', '甲', '正文')] });
+  const { ctx, drafts } = ctxOf(port);
+  const write = createRegistry(port).byName('wb_write');
+
+  const mismatched = await write.run({ world: '天枢阁', action: 'delete', uid: '1', name: '乙' }, ctx);
+  assert.equal(mismatched.ok, false);
+  assert.match(mismatched.brief, /标题对不上/);
+  assert.equal(drafts.count(), 0);
+
+  const ok = await write.run({ world: '天枢阁', action: 'delete', uid: '1', name: '甲' }, ctx);
+  assert.equal(ok.ok, true, ok.detail);
+  const change = drafts.list()[0];
+  assert.equal(change.kind, 'delete');
+  assert.equal(change.before, '正文');
+  assert.equal(change.after, '');
+});
+
+test('wb_write: 写范围受 ctx.worlds 限制；uid 不存在要报错', async () => {
   const port = makePort({ 天枢阁: [entry('1', 'A', 'a')], 别本: [entry('9', 'B', 'b')] });
   const { ctx, drafts } = ctxOf(port, { worlds: ['天枢阁'] });
-  const edit = createRegistry(port).byName('entry_edit');
-  const outside = await edit.run({ world: '别本', uid: '9', old_string: 'b', new_string: 'c' }, ctx);
+  const write = createRegistry(port).byName('wb_write');
+  const outside = await write.run({ world: '别本', action: 'update', uid: '9', content: 'c' }, ctx);
   assert.equal(outside.ok, false);
   assert.match(outside.detail, /《别本》不在本次可操作范围内。本次只能用：天枢阁。/);
   assert.match(outside.detail, /如果需要《别本》，请让用户去「世界书」页勾上/);
-  const missing = await edit.run({ world: '天枢阁', uid: '404', old_string: 'a', new_string: 'b' }, ctx);
+  const missing = await write.run({ world: '天枢阁', action: 'update', uid: '404', content: 'b' }, ctx);
   assert.equal(missing.ok, false);
   assert.match(missing.brief, /没找到 uid 404/);
+  const missingDelete = await write.run({ world: '天枢阁', action: 'delete', uid: '404' }, ctx);
+  assert.equal(missingDelete.ok, false);
+  assert.match(missingDelete.brief, /没找到 uid 404/);
   assert.equal(drafts.count(), 0);
 });
 
-test('entry_edit: new_string 里的 $& / $ 反引号 / 单引号美元 / $$ / $1 一律当字面量（单命中与 replace_all 都一样）', async () => {
-  // 回归 task-9 的 P3-1：旧实现单命中走 String.replace(old, new)，会把 $& 当替换模式，
-  // 与 replace_all 的 split/join 行为不一致；现在两个分支共用 split/join，一律字面量。
-  const specials = ['$&X', "$'尾巴", '$\u0060前缀', '$$', '$1', 'a$&b$1c'];
-  for (const replaceAll of [false, true]) {
+test('wb_write: content 里的 $& / $1 / $$ 一律当字面量（整条替换，不做模式解释）', async () => {
+  // 回归 task-9 的 P3-1 的同类问题：整条替换也不能走 String.replace 的模式解释。
+  const specials = ['$&X', "$'尾巴", '$`前缀', '$$', '$1', 'a$&b$1c'];
+  for (const content of specials) {
     const port = makePort({ 天枢阁: [entry('1', 'A', 'abc')] });
     const { ctx, drafts } = ctxOf(port);
-    const edit = createRegistry(port).byName('entry_edit');
-    for (const newString of specials) {
-      drafts.clear();
-      const result = await edit.run(
-        { world: '天枢阁', uid: '1', old_string: 'b', new_string: newString, replace_all: replaceAll },
-        ctx,
-      );
-      assert.equal(
-        result.ok,
-        true,
-        'replace_all=' + replaceAll + ' new_string=' + JSON.stringify(newString) + ' → ' + result.detail,
-      );
-      assert.equal(drafts.list()[0].after, 'a' + newString + 'c', '必须字面量落进正文：' + JSON.stringify(newString));
-    }
+    const result = await createRegistry(port)
+      .byName('wb_write')
+      .run({ world: '天枢阁', action: 'update', uid: '1', content }, ctx);
+    assert.equal(result.ok, true, JSON.stringify(content) + ' → ' + result.detail);
+    assert.equal(drafts.list()[0].after, content, '必须字面量落进正文：' + JSON.stringify(content));
   }
-
-  // 正则/替换元字符同样不参与解释
-  const port = makePort({ 天枢阁: [entry('1', 'A', 'x(y)z')] });
-  const { ctx, drafts } = ctxOf(port);
-  await createRegistry(port)
-    .byName('entry_edit')
-    .run({ world: '天枢阁', uid: '1', old_string: '(y)', new_string: '$&$1[$]' }, ctx);
-  assert.equal(drafts.list()[0].after, 'x$&$1[$]z');
 });

@@ -27,6 +27,7 @@ import type {
 import { BUILTIN_MANIFESTS } from './builtin/index.ts';
 import { evaluatePluginCapabilities } from '../core/capability.ts';
 import { hostFn } from '../core/host.ts';
+import { hash32, type FactorySkill } from '../core/skill_store.ts';
 
 /** **内置**插件清单（静态目录汇总，编译期定死；外部插件见下面的通道） */
 export const PLUGIN_MANIFESTS: PluginManifest[] = BUILTIN_MANIFESTS;
@@ -394,7 +395,7 @@ export function pluginToolDefs(state: PluginStateHost): ToolDef[] {
 /**
  * 已启用插件**默认进全局能力**的工具名（按声明顺序，去重）。
  *
- * 注意这跟「插件注册了哪些工具」不是一回事：世界书注册 7 个、默认给 6 个（entry_meta 按需）。
+ * 注意这跟「插件注册了哪些工具」不是一回事：立绘注册 3 个、默认给 2 个（portrait_prompt 按需）。
  * 全局能力 = DEFAULT_ON_TOOLS ∪ 这里 —— 默认状态下应该**恰好等于** DEFAULT_ON_TOOLS（有测试钉住）。
  */
 export function pluginTools(state: PluginStateHost): string[] {
@@ -458,13 +459,65 @@ export function pluginMacros(state: PluginStateHost): PluginMacro[] {
   return out;
 }
 
-/** 已启用插件贡献的技能 */
+/** 已启用插件贡献的技能（原始贡献形状） */
 export function pluginSkills(state: PluginStateHost): PluginSkillRef[] {
   const out: PluginSkillRef[] = [];
   for (const manifest of loadablePlugins(state)) {
     for (const skill of manifest.contributes.skills ?? []) out.push(skill);
   }
   return out;
+}
+
+/**
+ * 已启用插件贡献的技能 → **出厂层**（`FactorySkill`，skill_store 认的形状）。
+ *
+ * 与 `pluginSkills()` 的区别只在「谁负责起 id / 怎么拼文件树」：
+ * 那个返回插件的原始声明，这个把它规整成「释放到 /user/files/」要用的形状。
+ *
+ * ⚠️ **id 的来法**：优先用插件 manifest 里写死的（世界书插件就写死了 `worldbook`），
+ * 因为 id 同时是**文件名编码**那段，必须跨版本稳定 —— 用名字 hash 的话，
+ * 用户一改技能名，文件就全找不到了。名字撞车时补 `-<插件id>` 后缀去重。
+ */
+export function pluginFactorySkills(state: PluginStateHost): FactorySkill[] {
+  const out: FactorySkill[] = [];
+  const used = new Set<string>();
+  for (const manifest of loadablePlugins(state)) {
+    for (const skill of manifest.contributes.skills ?? []) {
+      let id = skillIdOf(skill);
+      if (used.has(id)) id = id + '-' + manifest.id;
+      let unique = id;
+      let n = 2;
+      while (used.has(unique)) unique = id + '-' + n++;
+      used.add(unique);
+      out.push({
+        id: unique,
+        name: skill.name,
+        summary: skill.desc,
+        fromPlugin: manifest.id,
+        files: [
+          { path: 'SKILL.md', content: skill.content },
+          ...(skill.files ?? []).map(file => ({ path: file.name, content: file.content })),
+        ],
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * 技能 id 从哪来：manifest 的声明里找不到显式 id 字段，所以按名字推。
+ *
+ * 「世界书工程」→ `worldbook` 这种映射写在 skill_store 的 KNOWN_SEGMENTS 里 ——
+ * 但那是**文件名编码**用的。这里的 id 要求更严：它必须**跨版本稳定**，
+ * 所以优先取 `skill.id`（B55 给 `PluginSkillRef` 加的可选字段），
+ * 没有才回落到「用名字里的 ASCII 部分 + hash 兜底」。
+ */
+function skillIdOf(skill: PluginSkillRef & { id?: string }): string {
+  const explicit = typeof skill.id === 'string' ? skill.id.trim() : '';
+  if (explicit) return explicit;
+  // 中文名没有 ASCII 部分 → 用稳定 hash，至少保证「同名同 id、改名才变」
+  const ascii = skill.name.replace(/[^A-Za-z0-9_-]/g, '');
+  return ascii || 'skill-' + hash32(skill.name).toString(16);
 }
 
 /**

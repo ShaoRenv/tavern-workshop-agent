@@ -27,6 +27,26 @@
           <span class="cx-spacer"></span>
           <span class="cx-hint">点一行改它的提示词；行上那个开关控制「给不给模型」</span>
         </div>
+
+        <!-- B45：工具提示词跟预设走。这里改的是**临时区**，要跟预设走就得点「存进预设」。 -->
+        <div class="cx-frow cx-mb10">
+          <span class="cx-hint">
+            改动先落在临时区（立刻生效）。要跟着预设走，点右边存进去。
+          </span>
+          <span class="cx-spacer"></span>
+          <button
+            class="cx-tiny"
+            type="button"
+            :disabled="!presetName || presetIsBuiltin"
+            :title="presetIsBuiltin ? '内置预设只读 —— 先另存为一份再改' : ''"
+            @click="emit('save-tool-overrides')"
+          >
+            存进预设
+          </button>
+        </div>
+        <p v-if="presetIsBuiltin" class="cx-hint cx-mb10">
+          当前是内置预设（只读）—— 工具提示词存不进去。想让它跟预设走，先「另存为一份再改」。
+        </p>
         <div class="cx-list">
           <div v-for="tool in toolRows" :key="tool.name" class="cx-toolrow" @click="openToolDetail(tool.name)">
             <div class="cx-toolrow-main">
@@ -78,11 +98,14 @@
       <SkillsView
         v-else-if="seg === 'skills'"
         :data="data"
-        @save="emit('save', $event)"
-        @delete="emit('delete', $event)"
+        :discipline="discipline"
+        @save="emit('skill-save', $event)"
+        @delete="emit('skill-delete', $event)"
         @duplicate="emit('duplicate', $event)"
         @export="emit('export', $event)"
         @toggle="emit('skill-toggle', $event)"
+        @restore="emit('skill-restore', $event)"
+        @discipline="emit('discipline-save', $event)"
         @change="emit('change')"
       />
     </div>
@@ -135,12 +158,15 @@ const props = withDefaults(
     segIntent?: GotoSeg | null;
     /** 外部插件的安装清单（阶段 7）；数据只读，装卸都走 emit */
     external?: ExternalPlugin[];
+    /** B40：共享纪律的当前文本（从 ST 文件读的，用户可编辑） */
+    discipline?: string;
   }>(),
   {
     data: () => RootDataSchema.parse({}),
     tools: () => [],
     segIntent: null,
     external: () => [],
+    discipline: '',
   },
 );
 const emit = defineEmits<{
@@ -155,6 +181,12 @@ const emit = defineEmits<{
   export: [skill: Skill];
   /** 技能卡的启用开关：转发给 App.vue → store.updateSkill（那里会落盘） */
   'skill-toggle': [skill: Skill];
+  /** B54：恢复默认（从出厂内容重放一遍） */
+  'skill-restore': [skill: Skill];
+  /** B40：共享纪律改了（存进 ST 文件） */
+  'discipline-save': [text: string];
+  /** B45：把临时区的工具提示词存回当前预设 */
+  'save-tool-overrides': [];
   /** 页面里直接改过 props.data（例如「在当前预设里启用」开关）之后发一次，App.vue 接成 store.save() */
   change: [];
   /** 插件开关（写路径唯一：App.vue → store.setPluginEnabled，状态在 plugin_state） */
@@ -204,6 +236,10 @@ const preset = computed(() => data.value.presets.find(item => item.id === data.v
 
 /** 当前预设跟随「能力」页的全局设置时，工具详情里的「在本预设里启用」开关不起作用（默认就是跟随） */
 const followsGlobal = computed(() => !(preset.value?.use_global_caps ?? false));
+
+/** B45：当前预设的名字与「是不是内置」——「存进预设」按钮要据此决定能不能点 */
+const presetName = computed(() => preset.value?.name ?? '');
+const presetIsBuiltin = computed(() => preset.value?.builtin === true);
 
 /**
  * 工具行：内核全量清单里**来源可用**的那些 + 预设硬引用过、但来源关着的兜底行（行上标「来源已停用」）。
@@ -270,7 +306,7 @@ function onQuickPatch(patch: Partial<ToolOverride>) {
  * 工具级开关（用户意志）：三态循环 **跟随 → 手动开 → 手动关 → 跟随**。
  *
  * 为什么不是「二态开关」：二态必须把「没设过」硬塞成开或关，而两者的后果不同 ——
- * 「跟随」时按需工具（entry_meta）**不给模型**是正常的，「手动关」则是用户明确不要它。
+ * 「跟随」时按需工具（portrait_prompt）**不给模型**是正常的，「手动关」则是用户明确不要它。
  * 界面上这两种要能区分（列表行标签 + 详情页文案），否则用户会以为系统背着他改了设置。
  */
 function toggleToolSwitch(name: string) {

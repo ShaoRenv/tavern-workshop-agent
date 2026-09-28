@@ -335,6 +335,57 @@ test('worldbook: 端口 list / current 去重保序；宿主缺接口时降级�
   }
 });
 
+/**
+ * ⚠️ **真机实测（B1）**：`saveWorldInfo` 建完新书，`getWorldInfoNames()` 里看不到它。
+ *
+ * 建完立刻 `loadWorldInfo` 是**读得到**的（直接读文件，不走缓存），
+ * 但名单要等 `updateWorldInfoList()` 才认这个新名字：
+ *
+ * ```
+ * 建之前 14 本 → 建完 getWorldInfoNames() 还是 14 本（新书不在）
+ *              → await updateWorldInfoList() → 15 本 ✅
+ * ```
+ *
+ * 不刷的后果：`wb_list`（走 `list()`）看不见刚建的书 → 模型以为没建成功、反复重试，
+ * 而书其实已经躺在磁盘上了。
+ */
+test('worldbook: createWorldbook 建完要刷名单缓存（否则 list() 看不见刚建的书）', async () => {
+  const calls = { update: 0 };
+  installHost({ updateWorldInfoList: async () => { calls.update++; } });
+  try {
+    await createWorldbookPort().createWorldbook('新的');
+    assert.equal(calls.update, 1, '建完必须刷一次名单（真机实测：不刷就列不出来）');
+  } finally {
+    setHostBridge(null);
+  }
+});
+
+test('worldbook: 刷名单失败不该让「建书」这一步失败（书已经建好了）', async () => {
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.map(String).join(' '));
+  const host = installHost({ updateWorldInfoList: async () => { throw new Error('刷不动（假）'); } });
+  try {
+    await createWorldbookPort().createWorldbook('新的');
+    assert.equal(host.worlds.has('新的'), true, '书该建好了');
+    assert.equal(warnings.length, 1, '要出一声，不静默');
+    assert.match(warnings[0], /刷新世界书名单失败/);
+  } finally {
+    console.warn = originalWarn;
+    setHostBridge(null);
+  }
+});
+
+test('worldbook: 宿主没有 updateWorldInfoList 时静默跳过（它是可选能力）', async () => {
+  const host = installHost();
+  try {
+    await createWorldbookPort().createWorldbook('新的');
+    assert.equal(host.worlds.has('新的'), true, '没有这个接口也要能建书');
+  } finally {
+    setHostBridge(null);
+  }
+});
+
 test('worldbook: createWorldbook 绝不覆盖同名；createOrReplace 返回 false 要报错', async () => {
   const host = installHost();
   try {

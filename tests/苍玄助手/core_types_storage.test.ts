@@ -59,14 +59,13 @@ test('types: RootDataSchema.parse({}) 各块默认值齐全（老数据零字段
     title: '',
     created_at: 0,
     updated_at: 0,
-    mode: 'agent',
     preset_id: '',
     turns: [],
     running: false,
     round: 0,
     started_at: 0,
   });
-  assert.deepEqual(data.selection, { character_ids: [], worldbook_names: [], entry_uid: [], demand: '' });
+  assert.deepEqual(data.selection, { character_ids: [], worldbook_names: [], entry_uid: [], demand: '', user_edited: false });
   assert.deepEqual(data.presets, []);
   assert.deepEqual(data.skills, []);
   assert.deepEqual(data.drafts, []);
@@ -94,7 +93,8 @@ test('types: 非法枚举 / 越界数字被拒', () => {
   assert.equal(RootDataSchema.safeParse({ api: { timeout_sec: 0 } }).success, false);
   assert.equal(RootDataSchema.safeParse({ gen: { max_rounds: 0 } }).success, false);
   assert.equal(RootDataSchema.safeParse({ session: { round: -1 } }).success, false);
-  assert.equal(RootDataSchema.safeParse({ session: { mode: 'nope' } }).success, false);
+  // mode 已删（B9）：老数据里那个 'nope' 现在按未知键剥掉，不再算坏数据
+  assert.equal(RootDataSchema.safeParse({ session: { mode: 'nope' } }).success, true);
   assert.equal(RootDataSchema.safeParse({ drafts: [{ id: 'd1', kind: 'nope' }] }).success, false);
   // 预设：没有 kind 了（老 kind 当未知键剥掉，不算错），真正的非法值是条目 / 角色
   assert.equal(PresetSchema.safeParse({ id: 'p', name: 'n', kind: 'nope' }).success, true);

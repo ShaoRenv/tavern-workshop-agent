@@ -56,15 +56,18 @@ function codeOnly(text) {
     .replace(/^\s*\/\/[^\n]*$/gm, '');
 }
 
-/** 世界书注册了 7 个工具，但默认给 6 个（entry_meta 是按需的） */
-const WB_TOOLS = ['wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete'];
-const WB_META = 'entry_meta';
+/**
+ * 世界书注册 5 个工具，**全部默认开**（B15-B19：合并 entry_meta 进 wb_write 之后不再有按需工具）。
+ */
+const WB_TOOLS = ['wb_list', 'wb_outline', 'wb_read', 'wb_search', 'wb_write'];
+/** 现在唯一「按需」（default_on:false）的工具来自苍玄助手插件 */
+const ON_DEMAND = 'portrait_prompt';
 /**
  * 阶段 3 起苍玄助手插件贡献 3 个工具：
- * portrait_list / portrait_meta 默认**开**（只读、便宜），portrait_prompt 默认**关**（会产出正文，按需）。
+ * portrait_list 默认**开**（只读、便宜），portrait_prompt 默认**关**（会产出正文，按需）。
  * 所以默认能力里多的是前两个。
  */
-const CX_TOOLS_ON = ['portrait_list', 'portrait_meta'];
+const CX_TOOLS_ON = ['portrait_list'];
 const CX_PROMPT = 'portrait_prompt';
 const CX_ALL = [...CX_TOOLS_ON, CX_PROMPT];
 
@@ -188,14 +191,15 @@ test('H1 回归闸：inTabbar:false 的页面进 allPages、但不进 availableP
 });
 
 test('关掉生图：pluginTools 里没有 gen_image；重开就回来', () => {
-  // 阶段 3：默认开着的插件是苍玄助手 + 世界书，所以默认能力 = 世界书 6 + 苍玄 2（portrait_prompt 按需）
+  // 默认开着的插件是苍玄助手 + 世界书，所以默认能力 = 世界书 5 + 苍玄 2（portrait_prompt 按需）
   // 顺序 = manifest 声明顺序（cangxuan 在 worldbook 前）→ 苍玄的 2 个在前
   assert.deepEqual(pluginTools({}), [...CX_TOOLS_ON, ...WB_TOOLS], '生图默认关 → 不含 gen_image');
-  assert.equal(pluginTools({}).indexOf(WB_META), -1, 'entry_meta 是按需工具，不进默认能力');
+  assert.equal(pluginTools({}).indexOf(ON_DEMAND), -1, 'portrait_prompt 是按需工具，不进默认能力');
   assert.equal(pluginTools({}).indexOf(CX_PROMPT), -1, 'portrait_prompt 也是按需工具');
+  // pluginAllTools = 注册的全部（含按需的）：世界书 5 个全默认开，所以这里就是 苍玄 3 + 世界书 5
   assert.deepEqual(
     pluginAllTools({}),
-    [...CX_ALL, ...WB_TOOLS, WB_META],
+    [...CX_ALL, ...WB_TOOLS],
     '但它确实注册了（归属 / 界面里看得见）',
   );
   assert.equal(pluginTools({}).indexOf('gen_image'), -1);
@@ -209,7 +213,7 @@ test('关掉生图：pluginTools 里没有 gen_image；重开就回来', () => {
   assert.equal(pluginAllTools(state({ image: { enabled: false } })).includes('gen_image'), false, '关掉即消失');
 });
 
-test('关掉世界书：世界书页从 availablePages 消失、它的 7 个工具消失；重开就回来', () => {
+test('关掉世界书：世界书页从 availablePages 消失、它的 5 个工具消失；重开就回来', () => {
   const off = state({ worldbook: { enabled: false } });
 
   assert.deepEqual(availablePages(off).map(page => page.id), ['chat', 'settings']);
@@ -227,32 +231,40 @@ test('F-A 回归闸：运行时也认插件开关（关掉的插件，工具连 
   // 硬规矩 2「关掉即消失」有三层：界面清单 / 显示用 globalCaps / **运行时 toolDefs**。
   // 前两层阶段 1 验过，第三层是阶段 2 验收抓出来的（界面写「来源已停用」、模型却照样能调）。
   const { liveToolDefs } = await import(root + 'run/runner.ts');
-  const defs = [{ name: 'skill' }, { name: 'wb_list' }, { name: 'entry_meta' }, { name: 'gen_image' }];
+  const defs = [{ name: 'skill' }, { name: 'wb_list' }, { name: 'portrait_prompt' }, { name: 'gen_image' }];
 
-  // 默认：世界书开、生图关。按需工具 entry_meta 的 **def** 要在（能不能发由 resolveCaps 按 default_on 决定）
+  // 默认：世界书开、苍玄助手开、生图关。
+  // 按需工具 portrait_prompt 的 **def** 要在（能不能发由 resolveCaps 按 default_on 决定）
   assert.deepEqual(
     liveToolDefs(defs, state()).map(def => def.name),
-    ['skill', 'wb_list', 'entry_meta'],
-    '底座的给、世界书的给（含按需 def）、生图的先不给',
+    ['skill', 'wb_list', 'portrait_prompt'],
+    '底座的给、世界书与苍玄助手的给（含按需 def）、生图的先不给',
   );
 
-  // 关掉世界书：它的工具连 def 都不进这一轮 → 模型根本看不到、也调不了
+  // 关掉世界书：**它的**工具连 def 都不进这一轮；portrait_prompt 归苍玄助手，不受牵连
   assert.deepEqual(
     liveToolDefs(defs, state({ worldbook: { enabled: false } })).map(def => def.name),
-    ['skill'],
-    '关掉世界书 → wb_list 与 entry_meta 一起消失',
+    ['skill', 'portrait_prompt'],
+    '关掉世界书 → 只有 wb_list 消失（portrait_prompt 是苍玄助手的）',
+  );
+
+  // 关掉苍玄助手：它的 3 个都没了，世界书的照常
+  assert.deepEqual(
+    liveToolDefs(defs, state({ cangxuan: { enabled: false } })).map(def => def.name),
+    ['skill', 'wb_list'],
+    '关掉苍玄助手 → portrait_prompt 消失',
   );
 
   // 开生图：它的工具才进来
   assert.deepEqual(
     liveToolDefs(defs, state({ image: { enabled: true } })).map(def => def.name),
-    ['skill', 'wb_list', 'entry_meta', 'gen_image'],
+    ['skill', 'wb_list', 'portrait_prompt', 'gen_image'],
     '开生图 → gen_image 才进这一轮',
   );
 });
 
 test('F4 回归闸：界面工具清单用 pluginAllTools（按需工具也列得出来）', async () => {
-  // 界面「能力 · 工具」段是改提示词 / 参数说明的唯一入口：entry_meta 这种按需工具也必须列出来。
+  // 界面「能力 · 工具」段是改提示词 / 参数说明的唯一入口：portrait_prompt 这种按需工具也必须列出来。
   // 全局能力那份用 pluginTools（只含默认给的）—— 两个用途两把函数，别互相替。
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../../src/苍玄助手/App.vue', import.meta.url), 'utf8');
@@ -264,21 +276,22 @@ test('F4 回归闸：界面工具清单用 pluginAllTools（按需工具也列�
 test('F1 回归闸：默认状态下 全局能力 不许比 DEFAULT_ON_TOOLS 多', () => {
   // 世界书默认开、且它默认给的 6 个本来就在 DEFAULT_ON_TOOLS 里；
   // 所以 DEFAULT_ON_TOOLS 并 pluginTools 必须一个不多一个不少：
-  // entry_meta（defaultOn:false）绝不许因为「插件开着」被抬成默认开。
+  // portrait_prompt（defaultOn:false）绝不许因为「插件开着」被抬成默认开。
   const merged = [...new Set([...DEFAULT_ON_TOOLS, ...pluginTools({})])].sort();
   assert.deepEqual(merged, [...DEFAULT_ON_TOOLS].sort(), '默认状态模型不该多拿到任何工具');
-  // 阶段 3：DEFAULT_ON_TOOLS 里已经并进苍玄助手默认开的 2 个（portrait_list / portrait_meta）
-  assert.equal(DEFAULT_ON_TOOLS.length, 11);
-  assert.equal(pluginTools({}).length, 8, '世界书 6 + 苍玄助手 2');
-  assert.equal(merged.indexOf(WB_META), -1);
+  // B15-B19：世界书 7 → 5（5 个全默认开），DEFAULT_ON_TOOLS 从 11 → 10；
+  // B24 删 portrait_meta（3→2）→ 9；B21 的 write_file/read_file 是按需的（不默认给）→ 仍是 9。
+  assert.equal(DEFAULT_ON_TOOLS.length, 9);
+  assert.equal(pluginTools({}).length, 6, '世界书 5 + 苍玄助手 1');
+  assert.equal(merged.indexOf(ON_DEMAND), -1);
   assert.equal(merged.indexOf(CX_PROMPT), -1);
 });
 
-test('toolOwnerLabel：gen_image → 生图；wb_list/entry_meta → 世界书；skill 等 → 底座', () => {
+test('toolOwnerLabel：gen_image → 生图；wb_list/portrait_prompt → 各自插件；skill 等 → 底座', () => {
   assert.equal(toolOwner('gen_image'), 'image');
   assert.equal(toolOwnerLabel('gen_image'), '生图');
   assert.equal(toolOwnerLabel('wb_list'), '世界书');
-  assert.equal(toolOwnerLabel('entry_meta'), '世界书');
+  assert.equal(toolOwnerLabel('portrait_prompt'), '苍玄助手');
   assert.equal(toolOwnerLabel('skill'), '底座');
   for (const base of ['read_skill_file', 'create_skill', 'submit', 'ask_user']) {
     assert.equal(toolOwner(base), 'base', base + ' 归底座');
@@ -610,7 +623,7 @@ test('能力闸①：能力齐全的宿主 → 世界书正常装载（页面 + 
   // 页面与工具都真的在
   assert.ok(availablePages(state()).some(page => page.id === 'worldbook'), '世界书页在顶栏');
   assert.ok(pluginAllTools(state()).includes('wb_list'), '世界书的工具在');
-  assert.ok(pluginAllTools(state()).includes('entry_meta'), '按需工具也算它注册的');
+  assert.ok(pluginAllTools(state()).includes('portrait_prompt'), '按需工具也算它注册的');
 });
 
 test('⭐能力闸②：必需能力缺失 → 世界书**整个不注册**，且给出人话原因', (t) => {
@@ -638,7 +651,7 @@ test('⭐能力闸②：必需能力缺失 → 世界书**整个不注册**，�
     false,
     '被拦的插件不该贡献页面 —— 否则用户进得去一个用不了的页',
   );
-  for (const name of ['wb_list', 'wb_search', 'wb_read', 'entry_create', 'entry_edit', 'entry_delete', 'entry_meta']) {
+  for (const name of ['wb_list', 'wb_search', 'wb_read', 'wb_list', 'wb_outline', 'wb_read', 'wb_search', 'wb_write']) {
     assert.equal(pluginAllTools(state()).includes(name), false, '被拦的插件不该贡献 ' + name);
   }
 

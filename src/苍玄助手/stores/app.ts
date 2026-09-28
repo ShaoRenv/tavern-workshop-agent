@@ -5,7 +5,7 @@
  * 会话模型（v2 起是多会话）：
  *  - 唯一真源是 data.sessions + data.active_session_id
  *  - 所有会话级动作（appendTurn / upsertTurn / patchTurnText / setTurns / setRunning /
- *    resetSession / setMode）都作用于**当前会话**
+ *    resetSession）都作用于**当前会话**
  *  - data.session 是「当前会话」的活动别名（同一个对象引用），只为兼容还没迁移的调用点
  *    （App.vue / run/runner.ts / 旧 view 还在读 data.session.*）；storage 落盘时会把单数
  *    session 写成空壳，所以聊天记录不会存两份。新代码请用 activeSession / sessions。
@@ -378,11 +378,71 @@ export const useAppStore = defineStore('cx-assistant', () => {
     return data.value.presets.find((p) => p.id === id) || data.value.presets[0] || null;
   });
 
+  /**
+   * 切换预设（B58）。
+   *
+   * ─────────────────────────── 两件事 ───────────────────────────
+   *
+   * ① 记到会话上（会话列表显示「这条用的哪个预设」）；
+   * ② **把新预设存的那份工具提示词覆盖项整体写进临时区**（B45 的两层结构）。
+   *
+   * ⚠️ 第 ② 步是「工具提示词跟预设走」的全部实现。不做的话，
+   * 用户切了预设、工具提示词却还是上一份的 —— 预设里存的那些等于白存。
+   *
+   * **整体覆盖，不是合并**：新预设的 `tool_overrides` 是什么就是什么。
+   * 合并会让上一份预设的残留漏过来（「切到一份干净预设」就永远做不到）。
+   *
+   * 老数据 / 新预设没有这个字段时 `PresetSchema` 会给 `{}` —— 切过去等于「全部跟随内置默认」。
+   *
+   * @param id 目标预设 id；传空串 = 清空选择（此时**不动**临时区 —— 没预设可跟，
+   *   把用户当前调好的临时改动清掉反而是丢东西）。
+   */
   function selectPreset(id: string): void {
     data.value.active_preset_id = id;
     // 顺手记在当前会话上，方便会话列表显示「这条用的哪个预设」
     currentSession().preset_id = id;
+    const target = data.value.presets.find((p) => p.id === id);
+    if (target) {
+      data.value.tool_overrides = { ...(target.tool_overrides ?? {}) };
+    }
     save();
+  }
+
+  /**
+   * 把临时区那份工具提示词**存回当前预设**（B45 的第三个动作）。
+   *
+   * 内置预设**不许存**（B41 完整版：内置只读，改了下次刷新就被强制覆盖回去）——
+   * 返回 false，让界面去提示「先另存为一份」。
+   *
+   * @returns 真的存进去了吗
+   */
+  function saveToolOverridesToPreset(): boolean {
+    const preset = activePreset.value;
+    if (!preset) return false;
+    if (preset.builtin) return false;
+    const i = data.value.presets.findIndex((p) => p.id === preset.id);
+    if (i < 0) return false;
+    data.value.presets[i] = { ...data.value.presets[i], tool_overrides: { ...data.value.tool_overrides } };
+    save();
+    return true;
+  }
+
+  /**
+   * 临时区里有没有「和当前预设存的那份不一样」的改动（B59 的判据）。
+   *
+   * 逐键比对（键集合 + 每个键的 JSON）：只比引用会永远说「不一样」。
+   * 没有当前预设时返回 false —— 没预设可存，也就谈不上「没存」。
+   */
+  function toolOverridesDirty(): boolean {
+    const preset = activePreset.value;
+    if (!preset) return false;
+    const saved = preset.tool_overrides ?? {};
+    const live = data.value.tool_overrides ?? {};
+    const keys = new Set([...Object.keys(saved), ...Object.keys(live)]);
+    for (const key of keys) {
+      if (JSON.stringify(saved[key] ?? null) !== JSON.stringify(live[key] ?? null)) return true;
+    }
+    return false;
   }
 
   function addPreset(preset?: Partial<Preset>): Preset {
@@ -393,11 +453,20 @@ export const useAppStore = defineStore('cx-assistant', () => {
     return p;
   }
 
-  function updatePreset(id: string, patch: Partial<Preset>): void {
+  /**
+   * 改预设。**内置预设拒绝写入**（B41 完整版）。
+   *
+   * 界面已经把内置预设的写入口全撤掉了，这里是第二道闸：applyBuiltins() 每次载入都会把
+   * 内置预设强制覆盖成最新版，所以对内置的写入**下次刷新必然丢失** —— 与其静默丢掉，
+   * 不如在这里直接挡下（返回 false），让调用方去走「派生一份再改」那条路。
+   */
+  function updatePreset(id: string, patch: Partial<Preset>): boolean {
     const i = data.value.presets.findIndex((p) => p.id === id);
-    if (i < 0) return;
+    if (i < 0) return false;
+    if (data.value.presets[i].builtin) return false;
     data.value.presets[i] = { ...data.value.presets[i], ...patch };
     save();
+    return true;
   }
 
   function removePreset(id: string): void {
@@ -419,10 +488,28 @@ export const useAppStore = defineStore('cx-assistant', () => {
     return s;
   }
 
+  /**
+   * B51：技能内容的**唯一真源是 ST 真文件**，这个数组只是启动时的水合快照。
+   *
+   * 所以「保存技能」不能只改这里 —— 那样下次启动就被文件盖回去了。
+   * 界面走 `App.vue` 的 onSkillSave（它写文件 + 再改这里）。
+   * 这里保留一个**内部**写入口给水合流程用，不对外暴露成「保存」。
+   */
   function updateSkill(id: string, patch: Partial<Skill>): void {
     const i = data.value.skills.findIndex((s) => s.id === id);
     if (i < 0) return;
     data.value.skills[i] = { ...data.value.skills[i], ...patch };
+    save();
+  }
+
+  /**
+   * 整体换掉技能快照（水合流程专用）。
+   *
+   * ⚠️ 只在 `syncSkills()` 里调：那是「从 ST 文件重新读一遍」的结果，
+   * 不是用户编辑。别拿它当保存路径 —— 那样就把文件才是真源这条口径破坏了。
+   */
+  function replaceSkills(skills: Skill[]): void {
+    data.value.skills = skills;
     save();
   }
 
@@ -468,7 +555,7 @@ export const useAppStore = defineStore('cx-assistant', () => {
    * 把 data.session 指到当前会话（同一个对象引用）。
    *
    * 只为兼容还没迁移的调用点：App.vue 读 store.data.session.turns、
-   * run/runner.ts 写 args.data.session.round、旧 view 绑 data.session.mode。
+   * run/runner.ts 写 args.data.session.round。
    * 因为是同一个对象，从任何一边改都会同步，不需要来回拷。
    */
   function bindLegacyAlias(): void {
@@ -515,7 +602,6 @@ export const useAppStore = defineStore('cx-assistant', () => {
       created_at: now,
       updated_at: now,
       preset_id: data.value.active_preset_id || current.preset_id,
-      mode: current.mode,
     });
     data.value.sessions.push(session);
     data.value.active_session_id = session.id;
@@ -571,11 +657,6 @@ export const useAppStore = defineStore('cx-assistant', () => {
   }
 
   /* -------------------- 会话：轮次 -------------------- */
-
-  function setMode(mode: 'agent' | 'chat'): void {
-    currentSession().mode = mode;
-    save();
-  }
 
   /**
    * 双写：把轮次派生的事件追加进会话（turns 是读路径，events 是权威流）。
@@ -744,6 +825,20 @@ export const useAppStore = defineStore('cx-assistant', () => {
     save();
   }
 
+  /**
+   * 整体换掉临时区的工具提示词覆盖项（B44 导入用）。
+   *
+   * ⚠️ 是**整体替换**不是合并：导入的语义就是「用这份文件里的东西替换当前这份」。
+   * 合并会让没被导入的旧项残留下来 —— 用户看到的是「导入了但没干净」。
+   *
+   * 只动 `RootData.tool_overrides`（临时区），**不碰任何预设**：
+   * 想存进预设得用户自己去点「存进预设」（见 saveToolOverridesToPreset）。
+   */
+  function replaceToolOverrides(next: ToolOverrideMap): void {
+    data.value.tool_overrides = { ...(next ?? {}) };
+    save();
+  }
+
   /* -------------------- 插件：开关 + 设置 -------------------- */
 
   /**
@@ -871,14 +966,30 @@ export const useAppStore = defineStore('cx-assistant', () => {
        * `entries` 是**写回之前的原始条目**（含 extra）—— 备份的意义是「写坏之前长什么样」。
        */
       snapshot(world: string, entries: WbBackup['entries'], reason: string): void {
+        const source = Array.isArray(entries) ? entries : [];
         const backup: WbBackup = {
           id: uid('wbk'),
           world,
           // taken_at 是裁剪的排序依据（见下），必须在这里落真实时间
           taken_at: Date.now(),
           reason,
-          entry_count: Array.isArray(entries) ? entries.length : 0,
-          entries: Array.isArray(entries) ? entries : [],
+          entry_count: source.length,
+          //
+          // ⚠️ **必须深拷贝**，不能直接把 `source` 存进去（B2 补的）。
+          //
+          // 理由：`source` 是调用方手里的那个数组（`apply` 里就是 `wb.readAll()` 的返回值）。
+          // 直接把引用存进 `wb_backups` 的话，**备份的内容会跟着调用方后续的动作变** ——
+          // 而「备份」的全部意义就是「当时长什么样」。
+          //
+          // 诚实说明：**当前调用链恰好是安全的** —— `applyChangesToEntries()` 是纯函数
+          // （进函数先深拷贝，见 draft.ts:618），所以今天不会有人改到 `source`。
+          // 但这个安全性是**调用方的实现细节**给的，不是备份层保证的：
+          // 哪天有人为了省一次拷贝把它改成原地改，备份就会被静默污染，
+          // 而那时用户看到的是一份「和现场一模一样」的假备份 —— 回滚回不去。
+          // 所以把这条性质**在备份层钉死**，代价是每次写回多一次拷贝
+          // （整本 1.1MB，且这些数据本来就要 JSON 序列化进变量，不是额外量级）。
+          //
+          entries: cloneEntries(source),
         };
         data.value.wb_backups.push(backup);
         pruneBackups(world);
@@ -886,6 +997,27 @@ export const useAppStore = defineStore('cx-assistant', () => {
         save(true);
       },
     };
+  }
+
+  /**
+   * 深拷贝一份条目（备份用）。
+   *
+   * 为什么要自己写而不用 `structuredClone`：本工程的持久化口径是「能 JSON 序列化的数据」
+   * （整份 RootData 就是这么存进酒馆变量的），而 `structuredClone` 接受的东西比 JSON 宽
+   * （Map / Set / Date / 循环引用…）。用 JSON 这条口径，**能存进去的一定能拷出来**，
+   * 而且 `wb_backups` 本来就要过一遍 JSON —— 拷出来的形状和存下来的形状必然一致。
+   *
+   * 用 `JSON.parse(JSON.stringify())` 与 `core/storage.ts:690` 的既有写法保持一致（同一个项目别有两种口径）。
+   *
+   * 边界：拷不动（含循环引用等 JSON 表示不了的东西）就**原样返回**，
+   * 绝不让备份把写回整条路径炸掉 —— 备份是兜底，不是门禁（同 draft.ts 的 applyBackup 口径）。
+   */
+  function cloneEntries(entries: WbBackup['entries']): WbBackup['entries'] {
+    try {
+      return JSON.parse(JSON.stringify(entries)) as WbBackup['entries'];
+    } catch {
+      return entries;
+    }
   }
 
   /**
@@ -898,13 +1030,28 @@ export const useAppStore = defineStore('cx-assistant', () => {
   function pruneBackups(world: string): void {
     const mine = data.value.wb_backups.filter(item => item.world === world);
     if (mine.length <= BACKUPS_PER_WORLD) return;
-    // 按时间倒序取前 N 份，其余丢掉；用 id 集合做差集（id 由 uid('wbk') 保证唯一）
+    //
+    // 按时间倒序取前 N 份，其余丢掉；用 id 集合做差集（id 由 uid('wbk') 保证唯一）。
+    //
+    // ⚠️⚠️ **同毫秒必须用「插入位置」当第二判据**（B2 测出来的真 bug）。
+    //
+    // `snapshot()` 用的是 `Date.now()`，**同一毫秒内连备两次是常态**（一次 apply 写多本书、
+    // 或用户连点两下）。而 `Array.prototype.sort` 是**稳定排序** —— 时间戳相等时保持数组原序，
+    // 于是 `slice(0, N)` 取到的是**最早插入的 N 份**，与「留最近 N 份」正好相反：
+    // 用户刚改完那次的备份会被丢掉，留下的全是旧版本。
+    //
+    // 修法：相等时按数组下标倒序（下标大的 = 后插入的 = 更新的）。
+    // 为什么用下标而不是 id：`uid('wbk')` 里带时间戳+随机串，**不是单调的**，排序不可靠。
+    //
+    const ranked = mine.map((item, index) => ({ item, index }));
     const keep = new Set(
-      mine
-        .slice()
-        .sort((a, b) => (b.taken_at || 0) - (a.taken_at || 0))
+      ranked
+        .sort((a, b) => {
+          const diff = (b.item.taken_at || 0) - (a.item.taken_at || 0);
+          return diff !== 0 ? diff : b.index - a.index;
+        })
         .slice(0, BACKUPS_PER_WORLD)
-        .map(item => item.id),
+        .map(entry => entry.item.id),
     );
     data.value.wb_backups = data.value.wb_backups.filter(item => item.world !== world || keep.has(item.id));
   }
@@ -1046,14 +1193,15 @@ export const useAppStore = defineStore('cx-assistant', () => {
     data, ready, dirty, load, save, holdSaves, releaseSaves, flushSaves, withHeldSaves,
     savesHeld, savesHeldCount, replaceAll, setTab,
     activePreset, selectPreset, addPreset, updatePreset, removePreset,
-    addSkill, updateSkill, removeSkill,
+    saveToolOverridesToPreset, toolOverridesDirty,
+    addSkill, updateSkill, removeSkill, replaceSkills,
     patchSelection, toggleCharacter, toggleWorldbook, toggleEntry, setEntries, setDemand,
     sessions, activeSession, activeSessionId, currentSessionTurns, sessionMetas,
     createSession, openSession, renameSession, deleteSession, setSessionPreset,
-    setMode, appendTurn, upsertTurn, patchTurnText, setTurns, setRunning, resetSession,
+    appendTurn, upsertTurn, patchTurnText, setTurns, setRunning, resetSession,
     currentSessionEvents, eventsOf, appendEvent, appendEvents, logEvent,
     exportSession, exportSessions, exportSessionEvents,
-    toolOverrides, toolOverrideOf, setToolOverride, resetToolOverride, clearToolSwitch,
+    toolOverrides, toolOverrideOf, setToolOverride, resetToolOverride, clearToolSwitch, replaceToolOverrides,
     pluginEnabled, setPluginEnabled, pluginConfig, imageConfig, setPluginConfig, resetPluginConfig,
     setExternalPlugin, setExternalPluginError, removeExternalPlugin,
     currentDrafts, draftsOf, draftCount, addDraft, clearDraftsFor, clearDrafts,
@@ -1075,6 +1223,8 @@ function PresetSchemaLike(input: Partial<Preset>): Preset {
     tools: input.tools || [],
     skills: input.skills || [],
     max_rounds: input.max_rounds || 12,
+    // B45：工具提示词覆盖项跟预设走。新建预设时**不带**上一份的残留（默认空 = 全跟随内置）
+    tool_overrides: input.tool_overrides || {},
   };
 }
 

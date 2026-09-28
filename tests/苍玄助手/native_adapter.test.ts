@@ -772,3 +772,54 @@ test('P5-7: 写回时第三参传 true（立刻落盘，防抖写丢）', async 
     assert.equal(fake.calls[0].immediately, true, 'ST 的第二参是 immediately:boolean，要传 true');
   });
 });
+
+/* ================= 全局世界书：原生适配器不许盖住酒馆助手那份 ================= */
+
+test('P0: 1.18.0 上 extensionSettings 没有 world_info 时，要回落到 TavernHelper.getGlobalWorldbookNames', async () => {
+  // 真机实测（ST 1.18.0）：getContext().extensionSettings 里**根本没有 world_info 这个键**，
+  // 只有 TavernHelper 能拿到全局启用列表。而原生适配器在 hostFn 的链上**优先级高于** TavernHelper，
+  // 所以「只读 extensionSettings」的实现会把正确答案整个盖住 —— 全局世界书一本都列不出来。
+  const fake = fakeSt({ extensionSettings: { 别的设置: 1 } });
+  const previous = globalThis.TavernHelper;
+  globalThis.TavernHelper = { getGlobalWorldbookNames: () => ['同人tag表'] };
+  try {
+    await withStAsync(fake.ctx, async () => {
+      const table = installNativeAdapters(fake.ctx);
+      assert.deepEqual(table.getGlobalWorldbookNames(), ['同人tag表'], '原生读不到就要回落，不能返回 []');
+    });
+  } finally {
+    if (previous === undefined) delete globalThis.TavernHelper;
+    else globalThis.TavernHelper = previous;
+  }
+});
+
+test('P0: 原生 extensionSettings.world_info.globalSelect 有数据时优先用它（不回落到酒馆助手）', async () => {
+  const fake = fakeSt(); // 内置 extensionSettings: { world_info: { globalSelect: ['乙世界'] } }
+  const previous = globalThis.TavernHelper;
+  let helperCalled = 0;
+  globalThis.TavernHelper = { getGlobalWorldbookNames: () => { helperCalled++; return ['不该用我']; } };
+  try {
+    await withStAsync(fake.ctx, async () => {
+      const table = installNativeAdapters(fake.ctx);
+      assert.deepEqual(table.getGlobalWorldbookNames(), ['乙世界']);
+      assert.equal(helperCalled, 0, '原生有数据时不该再去问酒馆助手');
+    });
+  } finally {
+    if (previous === undefined) delete globalThis.TavernHelper;
+    else globalThis.TavernHelper = previous;
+  }
+});
+
+test('P0: 两边都没有 → 空数组，不抛', async () => {
+  const fake = fakeSt({ extensionSettings: {} });
+  const previous = globalThis.TavernHelper;
+  delete globalThis.TavernHelper;
+  try {
+    await withStAsync(fake.ctx, async () => {
+      const table = installNativeAdapters(fake.ctx);
+      assert.deepEqual(table.getGlobalWorldbookNames(), []);
+    });
+  } finally {
+    if (previous !== undefined) globalThis.TavernHelper = previous;
+  }
+});

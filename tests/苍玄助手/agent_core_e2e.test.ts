@@ -82,8 +82,9 @@ test('端到端：文本通道 → 检索 → 草稿改条目 → submit → 落
     if (round === 2) {
       return [
         '读一下再看。',
-        '<SystemQuery>{"name":"wb_read","args":{"uid":"42"}}</SystemQuery>',
-        '<SystemQuery>{"name":"entry_edit","args":{"uid":"42","old_string":"总部在苍梧山","new_string":"总部位于苍梧山巅"}}</SystemQuery>',
+        '<SystemQuery>{"name":"wb_read","args":{"uids":["42"]}}</SystemQuery>',
+        // B15-B19：entry_edit → wb_write(action=update)，整条替换正文
+        '<SystemQuery>{"name":"wb_write","args":{"uid":"42","action":"update","content":"天枢阁总部位于苍梧山巅，掌门为凌霄真人"}}</SystemQuery>',
       ].join('\n');
     }
     return '总部位置补清楚了。<SystemQuery>{"name":"submit","args":{"summary":"补了天枢阁总部位置"}}</SystemQuery>';
@@ -106,7 +107,7 @@ test('端到端：文本通道 → 检索 → 草稿改条目 → submit → 落
     transport,
     tools: registry.defs,
     settings: { route: 'tavern', url: '', key: '', model: '', stream: false, send_images: false, timeout_sec: 30 },
-    system: '你是苍玄界世界书整理助手。改之前先读。',
+    system: '你是世界书的整理助手。改之前先读。',
     user: '把总部位置写清楚',
     context: ctx,
     max_rounds: 8,

@@ -79,7 +79,16 @@
             </div>
           </div>
           <span class="cx-lab">用哪个</span>
-          <select v-model="data.active_preset_id" @change="touch">
+          <!--
+            ⚠️ **不能用 `v-model="data.active_preset_id"`**（B58 真机验收抓到的 bug）：
+            那样是直接改数据、**绕过 store.selectPreset** —— 于是
+              · B58 的「切预设时同步工具提示词临时区」不执行
+              · B59 的「改没存就切预设」也不问
+            同一页上就有两个预设选择器，只有一个走 store 的话，用户会看到
+            「在对话页切会问、在设置页切不问」这种莫名其妙的不一致。
+            走 `:value` + `@change` 发事件，写路径收敛到 App.vue 的 onPresetChange。
+          -->
+          <select :value="data.active_preset_id" @change="onPresetSelect">
             <option value="">（没选预设）</option>
             <option v-for="item in data.presets" :key="item.id" :value="item.id">{{ item.name }}</option>
           </select>
@@ -87,8 +96,17 @@
             <span class="cx-tag" :class="preset && isAgent(preset) ? 'ok' : ''">{{ kindTag }}</span>
             <span class="cx-tag">{{ countTag }}</span>
             <span class="cx-tag" :class="preset && preset.output !== 'none' ? 'ok' : ''">{{ outputTag }}</span>
+            <span v-if="presetLocked" class="cx-tag warn">内置 · 只读</span>
           </div>
           <div class="cx-hint cx-mt10">{{ kindHint }}</div>
+          <!-- B41 完整版：内置预设是只读的起点。要改先派生一份，别直接改内置 ——
+               直接改的话插件升级会把你的编辑覆盖掉（applyBuiltins 强制覆盖内置）。 -->
+          <div v-if="presetLocked" class="cx-robox cx-mt10">
+            <span>这是内置预设，<b>只读</b>。想改就另存为一份自己的 —— 副本完全归你，插件升级也不动它。</span>
+            <button class="cx-tiny cx-mt6" type="button" @click="emit('preset-action', 'duplicate', preset?.id ?? '')">
+              另存为一份再改
+            </button>
+          </div>
         </div>
 
         <!-- 预设本体：消息条目 + 特殊层（两种东西排在同一条序列里） -->
@@ -97,10 +115,10 @@
             <span class="cx-t">预设本体</span>
             <span class="cx-n">{{ preset.items.length }} 条</span>
             <span class="cx-spacer"></span>
-            <button class="cx-ghost" type="button" @click="addMessage">＋ 添加一条</button>
+            <button v-if="!presetLocked" class="cx-ghost" type="button" @click="addMessage">＋ 添加一条</button>
           </div>
 
-          <button class="cx-goto" type="button" @click="specialOpen = true">＋ 添加特殊层</button>
+          <button v-if="!presetLocked" class="cx-goto" type="button" @click="specialOpen = true">＋ 添加特殊层</button>
 
           <div class="cx-mslist">
             <MsgRow
@@ -108,6 +126,7 @@
               :key="item.id"
               :msg="item"
               :index="index"
+              :locked="presetLocked"
               @edit="openItem(index)"
               @toggle="toggleMessage(item)"
               @move="moveItem(index)"
@@ -128,7 +147,8 @@
             <span class="cx-t">单独启用预设能力</span>
             <span class="cx-spacer"></span>
             <span class="cx-n">{{ preset.use_global_caps ? '只用这个预设的' : '跟随全局' }}</span>
-            <Sw :model-value="preset.use_global_caps" @update:model-value="setUseGlobalCaps" />
+            <span v-if="presetLocked" class="cx-tag">{{ preset.use_global_caps ? '开' : '关' }}</span>
+            <Sw v-else :model-value="preset.use_global_caps" @update:model-value="setUseGlobalCaps" />
           </div>
 
           <template v-if="preset.use_global_caps">
@@ -139,18 +159,21 @@
             <!-- 勾选区顶部：要改提示词 / 参数的去「能力」页 -->
             <button class="cx-goto" type="button" @click="seg = 'capability'">改提示词 / 参数 →「能力 · 工具」段</button>
 
-            <button class="cx-multi" type="button" @click="toolPickOpen = true">
+            <button class="cx-multi" type="button" :disabled="presetLocked" @click="toolPickOpen = true">
               <span>工具 {{ pickedToolCount }} / {{ toolRows.length }}</span>
               <span class="cx-spacer"></span>
               <span class="cx-multi-go">▾</span>
             </button>
-            <button class="cx-multi" type="button" @click="skillPickOpen = true">
+            <button class="cx-multi" type="button" :disabled="presetLocked" @click="skillPickOpen = true">
               <span>技能 {{ pickedSkillCount }} / {{ data.skills.length }}</span>
               <span class="cx-spacer"></span>
               <span class="cx-multi-go">▾</span>
             </button>
 
-            <p class="cx-hint cx-mt10">点开一行做勾选（带全开 / 全关）；工具、技能本身在「能力」段管理。</p>
+            <p class="cx-hint cx-mt10">
+              点开一行做勾选（带全开 / 全关）；工具、技能本身在「能力」段管理。
+              <template v-if="presetLocked">内置预设的能力勾选也归内置 —— 要改先另存为一份。</template>
+            </p>
           </template>
           <p v-else class="cx-hint">
             跟随「能力」的全局设置（当前 {{ globalToolCount }} 个工具 / {{ globalSkillCount }} 个技能，在「能力」段改）
@@ -164,6 +187,7 @@
           :data="data"
           :tools="tools"
           :external="data.external_plugins"
+          :discipline="discipline"
           :seg-intent="segIntent"
           @goto-seg="onGotoSeg"
           @tool-override="onToolOverride"
@@ -174,6 +198,9 @@
           @duplicate="emit('duplicate', $event)"
           @export="emit('export', $event)"
           @skill-toggle="emit('skill-toggle', $event)"
+          @skill-restore="emit('skill-restore', $event)"
+          @discipline-save="emit('discipline-save', $event)"
+          @save-tool-overrides="emit('save-tool-overrides')"
           @plugin-toggle="onPluginToggle"
           @plugin-patch="onPluginPatch"
           @plugin-reset="onPluginReset"
@@ -198,6 +225,24 @@
           <button class="cx-tiny" type="button" @click="runDataAction('import')">导入数据</button>
         </div>
         <p class="cx-hint cx-mt8">数据存在本脚本的脚本变量里，卸载脚本会一起删掉，所以建议偶尔导出备份。</p>
+
+        <!-- B44 / D8：整树之外再给三类「只导一样」的口子 ——
+             想把自己的一个预设分享给别人时，不必连 API Key 和全部聊天记录一起给出去。 -->
+        <span class="cx-lab cx-mt16">单独导出 / 导入</span>
+        <div class="cx-macros">
+          <button class="cx-tiny" type="button" @click="runDataAction('export-tool-prompts')">导出工具提示词</button>
+          <button class="cx-tiny" type="button" @click="runDataAction('export-current-preset')">导出当前预设</button>
+          <button class="cx-tiny" type="button" @click="runDataAction('export-all-skills')">导出全部技能</button>
+        </div>
+        <div class="cx-macros cx-mt6">
+          <button class="cx-tiny" type="button" @click="runDataAction('import-tool-prompts')">导入工具提示词</button>
+          <button class="cx-tiny" type="button" @click="runDataAction('import-preset')">导入预设</button>
+          <button class="cx-tiny" type="button" @click="runDataAction('import-skill')">导入技能</button>
+        </div>
+        <p class="cx-hint cx-mt8">
+          每类都是**自带类别标记**的单文件 JSON —— 拿技能文件去点「导入预设」会当场报错，不会塞成坏数据。
+          撞上你自己的同名项会问你要覆盖还是另存为；撞内置的会直接拒绝。
+        </p>
         <span class="cx-lab cx-mt16">危险操作</span>
         <div class="cx-macros">
           <button class="cx-ghost dang" type="button" @click="runDataAction('clear-session')">清空对话</button>
@@ -385,6 +430,8 @@ const props = withDefaults(
     tools?: UiTool[];
     models?: string[];
     globalCaps?: GlobalCaps;
+    /** B40：共享纪律的当前文本（App.vue 从 ST 文件读好传下来） */
+    discipline?: string;
     /** 子段跳转意图（H3）：App.vue 存的一次性落点 —— 进来要按它选好一级段 / 二级段 */
     segIntent?: GotoSeg | null;
   }>(),
@@ -394,15 +441,31 @@ const props = withDefaults(
     models: () => [],
     // 独立预览没有全局清单时给一份空的：解析出来是「普通对话」
     globalCaps: () => ({ tools: [], skills: [] }),
+    discipline: '',
     segIntent: null,
   },
 );
 /** 「数据」区块能发出去的动作；下载 / 读文件由 App.vue 实现 */
-type DataAction = 'export-all' | 'export-nokey' | 'import' | 'clear-session' | 'clear-drafts' | 'clear-artifacts';
+type DataAction =
+  | 'export-all'
+  | 'export-nokey'
+  | 'import'
+  // B44：三类单独导出 / 导入（D8）
+  | 'export-tool-prompts'
+  | 'export-current-preset'
+  | 'export-all-skills'
+  | 'import-tool-prompts'
+  | 'import-preset'
+  | 'import-skill'
+  | 'clear-session'
+  | 'clear-drafts'
+  | 'clear-artifacts';
 
 const emit = defineEmits<{
   'fetch-models': [];
   'preset-action': [action: string, presetId: string];
+  /** B58/B59：换预设（写路径唯一在 App.vue —— 那里要拦「改没存」+ 同步临时区） */
+  'preset-change': [id: string];
   'data-action': [action: DataAction];
   /** 子段落点往上转（例如插件管理页的「工具：… ›」）：App.vue 记一笔 + 切页面，段位由本页 / 能力段消费 */
   'goto-seg': [intent: GotoSeg];
@@ -416,6 +479,12 @@ const emit = defineEmits<{
   duplicate: [skill: Skill];
   export: [skill: Skill];
   'skill-toggle': [skill: Skill];
+  /** B54：恢复默认（转发给 App.vue → 从出厂内容重放） */
+  'skill-restore': [skill: Skill];
+  /** B40：共享纪律改了（转发给 App.vue → 写进 ST 文件） */
+  'discipline-save': [text: string];
+  /** B45：把临时区的工具提示词存回当前预设 */
+  'save-tool-overrides': [];
   'plugin-toggle': [id: string, enabled: boolean];
   'plugin-patch': [id: string, patch: Record<string, unknown>];
   'plugin-reset': [id: string];
@@ -431,6 +500,16 @@ const emit = defineEmits<{
    */
   change: [];
 }>();
+
+/**
+ * 设置页换预设：**发事件给 App.vue**，不自己改数据（B58/B59 的拦截都在那边）。
+ *
+ * 与 ChatView 的 `onPresetChange` 是同一条路 —— 两个入口一套口径。
+ */
+function onPresetSelect(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  emit('preset-change', value);
+}
 
 /** 记一笔「数据变了」：本页所有写点改完都要调它 */
 function touch(): void {
@@ -556,6 +635,17 @@ const skillPickOpen = ref(false);
 const specialOpen = ref(false);
 
 const preset = computed(() => data.value.presets.find(item => item.id === data.value.active_preset_id) ?? null);
+
+/**
+ * B41 完整版：内置预设是**只读**的。
+ *
+ * 为什么必须拦在界面上：applyBuiltins() 每次载入都会把内置预设**强制覆盖成最新版**
+ * （那是为了让插件升级能带来新内置内容），所以用户对内置预设的任何编辑
+ * **下次刷新就没了**。与其让人白改一场，不如当场告诉他「先另存为一份」。
+ *
+ * 判据只看 builtin 这一位，不看 id 白名单 —— 用户自己派生出来的副本是 builtin: false。
+ */
+const presetLocked = computed(() => preset.value?.builtin === true);
 
 /** 解析后的工具集非空 = 走 Agent 路径（v4 起没有 kind；跟随全局时算上全局默认工具） */
 function isAgent(item: Preset | null): boolean {

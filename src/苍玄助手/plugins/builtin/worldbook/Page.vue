@@ -123,6 +123,18 @@ function touch() {
   emit('change');
 }
 
+/**
+ * 记一笔「用户亲手动过世界书勾选」（B4）。
+ *
+ * 为什么只在勾选这一处记：新用户从没勾过时，界面会替他勾上「当前生效的书」
+ * （见 core/adapters.ts 的 defaultWorldbookSelection）。一旦他自己勾过 / 清空过，
+ * 那就是他的决定 —— 包括「一本都不要」，刷新时不许再替他勾回来。
+ */
+function markWorldsEdited() {
+  data.value.selection.user_edited = true;
+  touch();
+}
+
 interface EntryGroup {
   name: string;
   items: UiEntry[];
@@ -139,17 +151,17 @@ function toggleWorld(world: UiWorld) {
   const index = list.indexOf(world.name);
   if (index >= 0) list.splice(index, 1);
   else list.push(world.name);
-  touch();
+  markWorldsEdited();
 }
 
 function selectAllWorlds() {
   data.value.selection.worldbook_names = props.worlds.map(world => world.name);
-  touch();
+  markWorldsEdited();
 }
 
 function clearWorlds() {
   data.value.selection.worldbook_names = [];
-  touch();
+  markWorldsEdited();
 }
 
 /* ---------- 条目 ---------- */

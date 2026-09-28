@@ -172,9 +172,9 @@ test('runner.runAgent：文本通道跑完整循环，草稿镜像到 data.draft
     assert.ok(system && /你是苍玄界世界书整理助手/.test(system.content));
     assert.match(system.content, /世界书精修/, '系统提示词要带技能清单');
     assert.ok(!system.content.includes('技能正文SECRET'), '技能正文不许进系统提示词');
-    if (round === 1) return '先读。<SystemQuery>{"name":"wb_read","args":{"world":"天枢阁","uid":"42"}}</SystemQuery>';
+    if (round === 1) return '先读。<SystemQuery>{"name":"wb_read","args":{"world":"天枢阁","uids":["42"]}}</SystemQuery>';
     if (round === 2) {
-      return '<SystemQuery>{"name":"entry_edit","args":{"world":"天枢阁","uid":"42","old_string":"总部在苍梧山","new_string":"总部位于苍梧山巅"}}</SystemQuery>';
+      return '<SystemQuery>{"name":"wb_write","args":{"world":"天枢阁","action":"update","uid":"42","content":"天枢阁总部位于苍梧山巅，掌门为凌霄真人"}}</SystemQuery>';
     }
     return '收工。<SystemQuery>{"name":"submit","args":{"summary":"补了总部位置"}}</SystemQuery>';
   };
@@ -188,7 +188,7 @@ test('runner.runAgent：文本通道跑完整循环，草稿镜像到 data.draft
     items: [{ type: 'message', id: 'a1-sys', name: '系统提示词', role: 'system', content: '你是苍玄界世界书整理助手。{{用户需求}}' }],
     // 只用这个预设自己勾的工具 / 技能
     use_global_caps: true,
-    tools: ['wb_read', 'entry_edit', 'submit'],
+    tools: ['wb_read', 'wb_write', 'submit'],
     skills: ['s1'],
     max_rounds: 6,
   });
@@ -210,13 +210,12 @@ test('runner.runAgent：文本通道跑完整循环，草稿镜像到 data.draft
   // 工具卡挂在 assistant 轮的 calls 上，并就地更新
   const editTurn = result.turns[1];
   assert.equal(editTurn.calls.length, 1);
-  assert.equal(editTurn.calls[0].name, 'entry_edit');
+  assert.equal(editTurn.calls[0].name, 'wb_write');
   assert.equal(editTurn.calls[0].ok, true);
-  assert.match(editTurn.calls[0].brief, /\+1 -1/);
   assert.match(editTurn.calls[0].detail, /总部位于苍梧山巅/);
   // onToolUpdate 定位到 turn + 下标
   assert.ok(box.updates.length >= 4);
-  const done = box.updates.find(u => u.call.name === 'entry_edit' && u.call.ok && u.call.detail);
+  const done = box.updates.find(u => u.call.name === 'wb_write' && u.call.ok && u.call.detail);
   assert.equal(done.turnId, editTurn.id);
   assert.equal(done.index, 0);
   // 草稿镜像
@@ -800,9 +799,9 @@ test('runner：内置「势力整理 Agent」跟随全局 —— 照旧跑工具
 
   const sent = bodies[0];
   const names = sent.tools.map(tool => tool.function.name);
-  assert.ok(names.includes('wb_read') && names.includes('entry_edit') && names.includes('submit'), '全局默认工具都在：' + names.join('、'));
+  assert.ok(names.includes('wb_read') && names.includes('wb_write') && names.includes('submit'), '全局默认工具都在：' + names.join('、'));
   assert.ok(!names.includes('gen_image'), '默认关的工具不发');
-  assert.match(sent.messages[0].content, /苍玄界世界书的整理助手/, '第一条是预设自己的系统提示词');
+  assert.match(sent.messages[0].content, /世界书的整理助手/, '第一条是预设自己的系统提示词');
   assert.equal(sent.messages.filter(message => message.role === 'user' && message.content === '整理天枢阁').length, 1, '上下文层展开的历史只带一条本轮需求，不再补第二次');
 });
 

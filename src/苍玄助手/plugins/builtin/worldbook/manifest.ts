@@ -1,11 +1,11 @@
 /**
  * 世界书插件 · 清单。
  *
- * 自包含目录：manifest（本文件）+ tools.ts（7 个工具）+ Page.vue（世界书页）。
+ * 自包含目录：manifest（本文件）+ tools.ts（**5 个工具**）+ Page.vue（世界书页）。
  * 依赖方向单向：plugins/builtin/worldbook → core / agent，**插件之间零 import**。
  *
- * 工具现在是**真的 ToolDef[]**（阶段 3 契约）：实现在同目录 tools.ts，这里只是把它 import 进来。
- * entry_meta 的 default_on: false 来自它自己的 ToolDef（不再有 PluginToolRef.defaultOn）。
+ * 工具是**真的 ToolDef[]**（阶段 3 契约）：实现在同目录 tools.ts，这里只是把它 import 进来。
+ * 5 个全部 default_on: true（合并 entry_meta 进 wb_write 之后不再有「按需工具」）。
  *
  * ─────────────────────────── requires 的口径（P4-7）───────────────────────────
  *
@@ -36,11 +36,12 @@
  */
 import type { PluginManifest } from '../../types.ts';
 import { createWorldbookTools } from './tools.ts';
+import { worldbookSkillRef } from './skill.ts';
 
 export const manifest: PluginManifest = {
   id: 'worldbook',
   name: '世界书',
-  desc: '读写酒馆世界书：列 / 搜 / 读 / 建 / 改 / 删 / 改属性（7 个工具 + 一个页面）。',
+  desc: '读写酒馆世界书：列 / 看结构 / 读 / 搜 / 写（5 个工具 + 一个页面）。',
   version: '0.1',
   apiVersion: 1,
   builtin: true,
@@ -49,6 +50,10 @@ export const manifest: PluginManifest = {
     // 页面 id 跟老页签 id 一致（worldbook）→ 老数据零迁移；order 30 = 对话(10) 与设置(90) 之间
     pages: [{ id: 'worldbook', title: '世界书', order: 30, inTabbar: true }],
     tools: createWorldbookTools(),
+    // B55：插件带的 skill = **出厂层**（内容编译进 index.js，用户改不到）。
+    // 首次运行释放到 /user/files/ 当用户副本；「恢复默认」从这一份重放。
+    // 关掉本插件 → 这个 skill 从列表消失（pluginSkills() 只看开着的插件）。
+    skills: [worldbookSkillRef],
     requires: [
       'getWorldbook',
       'replaceWorldbook',

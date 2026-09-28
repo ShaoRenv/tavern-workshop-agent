@@ -58,7 +58,6 @@
       @rollback="onRollback"
       @rollback-cleared="store.setRollbackResult(null)"
       @preset-change="onPresetChange"
-      @mode-change="store.setMode($event)"
     />
     <!-- 设置：接口｜预设｜能力｜数据。「能力」里三段 工具｜技能｜插件（CapabilityView 在里面），
          工具覆盖项 / 技能库 / 插件设置的写路径都从这里转给 store；记录在对话页右上角 ⋯ 里 -->
@@ -68,18 +67,23 @@
       :tools="tools"
       :models="models"
       :global-caps="globalCaps"
+      :discipline="sharedDiscipline"
       :seg-intent="segIntent"
       @fetch-models="onFetchModels"
       @preset-action="onPresetAction"
+      @preset-change="onPresetChange"
       @data-action="onDataAction"
       @tool-override="onToolOverride"
       @tool-reset="onToolReset"
       @tool-switch-clear="store.clearToolSwitch($event)"
-      @save="onTouched"
-      @delete="onTouched"
+      @save="onSkillSave"
+      @delete="onSkillDelete"
       @duplicate="onTouched"
       @export="onSkillExport"
       @skill-toggle="onSkillToggle"
+      @skill-restore="onSkillRestore"
+      @discipline-save="onDisciplineSave"
+      @save-tool-overrides="onSaveToolOverrides"
       @plugin-toggle="onPluginToggle"
       @plugin-patch="onPluginPatch"
       @plugin-reset="onPluginReset"
@@ -103,10 +107,11 @@ import { DEFAULT_ON_TOOLS, createRegistry } from './agent/registry.ts';
 import AppShell from './components/AppShell.vue';
 import FloatingShell from './components/FloatingShell.vue';
 import type { GotoSeg, UiEntry, UiRole, UiTool, UiWorld } from './components/ui_types.ts';
-import { fetchModels, loadEntries, loadRoles, loadWorlds, parsePortraitFile, toUiTools } from './core/adapters.ts';
+import { defaultWorldbookSelection, fetchModels, loadEntries, loadRoles, loadWorlds, parsePortraitFile, toUiTools } from './core/adapters.ts';
 import type { PageEntry } from './core/pages.ts';
 import type { ToolOverride } from './core/ports.ts';
 import { exportAll, importAll } from './core/storage.ts';
+import { exportPreset, exportToolPrompts, importTransfer, transferFileName } from './core/transfer.ts';
 import {
   isAgentPreset,
   uid,
@@ -150,6 +155,16 @@ import {
   syncServers,
 } from './plugins/builtin/mcp/connection.ts';
 import { hostFn } from './core/host.ts';
+import {
+  DEFAULT_SHARED_DISCIPLINE,
+  createSkillStoreDeps,
+  readSharedDiscipline,
+  writeIndex,
+  writeSharedDiscipline,
+  type SkillIndex,
+} from './core/skill_store.ts';
+import { deleteSkillFromStore, persistSkill, restoreSkill, syncSkillsFromStore } from './core/skill_sync.ts';
+import { pluginFactorySkills } from './plugins/registry.ts';
 
 const ASSISTANT_NAME = '苍玄';
 
@@ -157,6 +172,68 @@ const store = useAppStore();
 store.load();
 
 const runner = createRunner();
+
+/* -------------------- B48/B51：skill 从 ST 真文件来 -------------------- */
+
+/** skill 存储的宿主依赖（拿一次，长期用；内部自己缓存 CSRF） */
+const skillDeps = createSkillStoreDeps();
+
+/**
+ * 出厂层的 skill 清单 = **插件贡献的**（关掉插件即从这里消失）。
+ *
+ * ⚠️ 它是 computed 而不是常量：`pluginFactorySkills` 依赖 plugin_state，
+ * 用户在插件页一关，技能列表当场跟着变。
+ */
+const factorySkills = computed(() => pluginFactorySkills(store.data));
+
+/** 共享纪律（B40）：每次跑之前读一遍，用户在技能页改完立刻生效 */
+const sharedDiscipline = ref(DEFAULT_SHARED_DISCIPLINE);
+
+/**
+ * 启动时同步一次：释放出厂 skill → 读索引 → 水合成 skills。
+ *
+ * **失败一律降级**（拿不到 fetch / 文件读不出来）：保留现有 skills，
+ * 只提示一句。理由：技能是可选的加速器，同步失败不该让底座不可用。
+ */
+async function syncSkills(): Promise<void> {
+  const before = store.data.skills.length;
+  const { skills, index, result } = await syncSkillsFromStore(store.data.skills, factorySkills.value, skillDeps);
+  if (!result.ok) {
+    if (before) console.warn('[苍玄助手] 技能没同步上：' + result.reason);
+    return;
+  }
+  skillIndex.value = index;
+  store.replaceSkills(skills);
+  if (result.released) notify('已释放 ' + result.released + ' 个技能文件到酒馆文件目录');
+}
+
+/** 读共享纪律（读不到就给出厂默认；读文件失败不该挡住跑） */
+async function loadDiscipline(): Promise<void> {
+  try {
+    const { text } = await readSharedDiscipline(skillDeps, skillIndex.value);
+    sharedDiscipline.value = text;
+  } catch {
+    /* 保留上一次的 */
+  }
+}
+
+/**
+ * B48：`read_skill_file` 的内容从 ST 文件读（同步接口，因为工具是同步的）。
+ *
+ * ⚠️ 工具层是同步的（`ToolDef.run` 返回 Promise 但参数组装是同步的），
+ * 而读文件是异步 —— 所以这里**不读文件**，而是从已经水合好的 `data.skills` 里取。
+ * 水合时已经把每个参考文件的内容读进内存了（见 skill_sync.ts 的 hydrateOne），
+ * 所以这条路拿到的就是文件里的原文，而且不用把工具改成异步。
+ */
+function readSkillFileOf(skill: { id: string }, fileName: string): string | undefined {
+  const found = store.data.skills.find(item => item.id === skill.id);
+  if (!found) return undefined;
+  const wanted = fileName.trim();
+  const hit =
+    found.files.find(file => file.name === wanted) ??
+    found.files.find(file => file.name.endsWith('/' + wanted));
+  return hit ? hit.content : undefined;
+}
 
 /**
  * 页面注册表：核心页 + **已启用**插件贡献的页面（已按 order 排好）。
@@ -208,7 +285,7 @@ const globalCaps = computed<GlobalCaps>(() => {
   /*
    * 工具页的用户级开关（tool_overrides[name].enabled）在这里生效。
    *
-   * 口径：**显式关掉的不进全局能力**；显式打开的**进**（把 entry_meta 这种按需工具
+   * 口径：**显式关掉的不进全局能力**；显式打开的**进**（把 portrait_prompt 这种按需工具
    * 从「能力」页打开 —— 这正是工具开关存在的意义）；没设过的照旧（default_on 决定）。
    * 与 applyToolOverride 是同一套语义的两种表达：那边给 runner，这边给界面与「跟随全局」的预设。
    */
@@ -249,7 +326,7 @@ const catalog = ref<UiTool[]>([]);
 /**
  * 工具清单：内核清单**全量**，每行打来源标签 + 「来源已停用」标记。
  *
- * ⚠️ 清单口径用 **pluginAllTools**（插件注册的全部工具，含按需的 entry_meta），
+ * ⚠️ 清单口径用 **pluginAllTools**（插件注册的全部工具，含按需的 portrait_prompt），
  * 不用 pluginTools（只含默认给的）：界面是「改提示词 / 改参数说明」的唯一入口，
  * 按需工具也必须列得出来（验收 F4）。全局能力那份是 pluginTools，两件事别混。
  *
@@ -355,8 +432,29 @@ let entriesGeneration = 0;
 async function refreshAll(): Promise<void> {
   try { roles.value = await loadRoles(); } catch (err) { console.warn('[苍玄助手] 角色读取失败', err); }
   try { worlds.value = await loadWorlds(); } catch (err) { console.warn('[苍玄助手] 世界书读取失败', err); }
+  applyWorldbookDefault();
   await refreshEntries();
   loadTools();
+  // B48/B51：技能从 ST 真文件水合（拿不到文件能力就降级，不动现有 skills）
+  await syncSkills();
+  await loadDiscipline();
+}
+
+/**
+ * B4：用户从没勾过世界书时，替他勾上「当前生效的书」。
+ *
+ * ⚠️ 必须在 `worlds` 读回来**之后**、`refreshEntries()` **之前**跑：
+ *  - 之后 —— 要拿 `world.current` 才知道哪几本正在生效；
+ *  - 之前 —— 否则首次进面板会先按空选择读一遍条目（0 条），再被 watcher 补读一次，
+ *    白跑一次宿主 IO，还会闪一下空列表。
+ *
+ * 写盘走 patchSelection（跟世界书页的写点同一个口径）；它不碰 user_edited，
+ * 所以这个「自动勾的」状态仍然是「用户没亲手动过」，下次刷新照样能跟着当前角色卡走。
+ */
+function applyWorldbookDefault(): void {
+  const picked = defaultWorldbookSelection(worlds.value, store.data.selection);
+  if (picked === null) return;
+  store.patchSelection({ worldbook_names: picked });
 }
 
 async function refreshEntries(): Promise<void> {
@@ -509,6 +607,10 @@ async function runOnce(input: string): Promise<void> {
           onToolUpdate: () => store.save(),
           onArtifact: (a: Artifact) => store.addArtifact(a.name, a.data, a.kind),
           onNotice: notify,
+          // B40：共享纪律（每个 skill 正文前拼一段）
+          shared_discipline: sharedDiscipline.value,
+          // B48：参考文件从 ST 文件读（水合时已读进 data.skills）
+          read_skill_file: readSkillFileOf,
         })
       : await runner.runPlain({
           data: store.data, input, preset, history, images: attachments.value,
@@ -722,6 +824,61 @@ function onSaveArtifact(artifactId: string): void {
 /** 技能卡上的开关：走 store 的唯一入口（store 内部会落盘），界面不再直接改 data */
 function onSkillToggle(skill: Skill): void {
   store.updateSkill(skill.id, { enabled: !skill.enabled });
+  // 开关状态住在索引里（那是「有哪些技能、哪个开着」的唯一真相源）
+  void persistSkill(skillDeps, skillIndex.value, { ...skill, enabled: !skill.enabled }, factorySkills.value);
+}
+
+/**
+ * 索引快照。
+ *
+ * 为什么不每次现读：读写索引是异步 + 要发请求，而技能页的交互是同步的。
+ * 启动时 syncSkills() 已经读过一次（`syncSkillsFromStore` 返回它），之后每次写都更新这份。
+ */
+const skillIndex = ref<SkillIndex>({ version: 1, skills: [] });
+
+/** 保存技能：**先写 ST 文件，再改内存快照**（文件才是真源） */
+async function onSkillSave(skill: Skill): Promise<void> {
+  const result = await persistSkill(skillDeps, skillIndex.value, skill, factorySkills.value);
+  if (!result.ok) { notify('技能没存上：' + (result.error ?? '未知原因')); return; }
+  const i = store.data.skills.findIndex(item => item.id === skill.id);
+  if (i >= 0) store.updateSkill(skill.id, skill);
+  else store.data.skills.push(skill);
+  store.save();
+  notify('已保存「' + skill.name + '」');
+}
+
+/** 删除技能：文件删得掉才从内存里摘（插件带的删不掉，会带人话回来） */
+async function onSkillDelete(id: string): Promise<void> {
+  const result = await deleteSkillFromStore(skillDeps, skillIndex.value, id);
+  if (!result.ok) { notify('删不掉：' + (result.error ?? '未知原因')); return; }
+  store.removeSkill(id);
+  notify('已删除技能');
+}
+
+/** 恢复默认：从出厂内容重放一遍（只有插件带的技能有出厂内容） */
+async function onSkillRestore(skill: Skill): Promise<void> {
+  if (!confirm('把「' + skill.name + '」恢复成插件出厂版本？你改过的内容会没。')) return;
+  const restored = await restoreSkill(skillDeps, skillIndex.value, skill, factorySkills.value);
+  if (!restored) { notify('这个技能没有出厂版本，恢复不了'); return; }
+  store.updateSkill(restored.id, restored);
+  notify('已恢复默认「' + restored.name + '」');
+}
+
+/**
+ * B40：共享纪律改了 → 写进 ST 文件 + 落索引，并更新内存里的那份（下一轮立刻生效）。
+ *
+ * ⚠️ 空串走的是「关掉」那条路（删文件 + 索引里置 disciplineOff）——
+ * ST 的 upload **不收空内容**，直接写空串会 400（真机踩出来的）。
+ */
+async function onDisciplineSave(text: string): Promise<void> {
+  try {
+    await writeSharedDiscipline(skillDeps, text, skillIndex.value);
+    await writeIndex(skillDeps, skillIndex.value);
+    sharedDiscipline.value = text.trim() ? text : '';
+    notify(text.trim() ? '已保存共享纪律' : '已关掉共享纪律（不再注入）');
+  } catch (err) {
+    notify('共享纪律没存上：' + String((err as Error).message || err));
+  }
 }
 
 function onSkillExport(skill: { id: string; name: string }): void {
@@ -739,8 +896,54 @@ async function onFetchModels(): Promise<void> {
   }
 }
 
-/** 对话设置 Sheet 里换预设：走 store 的唯一入口，顺手记到会话上 */
+/**
+ * 对话设置 Sheet 里换预设：走 store 的唯一入口，顺手记到会话上。
+ *
+ * ─────────────────────────── B59：改没存就切预设要问一句 ───────────────────────────
+ *
+ * 背景（B45 的两层结构）：工具提示词有「临时区」（`RootData.tool_overrides`）和
+ * 「预设里存的那份」（`Preset.tool_overrides`）。切预设会用新预设那份**整体覆盖**临时区，
+ * 所以临时区里没存进预设的改动**切走就没了**。
+ *
+ * 用户定案是「**提示一次**（存 / 丢弃 / 取消）」：
+ *   · 确定 = 先把当前改动存进**当前**预设，再切
+ *   · 取消 = 不切了，回去接着改
+ *
+ * 为什么不给「丢弃并切走」一个单独按钮：`confirm` 只有两个结果，
+ * 而「丢弃」是默认行为 —— 点取消 = 不切 = 改动还在，用户不会丢东西；
+ * 想丢弃就再点一次切换（第二次进来时 `toolOverridesDirty()` 仍为真，但那时用户是明知的）。
+ * 把「丢东西」做成需要**两步**的动作，比一键丢掉安全。
+ *
+ * 内置预设没有「存进去」这条路（B41：内置只读），所以那种情况下只提示、不给存 ——
+ * 用户得先另存为一份自己的预设。
+ */
 function onPresetChange(id: string): void {
+  if (id !== store.data.active_preset_id && store.toolOverridesDirty()) {
+    const current = store.activePreset;
+    const where = current ? '「' + current.name + '」' : '当前预设';
+    if (current?.builtin) {
+      if (!confirm(
+        '工具提示词的改动还没存进预设。\n\n' +
+          where + ' 是内置预设，改不了它 —— 切走这些改动就没了。\n\n' +
+          '确定 = 照样切走（改动丢弃）\n取消 = 不切，先另存为一份自己的预设再改',
+      )) {
+        notify('没切 —— 想保住改动就先「另存为一份再改」');
+        return;
+      }
+    } else {
+      if (!confirm(
+        '工具提示词的改动还没存进预设 ' + where + '。\n\n' +
+          '确定 = 先存进' + where + '，再切\n取消 = 不切了，回去接着改',
+      )) {
+        notify('没切 —— 改动还在');
+        return;
+      }
+      if (!store.saveToolOverridesToPreset()) {
+        notify('没存上（预设可能已经没了），这次不切');
+        return;
+      }
+    }
+  }
   store.selectPreset(id);
   notify(id ? '已换预设' : '已清空预设选择');
 }
@@ -750,12 +953,37 @@ function onPresetAction(action: string, presetId: string): void {
   if (action === 'new') { store.addPreset(); return; }
   if (!target) return;
   if (action === 'duplicate') {
-    const copy: Partial<Preset> = { ...target, name: target.name + ' 副本', builtin: false };
+    // 派生 = 一份完全归用户的副本：builtin: false + 新 id。
+    // 内置预设的唯一「改法」就是走这条路（B41 完整版：内置只读）。
+    //
+    // ⚠️ **把临时区当前的工具提示词带进副本**（真机验收抓到的 B45 bug）：
+    //
+    // 用户的真实流程是「先在内置预设上调工具提示词 → 发现存不进去 → 点另存为」。
+    // 那条调好的东西此刻**只存在于临时区**（`RootData.tool_overrides`）。
+    // 如果派生时不带过去，副本的 `tool_overrides` 是空的 ——
+    // 用户刚调好的东西就成了孤儿：副本里没有、内置里也存不进去，
+    // 再点一次「存进预设」反而把副本清空。这正是「另存为一份再改」最该避免的事。
+    const copy: Partial<Preset> = {
+      ...target,
+      name: target.name + ' 副本',
+      builtin: false,
+      tool_overrides: { ...store.data.tool_overrides },
+    };
     delete copy.id;
-    store.addPreset(copy);
+    const made = store.addPreset(copy);
+    // 派生完顺手把界面切到那份副本上（addPreset 已经把 active_preset_id 指过去了）
+    notify('已另存为「' + made.name + '」—— 现在改的是你的副本，插件升级不会动它');
     return;
   }
-  if (action === 'delete') { store.removePreset(presetId); return; }
+  if (action === 'delete') {
+    // 内置预设删不掉（store.removePreset 内部挡了）。这里给一句人话，别让按钮看着没反应。
+    if (target.builtin) {
+      notify('内置预设删不掉 —— 它是随插件走的起点，只能派生副本');
+      return;
+    }
+    store.removePreset(presetId);
+    return;
+  }
   if (action === 'export') { download(target.name + '.preset.json', JSON.stringify(target, null, 2)); return; }
 }
 
@@ -767,6 +995,19 @@ function onPresetAction(action: string, presetId: string): void {
  */
 function onToolOverride(name: string, patch: Partial<ToolOverride>): void {
   store.setToolOverride(name, patch);
+}
+
+/**
+ * B45：把临时区的工具提示词**存回当前预设**（跟预设走）。
+ *
+ * 内置预设存不了（B41：内置只读），按钮那边已经禁用了，这里再挡一道并给人话。
+ */
+function onSaveToolOverrides(): void {
+  const preset = store.activePreset;
+  if (!preset) { notify('先选一个预设'); return; }
+  if (preset.builtin) { notify('内置预设只读 —— 先「另存为一份再改」'); return; }
+  if (store.saveToolOverridesToPreset()) notify('已存进预设「' + preset.name + '」，切预设时会跟着走');
+  else notify('没存上');
 }
 
 function onToolReset(name: string): void {
@@ -1125,6 +1366,74 @@ async function onDataAction(action: string): Promise<void> {
     return;
   }
 
+  // ---- B44：三类单独导出（D8）----
+  if (action === 'export-tool-prompts') {
+    download(transferFileName('tool-prompts', '工具提示词'), exportToolPrompts(store.data.tool_overrides));
+    notify('已导出工具提示词');
+    return;
+  }
+  if (action === 'export-current-preset') {
+    const preset = store.activePreset;
+    if (!preset) { notify('先选一个预设'); return; }
+    download(transferFileName('preset', preset.name), exportPreset(preset));
+    notify('已导出预设「' + preset.name + '」');
+    return;
+  }
+  if (action === 'export-all-skills') {
+    // 技能是**多个**，所以导出成一个数组信封（仍是单文件 JSON，T4）
+    const payload = { kind: 'skills', version: 1, skills: store.data.skills };
+    download(transferFileName('skill', '全部技能'), JSON.stringify(payload, null, 2));
+    notify('已导出 ' + store.data.skills.length + ' 个技能');
+    return;
+  }
+
+  // ---- B44：三类单独导入 ----
+  if (action === 'import-tool-prompts' || action === 'import-preset' || action === 'import-skill') {
+    const kind = action === 'import-tool-prompts' ? 'tool-prompts' : action === 'import-preset' ? 'preset' : 'skill';
+    const file = await pickFile('application/json,.json');
+    if (!file) return;
+    let text = '';
+    try {
+      text = await file.text();
+    } catch (err) {
+      notify('读文件失败：' + String((err as Error).message || err));
+      return;
+    }
+    // 撞车判定：只把**用户自己的**放进来（内置走「直接拒绝」那条路）
+    const existing: Record<string, string> = {};
+    const builtinIds: string[] = [];
+    if (kind === 'preset') {
+      for (const p of store.data.presets) {
+        if (p.builtin) builtinIds.push(p.id);
+        else existing[p.id] = p.name;
+      }
+    }
+    if (kind === 'skill') {
+      for (const s of store.data.skills) {
+        if (s.builtin) builtinIds.push(s.id);
+        else existing[s.id] = s.name;
+      }
+    }
+    const res = importTransfer(text, { expect: kind, existing, builtinIds });
+    if (!res.ok) { notify('导入失败：' + String(res.error || '文件不对')); return; }
+
+    if (kind === 'tool-prompts') {
+      store.replaceToolOverrides(res.overrides ?? {});
+      notify('已导入工具提示词（' + Object.keys(res.overrides ?? {}).length + ' 项）');
+      return;
+    }
+
+    // 预设 / 技能：撞车要问（T5：覆盖 / 另存为 / 取消）
+    if (kind === 'preset' && res.preset) {
+      await landPreset(res.preset, res.conflict);
+      return;
+    }
+    if (kind === 'skill' && res.skill) {
+      await landSkill(res.skill, res.conflict);
+    }
+    return;
+  }
+
   if (action === 'clear-session') {
     if (confirm('清空当前对话？')) { store.resetSession(); notify('对话已清空'); }
     return;
@@ -1136,6 +1445,51 @@ async function onDataAction(action: string): Promise<void> {
   if (action === 'clear-artifacts') {
     if (confirm('丢弃全部产物？')) { store.clearArtifacts(); notify('产物已丢弃'); }
   }
+}
+
+/* -------------------- B44：三类导入的落地（撞车要问） -------------------- */
+
+/**
+ * 落地一个导入的预设。
+ *
+ * 撞车时问用户（T5：覆盖 / 另存为 / 取消）—— **不自己替用户决定**。
+ * 「另存为」那条路会生成新 id，所以不会覆盖任何东西。
+ */
+async function landPreset(preset: Preset, conflict?: { id: string; name: string }): Promise<void> {
+  let incoming = preset;
+  if (conflict) {
+    const overwrite = confirm(
+      '已经有一份叫「' + conflict.name + '」的预设了。\n\n' +
+        '确定 = 覆盖它\n取消 = 另存为一份新的（不覆盖）',
+    );
+    if (overwrite) store.updatePreset(conflict.id, { ...preset, id: conflict.id });
+    else incoming = { ...preset, id: uid('preset'), name: preset.name + '（导入）', builtin: false };
+    if (overwrite) {
+      notify('已覆盖预设「' + conflict.name + '」');
+      return;
+    }
+  }
+  const made = store.addPreset({ ...incoming, builtin: false });
+  notify('已导入预设「' + made.name + '」');
+}
+
+/** 落地一个导入的技能（撞车语义同预设） */
+async function landSkill(skill: Skill, conflict?: { id: string; name: string }): Promise<void> {
+  let incoming = skill;
+  if (conflict) {
+    const overwrite = confirm(
+      '已经有一个叫「' + conflict.name + '」的技能了。\n\n' +
+        '确定 = 覆盖它\n取消 = 另存为一份新的（不覆盖）',
+    );
+    if (overwrite) {
+      // 走 onSkillSave：技能内容真源在 ST 文件里，必须一起写过去
+      await onSkillSave({ ...skill, id: conflict.id, builtin: false });
+      notify('已覆盖技能「' + conflict.name + '」');
+      return;
+    }
+    incoming = { ...skill, id: uid('skill'), name: skill.name + '（导入）', builtin: false };
+  }
+  await onSkillSave({ ...incoming, builtin: false });
 }
 
 function dataFileName(): string {

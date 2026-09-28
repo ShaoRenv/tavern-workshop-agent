@@ -47,10 +47,15 @@ function macrosIn(text) {
   return [...new Set([...text.matchAll(/\{\{([^{}]+)\}\}/g)].map(match => match[1]))];
 }
 
-test('presets: 内置技能结构合法、id 唯一、都是 builtin', () => {
+test('presets: 内置技能目前为空（D7 删了旧的，新的等 B46-B57）', () => {
   const skills = createBuiltinSkills();
-  assert.ok(skills.length >= 2);
-  assert.equal(new Set(skills.map(skill => skill.id)).size, skills.length);
+  // D7 定案删掉「世界书精修」「势力关系梳理」（用户：「内置 skill 没价值」—— 那是写作风格，用户的活儿）。
+  // 替代它们的「世界书工程」要等 skill 系统（B46-B57）落地。
+  // 在那之前**故意是空的**：技能是可选的加速器，不是必需品。
+  assert.deepEqual(skills, [], 'B46-B57 落地前内置技能应为空');
+  assert.deepEqual(BUILTIN_SKILL_IDS, []);
+  assert.equal(BUILTIN_SKILLS.length, 0);
+  assert.equal(isBuiltinSkillId('builtin-skill-worldbook-polish'), false, '删掉的旧技能不该还被认成内置');
   for (const skill of skills) {
     SkillSchema.parse(skill);
     assert.equal(skill.builtin, true);
@@ -94,7 +99,6 @@ test('presets: 内置预设结构合法、id 唯一、items/output 齐全', () =
   assert.deepEqual(BUILTIN_PRESET_IDS, presets.map(preset => preset.id));
   assert.equal(isBuiltinPresetId('builtin-agent-worldbook'), true);
   assert.equal(isBuiltinPresetId('不存在的'), false);
-  assert.equal(isBuiltinSkillId('builtin-skill-worldbook-polish'), true);
 });
 
 test('presets: 预设里的宏全部是我们认识的（或酒馆自带），没有拼错的宏', () => {
@@ -159,41 +163,66 @@ test('presets: 立绘 / 蓝灯预设解析后 0 工具 ⇒ 仍然走普通 LLM �
 });
 
 test('presets: create* 每次给新副本，改副本不影响常量', () => {
-  const skills = createBuiltinSkills();
-  skills[0].name = '被外部改了';
-  skills[0].files.push({ name: 'x', content: 'y' });
-  assert.notEqual(BUILTIN_SKILLS[0].name, '被外部改了');
-  assert.equal(BUILTIN_SKILLS[0].files.some(file => file.name === 'x'), false);
+  // 技能：现在内置为空（D7 + B46-B57 之间），所以用预设来钉「新副本」这条性质。
+  assert.deepEqual(createBuiltinSkills(), [], '内置技能暂时为空');
 
   const presets = createBuiltinPresets();
   presets[0].max_rounds = 99;
   assert.notEqual(BUILTIN_PRESETS[0].max_rounds, 99);
+  // 深一层：改 items 里的对象也不许影响常量（浅拷贝会漏这条）
+  const again = createBuiltinPresets();
+  again[0].items[0].content = '被外部改了';
+  assert.notEqual(BUILTIN_PRESETS[0].items[0].content, '被外部改了');
 });
 
-test('presets: applyBuiltins 只补不覆盖、补齐 active_preset_id、纯函数、幂等', () => {
-  const userPreset = PresetSchema.parse({
+test('presets: applyBuiltins 内置强制覆盖、用户预设不碰、补齐 active_preset_id、纯函数、幂等', () => {
+  // ⚠️ 这条规则 B41 改过：原来叫「只补不覆盖」，但它把「内置」和「用户的」混为一谈 ——
+  // 后果是插件升级带的新内置预设**永远看不到**（被存储里的旧副本挡住），
+  // 真机上还表现为「内置预设引用了已删除的工具名 → 界面多出幽灵工具行」。
+  //
+  // 现在的分工：内置的归内置（随版本走），要改就派生（duplicate 早就做对了）。
+  const staleBuiltin = PresetSchema.parse({
     id: 'builtin-agent-worldbook',
-    name: '用户自己改过的内置预设',
-    items: [{ type: 'message', id: 'custom-system', role: 'system', content: '我改过的系统提示词' }],
-    tools: ['wb_read'],
+    name: '旧版内置预设（存储里那份）',
+    items: [{ type: 'message', id: 'custom-system', role: 'system', content: '旧版系统提示词' }],
+    tools: ['wb_read', 'entry_edit'], // ← 旧工具名，正是真机上那几行幽灵工具的来源
   });
-  const userSkill = SkillSchema.parse({ id: 'builtin-skill-worldbook-polish', name: '用户改过的技能', body: 'x' });
+  const staleSkill = SkillSchema.parse({ id: 'builtin-skill-worldbook-polish', name: '旧版内置技能', body: 'x' });
+  // 用户自己的预设 / 技能：id 不在内置清单里 → 一个字都不许碰
+  const myPreset = PresetSchema.parse({ id: 'preset_mine', name: '我自己的预设', builtin: false, tools: ['wb_read'] });
+  const mySkill = SkillSchema.parse({ id: 'skill_mine', name: '我自己的技能', body: 'y' });
 
   const before = RootDataSchema.parse({});
-  const input = { ...before, presets: [userPreset], skills: [userSkill], active_preset_id: '' };
+  const input = {
+    ...before,
+    presets: [staleBuiltin, myPreset],
+    skills: [staleSkill, mySkill],
+    active_preset_id: '',
+  };
   const snapshot = structuredClone(input);
 
   const once = applyBuiltins(input);
   assert.deepEqual(input, snapshot, '纯函数不许改入参');
-  assert.equal(once.presets.find(preset => preset.id === 'builtin-agent-worldbook').name, '用户自己改过的内置预设', '不许覆盖用户的');
-  assert.equal(
-    once.presets.find(preset => preset.id === 'builtin-agent-worldbook').items[0].content,
-    '我改过的系统提示词',
+
+  // ① 内置预设被覆盖成最新版
+  const fixed = once.presets.find(preset => preset.id === 'builtin-agent-worldbook');
+  assert.equal(fixed.name, '世界书 · 势力整理 Agent', '内置预设要更新成最新版');
+  assert.ok(!fixed.tools.includes('entry_edit'), '旧工具名要跟着内置更新一起消失');
+  assert.ok(fixed.tools.includes('wb_write'), '新工具名要进来');
+  assert.equal(fixed.items[0].content.includes('苍玄界'), false, 'B20 的文案改动要能到设备上');
+
+  // ② 内置技能被覆盖（B15-B19 删掉了两个旧内置技能）
+  assert.equal(once.skills.some(skill => skill.id === 'builtin-skill-worldbook-polish'), false, '已删除的内置技能不该复活');
+
+  // ③ 用户自己的预设 / 技能**一个字都不碰**
+  assert.deepEqual(
+    once.presets.find(preset => preset.id === 'preset_mine'),
+    myPreset,
+    '用户预设不许动',
   );
-  assert.equal(once.skills.find(skill => skill.id === 'builtin-skill-worldbook-polish').name, '用户改过的技能');
-  assert.equal(once.presets.length, BUILTIN_PRESET_IDS.length, '缺的内置预设补进来了');
-  assert.equal(once.skills.length, BUILTIN_SKILL_IDS.length);
-  assert.equal(once.presets[0].id, 'builtin-agent-worldbook', '用户已有的排前面，不重排');
+  assert.deepEqual(once.skills.find(skill => skill.id === 'skill_mine'), mySkill, '用户技能不许动');
+
+  assert.equal(once.presets.length, BUILTIN_PRESET_IDS.length + 1, '内置补齐 + 用户那份');
   assert.equal(once.active_preset_id, 'builtin-agent-worldbook', '空的 active_preset_id 指到第一个');
 
   const twice = applyBuiltins(once);

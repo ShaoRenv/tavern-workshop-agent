@@ -2,11 +2,15 @@
  * 工具注册表：内置工具清单 + 流程工具（submit / ask_user）。
  *
  * 工具清单照设计稿「设置页 · 工具」那张表（阶段 3 起含插件贡献的）：
- *   knowledge: wb_list / wb_search / wb_read · portrait_list / portrait_meta（插件）
- *   write:     entry_create / entry_edit / entry_delete / entry_meta（插件）
+ *   knowledge: wb_list / wb_outline / wb_read / wb_search · portrait_list（插件）
+ *   write:     wb_write（插件）
  *   skill:     skill / read_skill_file / create_skill（底座）
  *   image:     gen_image · portrait_prompt（插件）
+ *   file:      write_file / read_file（底座，B21）
  *   flow:      submit / ask_user（底座）
+ *
+ * ⚠️ 世界书从 7 个工具收成 5 个（B15-B19）：entry_create/edit/delete/meta 合并成 wb_write，
+ * 新增 wb_outline。理由见 plugins/builtin/worldbook/tools.ts 的文件头。
  *
  * 每个 ToolDef 都有完整 JSON Schema 参数（parameters），可以直接喂给原生 tools 通道。
  * 写操作一律只落草稿（ctx.drafts），真正的 WorldbookPort.writeAll 由 draft.ts 的 apply() 做。
@@ -29,6 +33,7 @@ import type {
 } from '../core/ports.ts';
 import { asText, clip, resultFail, resultOk, schemaObject, schemaString } from './toolkit.ts';
 import { createSkillTools, type AgentSkillLike, type RegistryOptions, type SkillDraft } from './tools_skill.ts';
+import { createFileTools } from './tools_file.ts';
 import { createToolGuards, type ToolGuardSet } from './guards.ts';
 import { pluginToolDefs } from '../plugins/registry.ts';
 import type { PluginStateHost } from '../plugins/types.ts';
@@ -40,8 +45,8 @@ export type { AgentSkillLike, RegistryOptions, SkillDraft };
 /**
  * 全部工具名，顺序 = 设置页显示顺序。
  *
- * 阶段 3：世界书 7 + 生图 1 已搬进插件，加上苍玄助手插件的 3 个（portrait_list /
- * portrait_meta / portrait_prompt），共 16 个。
+ * 阶段 3：世界书 7 + 生图 1 已搬进插件，加上苍玄助手插件的 portrait 工具。
+ * B24 删 portrait_meta、B21 加 write_file/read_file，现在共 15 个。
  * ⚠️ 这份清单是**内置工具的全集**（顺序 = 设置页显示顺序），跟「插件开不开」无关：
  * 关掉插件时工具定义不进注册表，但界面仍要靠这份清单标出「来源已停用」（见 App.vue）。
  *
@@ -52,18 +57,20 @@ export type { AgentSkillLike, RegistryOptions, SkillDraft };
  */
 export const TOOL_NAMES = [
   'wb_list',
-  'wb_search',
+  'wb_outline',
   'wb_read',
-  'entry_create',
-  'entry_edit',
-  'entry_delete',
-  'entry_meta',
+  'wb_search',
+  'wb_write',
   'portrait_list',
-  'portrait_meta',
+  // B24：portrait_meta 已删（用户：「不要元数据」）—— 它和 portrait_prompt 读同一份数据，
+  // 只是把「原始文本」和「提取后的提示词」分成两个工具，实际用不上那个原始的。
   'portrait_prompt',
   'skill',
   'read_skill_file',
   'create_skill',
+  // B21：文件落盘（write_file / read_file）
+  'write_file',
+  'read_file',
   'gen_image',
   'submit',
   'ask_user',
@@ -78,23 +85,26 @@ export const TOOL_GROUP_LABELS: Record<ToolDef['group'], string> = {
   image: '生图',
   flow: '流程',
   external: '外部',
+  file: '文件',
 };
 
 /**
  * 默认勾上的那些。
- * 默认关的：entry_meta / ask_user / create_skill（按需）+ **gen_image**
+ * 默认关的：portrait_prompt / ask_user / create_skill（按需）+ **gen_image**
  * （生图 API 还没接，默认开着只会诱导模型乱调、白烧钱；用户想要自己在预设里勾）。
+ *
+ * ⚠️ 世界书的 5 个**全部默认开**（B15-B19）：合并成 wb_write 之后不再有「按需工具」——
+ * 原来的 entry_meta 默认关，结果是「模型想改蓝绿灯得先求用户去开」，
+ * 而改属性本来就是写操作的一部分。
  */
 export const DEFAULT_ON_TOOLS: string[] = [
   'wb_list',
-  'wb_search',
+  'wb_outline',
   'wb_read',
-  'entry_create',
-  'entry_edit',
-  'entry_delete',
-  // 阶段 3：苍玄助手插件默认开的那两个只读工具（portrait_prompt 会产出正文，按需）
+  'wb_search',
+  'wb_write',
+  // 阶段 3：苍玄助手插件的只读列表工具（portrait_prompt 会产出正文，按需）
   'portrait_list',
-  'portrait_meta',
   'skill',
   'read_skill_file',
   'submit',
@@ -203,7 +213,14 @@ export class ToolRegistry {
     // 不是内层的 `plugin_state` 映射。传错的话它会读不到 plugin_state 而回落到
     // manifest.defaultEnabled —— 表面「插件开着」，实际**所有开关都失效**（关掉的插件照样给工具）。
     const state: PluginStateHost = options.plugin_state ? { plugin_state: options.plugin_state } : {};
-    const assembled = [...createSkillTools(options), ...pluginToolDefs(state), ...createFlowTools()];
+    // B21：文件工具是底座自己的（不属于任何插件）—— 它们是通用出口，
+    // 放插件里会变成「那个插件关掉就没有落盘能力」这种莫名其妙的耦合。
+    const assembled = [
+      ...createSkillTools(options),
+      ...createFileTools({ fileDeps: options.fileDeps }),
+      ...pluginToolDefs(state),
+      ...createFlowTools(),
+    ];
     // 顺序一律按 TOOL_NAMES（设置页显示顺序，与设计稿一致）：
     // 插件工具是后并进来的，不排序的话界面顺序会随「谁先注册」漂移。
     // 不在 TOOL_NAMES 里的（阶段 5 的 MCP 运行时工具等）排到最后，保持插入顺序。

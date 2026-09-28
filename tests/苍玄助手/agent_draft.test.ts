@@ -227,10 +227,18 @@ test('draft: apply 逐本世界书分组落地，成功才摘草稿，失败留�
   assert.equal(report.ok, false);
   assert.equal(report.applied, 1);
   assert.equal(report.failed, 1);
-  assert.deepEqual(report.worlds, [
-    { world: '甲本', ok: true, applied: 1, total: 1 },
-    { world: '乙本', ok: false, applied: 0, total: 1, error: '写回失败（假）' },
-  ]);
+  // B3 起 worlds 里多一个 verify（写后回读校验的结果），所以逐字段断言而不是整体 deepEqual ——
+  // 这条用例关心的是「分组 / 成功才摘 / 失败留着」，verify 的内容由 stores_backup.test.ts 覆盖。
+  assert.equal(report.worlds.length, 2);
+  assert.deepEqual(
+    report.worlds.map(item => ({ world: item.world, ok: item.ok, applied: item.applied, total: item.total })),
+    [
+      { world: '甲本', ok: true, applied: 1, total: 1 },
+      { world: '乙本', ok: false, applied: 0, total: 1 },
+    ],
+  );
+  assert.equal(report.worlds[1].error, '写回失败（假）');
+  assert.equal(report.worlds[0].verify.ok, true, '写成功的这本要回读校验过');
   assert.deepEqual(report.remain.map(item => item.id), ['c2']);
   assert.equal(port.writes.length, 1);
   assert.equal(port.writes[0].world, '甲本');

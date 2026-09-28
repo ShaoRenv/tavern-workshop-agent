@@ -7,7 +7,14 @@
 import type { ToolCall } from '../core/types.ts';
 
 const IMAGE_TOOLS = ['gen_image', 'generate_image', 'image_gen'];
-const PATCH_TOOLS = ['entry_edit', 'entry_create', 'entry_delete', 'entry_meta', 'wb_write', 'entry_write'];
+/**
+ * 会改世界书的工具名。
+ *
+ * 旧名（entry_edit / entry_create / entry_delete / entry_meta）保留在表里：
+ * 用户的历史会话里存着这些名字的调用记录，翻记录时还要按「改动」上色 ——
+ * 删掉它们会让老记录突然变成普通工具行。
+ */
+const PATCH_TOOLS = ['wb_write', 'entry_edit', 'entry_create', 'entry_delete', 'entry_meta', 'entry_write'];
 const SKILL_TOOLS = ['skill', 'read_skill_file'];
 
 /** 生图：要在对话里出图 */

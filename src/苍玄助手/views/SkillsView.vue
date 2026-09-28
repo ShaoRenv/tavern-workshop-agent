@@ -13,8 +13,22 @@
         :skill="skill"
         @edit="openEdit(skill)"
         @toggle="toggleSkill(skill)"
+        @restore="emit('restore', skill)"
       />
       <p v-if="data.skills.length === 0" class="cx-hint">还没有技能。点「＋ 新建」写一个：名称 + 一句话描述 + 正文。</p>
+    </div>
+
+    <div class="cx-blk">
+      <div class="cx-blkh">
+        <span class="cx-t">共享纪律</span>
+        <span class="cx-n">每个技能正文前都会拼上这段</span>
+        <span class="cx-spacer"></span>
+        <button class="cx-ghost" type="button" @click="disciplineOpen = true">改</button>
+      </div>
+      <div class="cx-hint">
+        · 模型读<b>任何</b>技能时，都会先读到这段规矩（所以不必把它塞进系统提示词）<br />
+        · 它存在酒馆文件里，你可以随便改；清空 = 不注入任何纪律
+      </div>
     </div>
 
     <div class="cx-blk">
@@ -23,9 +37,10 @@
       </div>
       <div class="cx-hint">
         · 只有<b>名称 + 一句话描述</b>会进模型，正文等它需要时才读 —— 不占 token<br />
-        · 模型调用 <span class="cx-code-i">skill("名字")</span> 就能拿到正文，<span class="cx-code-i">read_skill_file</span> 拿参考文件<br />
+        · 模型调用 <span class="cx-code-i">skill("名字")</span> 就能拿到正文，<span class="cx-code-i">read_skill_file</span> 拿参考文件（大文件能翻页）<br />
         · 关掉的技能完全不给模型看<br />
-        · 能导入/导出，跟别人换着用
+        · 技能正文与参考文件存在<b>酒馆文件目录</b>（<span class="cx-code-i">/user/files/</span>），不占变量空间<br />
+        · 插件带的技能可以「恢复默认」；你自己建的随时能改、能删
       </div>
     </div>
   </div>
@@ -67,6 +82,23 @@
     </template>
   </Sheet>
 
+  <!-- 共享纪律（B40）：一段可编辑文本，存 ST 文件 -->
+  <Sheet v-if="disciplineOpen" title="共享纪律" @close="disciplineOpen = false">
+    <div>
+      <span class="cx-lab">每个技能正文前都会拼上这段</span>
+      <textarea v-model="disciplineDraft" class="cx-mono" style="min-height: 260px"></textarea>
+    </div>
+    <p class="cx-hint">
+      清空 = 关掉纪律（不再注入，技能正文照常给）。改完点保存才写进酒馆文件。
+    </p>
+    <template #footer>
+      <button class="cx-ghost dim" type="button" @click="resetDiscipline">恢复出厂文本</button>
+      <span class="cx-spacer"></span>
+      <button class="cx-ghost" type="button" @click="disciplineOpen = false">取消</button>
+      <button class="cx-ghost" type="button" @click="saveDiscipline">保存</button>
+    </template>
+  </Sheet>
+
   <!-- 参考文件弹窗 -->
   <Sheet v-if="draft && fileIndex !== null && draft.files[fileIndex]" title="参考文件" @close="fileIndex = null">
     <div>
@@ -86,9 +118,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue';
+import { computed, ref, toRef, watch } from 'vue';
 
 import { RootDataSchema, uid, type RootData, type Skill } from '../core/types.ts';
+import { DEFAULT_SHARED_DISCIPLINE } from '../core/skill_store.ts';
 import Sheet from '../components/Sheet.vue';
 import SkillCard from '../components/SkillCard.vue';
 import Sw from '../components/Sw.vue';
@@ -99,8 +132,9 @@ import { sizeLabel } from '../components/ui_types.ts';
  *
  * 编辑走「本地副本 → 保存时写回」，所以取消（关弹窗）不会改动原技能。
  */
-const props = withDefaults(defineProps<{ data?: RootData }>(), {
+const props = withDefaults(defineProps<{ data?: RootData; discipline?: string }>(), {
   data: () => RootDataSchema.parse({}),
+  discipline: '',
 });
 const emit = defineEmits<{
   save: [skill: Skill];
@@ -109,6 +143,10 @@ const emit = defineEmits<{
   export: [skill: Skill];
   /** 卡片上的启用开关：写路径归 store.updateSkill（界面不再直接改 skill.enabled） */
   toggle: [skill: Skill];
+  /** B54：把这个技能恢复成出厂内容（只有插件带的技能有出厂版） */
+  restore: [skill: Skill];
+  /** B40：共享纪律改了（App.vue 写进 ST 文件） */
+  discipline: [text: string];
 }>();
 
 /**
@@ -120,6 +158,32 @@ const data = toRef(props, 'data');
 const draft = ref<Skill | null>(null);
 const isNew = ref(false);
 const fileIndex = ref<number | null>(null);
+
+/* ---------- 共享纪律（B40）---------- */
+
+const disciplineOpen = ref(false);
+const disciplineDraft = ref('');
+
+/** 打开时把当前文本拷进草稿（取消不改原值） */
+watch(disciplineOpen, open => {
+  if (open) disciplineDraft.value = props.discipline ?? '';
+});
+
+function saveDiscipline() {
+  emit('discipline', disciplineDraft.value);
+  disciplineOpen.value = false;
+}
+
+/**
+ * 「恢复出厂文本」：把出厂原文**填进编辑框**（而不是清空）。
+ *
+ * ⚠️ 这里踩过一次：原来实现是清空草稿，可按钮写着「恢复出厂文本」——
+ * 清空表达的是「关掉纪律」，跟按钮承诺的正好相反（真机探针抓到的）。
+ * 现在直接填原文：用户看得见要恢复成什么，再点保存才生效。
+ */
+function resetDiscipline() {
+  disciplineDraft.value = DEFAULT_SHARED_DISCIPLINE;
+}
 
 const enabledCount = computed(() => data.value.skills.filter(skill => skill.enabled).length);
 

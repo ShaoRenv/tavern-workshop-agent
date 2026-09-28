@@ -11,16 +11,17 @@
  * id 全部写死（builtin-*），这样刷新、导来导去都不会变成两份；
  * 内置内容只是**可编辑的起点**：用户在界面上改了就用用户的那份。
  *
- * 文本内容来源：设计稿/苍玄助手-设计稿.html（Agent 系统提示词、两个技能正文）
+ * 文本内容来源：设计稿/苍玄助手-设计稿.html（Agent 系统提示词）
  * 与旧工程 src/苍玄界立绘工坊/llm/presets_builtin.ts（智绘姬骨架与字段规范）。
+ * 两个旧内置技能（世界书精修 / 势力关系梳理）已按 D7 删除，见 createBuiltinSkills 的注释。
  */
-import { PresetSchema, SkillSchema, type Preset, type RootData, type Skill } from '../core/types.ts';
+import { PresetSchema, type Preset, type RootData, type Skill } from '../core/types.ts';
 
 /* ============================ 文案常量 ============================ */
 
 /** Agent 的系统提示词（设计稿设置页原文） */
 const AGENT_WORLDBOOK_SYSTEM = [
-  '你是苍玄界世界书的整理助手。改之前先读，只改该改的地方。',
+  '你是世界书的整理助手。改之前先读，只改该改的地方。',
   '需要专门手法时看看有哪些技能可用。做完调 submit。',
   '',
   '工作纪律：',
@@ -38,11 +39,10 @@ const AGENT_WORLDBOOK_SYSTEM = [
  */
 const AGENT_TOOLS = [
   'wb_list',
-  'wb_search',
+  'wb_outline',
   'wb_read',
-  'entry_create',
-  'entry_edit',
-  'entry_delete',
+  'wb_search',
+  'wb_write',
   'skill',
   'read_skill_file',
   // gen_image 故意不默认勾选：生图 API 还没接，默认开着只会诱导模型乱调、白烧钱。
@@ -50,8 +50,14 @@ const AGENT_TOOLS = [
   'submit',
 ];
 
-/** Agent 预设默认挂着的技能 id */
-const AGENT_SKILLS = ['builtin-skill-worldbook-polish', 'builtin-skill-faction-relations'];
+/**
+ * Agent 预设默认挂着的技能 id。
+ *
+ * ⚠️ B15-B19 之后暂时**为空**：D7 定案要删掉「世界书精修」「势力关系梳理」，
+ * 而替换它们的 `世界书工程` 要等 skill 系统（B46-B57）落地。
+ * 空数组 = 这个预设暂时不挂技能，模型照常能干活（技能是可选的加速器，不是必需品）。
+ */
+const AGENT_SKILLS: string[] = [];
 
 /* ---------------------------- 立绘 · 智绘姬 ---------------------------- */
 
@@ -151,108 +157,34 @@ const WB_TOLERANCE = [
 
 /* ============================ 内置技能 ============================ */
 
-const SKILL_WORLDBOOK_POLISH_BODY = [
-  '# 世界书精修',
-  '',
-  '## 什么时候用',
-  '用户说「这几条太啰嗦」「压一压」「统一成蓝灯精简」时用这套手法。',
-  '',
-  '## 怎么做',
-  '1. 先 wb_read 把条目读全，不要凭标题猜内容。',
-  '2. 只保留：身份、外貌、能力、关键关系。',
-  '3. 每条压到 150 字以内，激活策略用蓝灯（strategy = constant → 写回 strategy.type = \'constant\'）。',
-  '4. 改完对照原文检查一遍有没有丢设定；丢了的补回去。',
-  '',
-  '## 硬性要求',
-  '- 一条一条改，禁止整条重写：用 entry_edit 的 old_string → new_string 精确替换。',
-  '- 条目名（name）不改，除非用户明确要求。',
-  '- 原文里的专有名词、称呼、境界数值一律照抄，不许「顺手润色」成别的说法。',
-  '- 拿不准的条目直接列出来问用户，不要猜。',
-].join('\n');
-
-const SKILL_FACTION_BODY = [
-  '# 势力关系梳理',
-  '',
-  '## 什么时候用',
-  '用户说「理一理势力关系」「互相引用」「补上所属势力」时用。',
-  '',
-  '## 怎么做',
-  '1. 先用 wb_search 把每个势力名搜一遍，确认势力条目和角色条目都在哪几本世界书里。',
-  '2. 逐个势力抽出一行关系：势力名 → 立场 / 首领 / 所在地 / 与其他势力的关系（盟友、敌对、上下属、暗中往来）。',
-  '3. 在角色条目里补「所属势力」，在势力条目里补「主要人物」，两边互相引用。',
-  '4. 关系只写有依据的；世界书里没有的内容标成「待确认」，不要编。',
-  '',
-  '## 输出格式',
-  '每条关系一行：`势力A →关系→ 势力B（依据：条目名）`。',
-  '收尾时把新加的引用列成清单，方便用户核对。',
-].join('\n');
-
-/* ============================ 内置内容 ============================ */
-
-/** 内置技能（每次调用返回全新副本，避免界面改到常量） */
+/*
+ * ⚠️ 这里原来是两个内置技能（`世界书精修` / `势力关系梳理`），D7 定案**删掉**。
+ *
+ * 为什么删（用户原话：「内置 skill 没价值」）：它们讲的是**写作风格**——
+ * 「压到 150 字以内」「关系只写有依据的」这类，那是用户的活儿，不是底座的活儿。
+ * 而且它们用的是旧工具名（`entry_edit` 的 old_string 替换），留着会让模型照着调一个不存在的工具。
+ *
+ * 替代它们的是 **`世界书工程` skill**（TavernWeave 手册原文适配版，
+ * 见 reports/世界书skill-适配稿/），落地在 B46-B57 的 skill 系统里。
+ *
+ * 在那之前这里**故意返回空数组**：技能是可选的加速器，不是必需品 ——
+ * 没有技能模型照常能干活（工具 + 预设提示词已经够了）。
+ */
 export function createBuiltinSkills(): Skill[] {
-  return [
-    SkillSchema.parse({
-      id: 'builtin-skill-worldbook-polish',
-      name: '世界书精修',
-      summary: '把啰嗦的条目压成蓝灯精简，保持人设口吻',
-      body: SKILL_WORLDBOOK_POLISH_BODY,
-      enabled: true,
-      builtin: true,
-      files: [
-        {
-          name: '模板·角色条目.md',
-          content: [
-            '# 角色条目模板',
-            '',
-            '**姓名**｜一句话身份。性别，年龄（修为），境界，势力。',
-            '外貌：只留最具辨识度的三点。',
-            '性格：2-4 句，写行为模式而不是形容词堆砌。',
-            '能力：功法 / 武器 / 特殊之处。',
-            '关系：只写对剧情有推动的那几条。',
-            '口癖：有就写，没有就不写。',
-          ].join('\n'),
-        },
-        {
-          name: '范例·势力条目.json',
-          content: JSON.stringify(
-            {
-              name: '天枢阁',
-              strategy: 'constant',
-              content: '天枢阁总部位于苍梧山巅，掌门为凌霄真人。以星象推演立宗，与幽冥殿敌对，暗中庇护苍梧一带的散修。',
-            },
-            null,
-            2,
-          ),
-        },
-      ],
-    }),
-    SkillSchema.parse({
-      id: 'builtin-skill-faction-relations',
-      name: '势力关系梳理',
-      summary: '从多条目里抽出势力之间的关系，补成互相引用',
-      body: SKILL_FACTION_BODY,
-      enabled: true,
-      builtin: true,
-      files: [
-        {
-          name: '关系符号表.md',
-          content: [
-            '# 关系符号表',
-            '',
-            '| 符号 | 含义 |',
-            '| --- | --- |',
-            '| →盟友→ | 明面结盟 |',
-            '| →敌对→ | 公开敌对 |',
-            '| →上下属→ | 隶属 / 附庸 |',
-            '| →暗中→ | 私下往来，明面不承认 |',
-            '| →待确认→ | 有线索但世界书里没写死 |',
-          ].join('\n'),
-        },
-      ],
-    }),
-  ];
+  return [];
 }
+
+/**
+ * **已退役的内置技能 id**：曾经是内置、现在被删掉的。
+ *
+ * 为什么需要这张表：`applyBuiltins()` 的「强制覆盖」只能删掉**当前内置清单里**的 id ——
+ * 而这两个已经不在清单里了，光靠它删不掉，会永远留在用户的存储里（模型还能挑中它们，
+ * 而它们教的是旧工具名 `entry_edit`，照着做就是调一个不存在的工具）。
+ *
+ * 口径：**只删 id 精确匹配的这两个**。用户如果自己建了同名技能，那就是他自己的东西，
+ * 不该被我们顺手删掉 —— 所以匹配用 id（`builtin-skill-*`），不是名字。
+ */
+export const RETIRED_BUILTIN_SKILL_IDS = ['builtin-skill-worldbook-polish', 'builtin-skill-faction-relations'];
 
 /**
  * 内置预设。
@@ -436,24 +368,45 @@ export function isBuiltinSkillId(id: string): boolean {
 /**
  * 把内置预设 / 技能补进 RootData。
  *
- * 规则：**只补不覆盖**。同 id 已存在就原样保留（用户可能改过内置内容，
- * 刷新时不能把用户的编辑冲掉）；只有缺失的 id 才插入。
- * 顺带把空的 active_preset_id 指向第一个可用预设，保证界面一进来就有选中的预设。
+ * ─────────────────────────── 规则（B41 已改）───────────────────────────
+ *
+ * **内置预设：强制覆盖成最新版。** 用户的预设（`builtin: false`）一个字都不碰。
+ *
+ * ⚠️ 原来这里是「**只补不覆盖**」，那条规则的立意（别冲掉用户的编辑）是对的，
+ * 但落点错了 —— 它把「内置」和「用户的」混为一谈：
+ *
+ *  | 后果 | 真机表现 |
+ *  |---|---|
+ *  | 插件升级带了新内置预设 | **用户永远看不到**（被存储里的旧副本挡住）|
+ *  | 内置预设的提示词改好了 | 同样看不到（B20 那次改的就没生效）|
+ *  | 内置预设引用了已删除的工具名 | 界面多出几行「entry_create」这种幽灵工具 |
+ *
+ * 正确的分工是：**内置的归内置（随版本走），要改就派生**。
+ * 「另存为」早就做对了（`App.vue` 的 duplicate → `builtin: false` + 新 id），
+ * 所以这里强制覆盖**不会**让用户丢东西 —— 用户改过的内容在**他自己的副本**里。
+ *
+ * **技能同理**：`builtin: true` 的强制覆盖（B15-B19 删掉了两个旧内置技能，
+ * 不覆盖的话它们会一直留在存储里，模型还能挑中它们）。
+ *
+ * 顺带把空的 / 指不上任何预设的 active_preset_id 指向第一个可用预设。
  *
  * 纯函数：返回新对象，不改入参。
  */
 export function applyBuiltins(data: RootData): RootData {
-  const presetIds = new Set(data.presets.map(preset => preset.id));
   const presets = [...data.presets];
   for (const preset of createBuiltinPresets()) {
-    if (!presetIds.has(preset.id)) presets.push(preset);
+    const index = presets.findIndex(item => item.id === preset.id);
+    if (index < 0) presets.push(preset);
+    else presets[index] = preset; // 内置 → 强制覆盖成最新版
   }
 
-  const skillIds = new Set(data.skills.map(skill => skill.id));
-  const skills = [...data.skills];
-  for (const skill of createBuiltinSkills()) {
-    if (!skillIds.has(skill.id)) skills.push(skill);
-  }
+  // 技能：删掉「当前内置」+「已退役内置」，用户自建的原样保留
+  const ownedSkillIds = new Set([
+    ...createBuiltinSkills().map(skill => skill.id),
+    ...RETIRED_BUILTIN_SKILL_IDS,
+  ]);
+  const skills = data.skills.filter(skill => !ownedSkillIds.has(skill.id));
+  for (const skill of createBuiltinSkills()) skills.push(skill);
 
   const hasActive = presets.some(preset => preset.id === data.active_preset_id);
   const activePresetId = hasActive ? data.active_preset_id : (presets[0]?.id ?? '');

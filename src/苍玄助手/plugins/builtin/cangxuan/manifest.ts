@@ -6,7 +6,7 @@
  *
  * 它贡献两样东西：
  *   1. 宏：图片提示词（酒馆 + 预设两边都能用）、角色列表 / 图片元数据（预设里用）；
- *   2. 工具：portrait_list / portrait_meta / portrait_prompt。
+ *   2. 工具：portrait_list / portrait_prompt（B24 删了 portrait_meta —— 用户「不要元数据」）。
  *
  * ⚠️ **它现在不贡献设置字段**：gallery / meta_rule 还没被任何代码消费，
  * 声明出来只会变成两个点不动的死控件（完整理由写在 config.ts 的文件头）。
@@ -19,7 +19,7 @@
  * 只声明一个，而且是**可选**：`getScriptTrees?`。
  *
  * 为什么是它：本插件的「立绘图库」走 core/portrait.ts 的 getScriptTreesViaHost()，
- * 那是它唯一真正碰宿主的地方（tools 的 portrait_list / portrait_meta / portrait_prompt
+ * 那是它唯一真正碰宿主的地方（tools 的 portrait_list / portrait_prompt
  * 与三个宏都建在它上面）。
  *
  * 为什么必须带问号（可选）而不是必需：core/portrait.ts:30-40 的口径写得很清楚 ——

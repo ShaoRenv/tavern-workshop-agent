@@ -4,7 +4,7 @@
  * 硬规矩 2 是**三层**都要成立（阶段 2 验收 F-A 抓过一次：
  * 界面写着「来源已停用」、模型却照样能调）：
  *   ① 宏层 —— 关掉插件 → {{图片提示词}} 渲染退回空串（不是报错、不是留着旧值）；
- *   ② 工具层 —— 它的 3 个 portrait_* 从能力里消失，且**新形状的 ToolDef 也过 liveToolDefs 闸**；
+ *   ② 工具层 —— 它的 2 个 portrait_* 从能力里消失，且**新形状的 ToolDef 也过 liveToolDefs 闸**；
  *   ③ 技能层 —— 它带的技能在关掉后不进「可用技能」。
  *
  * 跑法：node --test "tests/苍玄助手/*.test.ts"
@@ -41,14 +41,14 @@ function state(plugin_state = {}) {
   return { plugin_state };
 }
 
-/** 苍玄助手贡献的 3 个工具（阶段 3 新增，归它所有） */
-const CX_TOOLS = ['portrait_list', 'portrait_meta', 'portrait_prompt'];
+/** 苍玄助手贡献的 2 个工具（B24：portrait_meta 已删，用户「不要元数据」） */
+const CX_TOOLS = ['portrait_list', 'portrait_prompt'];
 /** 苍玄助手贡献的宏；图片提示词是天天要用的那个（tavern + preset 双作用域） */
 const CX_MACRO_NAMES = ['图片提示词', '角色列表', '图片元数据'];
 
 /* ==================== 插件契约本体 ==================== */
 
-test('苍玄助手插件：没有页面、3 个 portrait_* 工具、宏齐全、默认开', () => {
+test('苍玄助手插件：没有页面、2 个 portrait_* 工具、宏齐全、默认开', () => {
   const manifest = pluginManifest('cangxuan');
   assert.equal(manifest.id, 'cangxuan');
   assert.equal(manifest.builtin, true, '内置：可关不可卸');
@@ -87,8 +87,8 @@ test('苍玄助手工具归它自己；底座工具不受影响', () => {
   assert.equal(toolOwnerLabel('wb_list'), '世界书');
   assert.equal(toolOwner('skill'), 'base');
 
-  // 三个工具都**注册**（走 pluginAllTools / 界面清单）；默认进不进全局能力由各自的 default_on 定，
-  // **不在这里钉死**（Lead 口径：portrait_list / portrait_meta 默认给，portrait_prompt 按需）——
+  // 两个工具都**注册**（走 pluginAllTools / 界面清单）；默认进不进全局能力由各自的 default_on 定，
+  // **不在这里钉死**（Lead 口径：portrait_list 默认给，portrait_prompt 按需）——
   // 钉太死会让别人调整默认值误伤这条闸。这里只保证「注册了」+「关掉就都没了」。
   const on = state({ cangxuan: { enabled: true } });
   for (const name of CX_TOOLS) {
@@ -198,18 +198,18 @@ test('关掉苍玄助手 → 它的 3 个工具从能力与注册清单一起消
 test('F-A 回归闸（阶段 3 新形状）：liveToolDefs 按 ToolDef 归属过滤，不认老 { name } 写法', () => {
   // 阶段 2 验收抓的 F-A：界面写「来源已停用」、runner 却把全量 defs 喂给模型。
   // 阶段 3 的 contributes.tools 换成真 ToolDef 后，闸门必须照样成立。
-  const defs = [{ name: 'skill' }, { name: 'portrait_list' }, { name: 'portrait_meta' }, { name: 'portrait_prompt' }, { name: 'wb_list' }];
+  const defs = [{ name: 'skill' }, { name: 'portrait_list' }, { name: 'portrait_prompt' }, { name: 'wb_list' }];
 
   assert.deepEqual(
     liveToolDefs(defs, state({ cangxuan: { enabled: true } })).map((def: any) => def.name),
-    ['skill', 'portrait_list', 'portrait_meta', 'portrait_prompt', 'wb_list'],
+    ['skill', 'portrait_list', 'portrait_prompt', 'wb_list'],
     '两个插件都开着 → 全给',
   );
 
   assert.deepEqual(
     liveToolDefs(defs, state({ cangxuan: { enabled: false } })).map((def: any) => def.name),
     ['skill', 'wb_list'],
-    '关掉苍玄助手 → 3 个 portrait_* 连 def 都不进这一轮（模型根本看不到）',
+    '关掉苍玄助手 → 2 个 portrait_* 连 def 都不进这一轮（模型根本看不到）',
   );
 
   assert.deepEqual(
@@ -220,7 +220,7 @@ test('F-A 回归闸（阶段 3 新形状）：liveToolDefs 按 ToolDef 归属过
 
   // 按需工具（default_on:false）的 **def** 照样要过闸：能不能发给模型由 resolveCaps 定，
   // 但「插件关着 → 连 def 都没有」这条对默认给的与按需的一视同仁。
-  const withOnDemand = [{ name: 'entry_meta' }, { name: 'portrait_prompt' }];
+  const withOnDemand = [{ name: 'portrait_prompt' }, { name: 'portrait_prompt' }];
   assert.deepEqual(
     liveToolDefs(withOnDemand, state({ cangxuan: { enabled: false }, worldbook: { enabled: false } })).map((def: any) => def.name),
     [],
@@ -228,14 +228,14 @@ test('F-A 回归闸（阶段 3 新形状）：liveToolDefs 按 ToolDef 归属过
   );
   assert.deepEqual(
     liveToolDefs(withOnDemand, state({ cangxuan: { enabled: true }, worldbook: { enabled: true } })).map((def: any) => def.name).sort(),
-    ['entry_meta', 'portrait_prompt'],
+    ['portrait_prompt', 'portrait_prompt'],
     '插件开着 → 按需工具的 def 要在（发不发是 resolveCaps 的事）',
   );
 
   // 默认状态（plugin_state 空）= manifest.defaultEnabled：苍玄助手/世界书开
   assert.deepEqual(
     liveToolDefs(defs, state()).map((def: any) => def.name),
-    ['skill', 'portrait_list', 'portrait_meta', 'portrait_prompt', 'wb_list'],
+    ['skill', 'portrait_list', 'portrait_prompt', 'wb_list'],
     '缺省按 manifest.defaultEnabled 现算',
   );
 
@@ -249,17 +249,29 @@ test('F-A 回归闸（阶段 3 新形状）：liveToolDefs 按 ToolDef 归属过
 
 /* ==================== ③ 技能层 ==================== */
 
-test('关掉苍玄助手 → 它带的技能从 pluginSkills 消失（关插件即从技能列表消失）', () => {
-  const skillsOn = pluginSkills(state({ cangxuan: { enabled: true } }));
-  const skillsOff = pluginSkills(state({ cangxuan: { enabled: false } }));
+/**
+ * ⚠️ 这条用例原来断言的是「关掉苍玄助手 → skillsOff 为空」，
+ * 那在「一个插件都没带 skill」的年代**恒真**，等于什么都没验。
+ * B55 落地后世界书插件带了「世界书工程」，所以改成验**真正的性质**：
+ * 关掉**带技能的那个插件**，它的技能从 pluginSkills 消失，别的插件的技能不受影响。
+ */
+test('关掉带技能的插件 → 它的技能从 pluginSkills 消失（关插件即从技能列表消失）', () => {
+  const allOn = pluginSkills(state({ worldbook: { enabled: true }, cangxuan: { enabled: true } }));
+  assert.ok(allOn.length > 0, '世界书插件应该贡献了技能（B55）');
 
-  assert.deepEqual(skillsOff, [], '关掉 → 插件技能一个不剩');
-  // 有技能就断言形状；没技能也不该让这条用例失败（技能是可选的贡献点）
-  for (const skill of skillsOn) {
+  // 世界书插件带的技能：内容要能在关插件后一起消失
+  for (const skill of allOn) {
     assert.equal(typeof skill.name, 'string');
     assert.equal(typeof skill.content, 'string', skill.name + ' 的正文要能在关插件后一起消失');
     assert.ok(skill.name.length > 0);
   }
+
+  const wbOff = pluginSkills(state({ worldbook: { enabled: false }, cangxuan: { enabled: true } }));
+  assert.deepEqual(wbOff, [], '关掉世界书插件 → 它带的技能一个不剩');
+
+  // 反过来：关掉**不带技能**的插件，技能不受影响（证明上面那条不是「全关才有」）
+  const cxOff = pluginSkills(state({ worldbook: { enabled: true }, cangxuan: { enabled: false } }));
+  assert.deepEqual(cxOff, allOn, '苍玄助手不带技能，关它不该影响技能列表');
 });
 
 /* ==================== 源码级：插件的「活物」都在 contributions 里 ==================== */

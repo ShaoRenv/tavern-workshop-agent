@@ -65,12 +65,15 @@ test('save: 挂起期间多次变更不写盘；releaseSaves() 之后恰好写�
     assert.equal(store.savesHeld, true);
     assert.equal(store.savesHeldCount, 1);
 
-    // 模拟一次 agent 运行里的多次写点（页签 / 模式 / 轮次 / 流式增量 / 预设字段）
+    // 模拟一次 agent 运行里的多次写点（页签 / 轮次 / 流式增量 / 预设字段）
     store.setTab('chat');
-    store.setMode('chat');
     store.appendTurn(turn('u1', 'user', '你好'));
     store.patchTurnText('u1', '，在吗');
-    store.updatePreset(store.data.presets[0].id, { name: '改过的预设' });
+    // ⚠️ 必须用**用户自己的**预设：presets[0] 是内置预设，B41 起 updatePreset 会拒写它
+    // （内置预设只读 —— applyBuiltins 每次载入都强制覆盖，写进去下次刷新就丢）。
+    // 这条用例验的是「预设字段这个写点会落盘」，所以派生一份副本再改，才是它本来的意图。
+    const myPreset = store.addPreset({ name: '我的预设' });
+    store.updatePreset(myPreset.id, { name: '改过的预设' });
 
     // 挂起期间无论过多久都不该排定时器、更不该写盘
     t.mock.timers.tick(SAVE_DEBOUNCE_MS * 4);
@@ -84,9 +87,8 @@ test('save: 挂起期间多次变更不写盘；releaseSaves() 之后恰好写�
 
     const saved = box.saved();
     assert.equal(saved.active_tab, 'chat');
-    assert.equal(saved.sessions.find((item) => item.id === sessionId).mode, 'chat');
     assert.equal(saved.sessions.find((item) => item.id === sessionId).turns[0].text, '你好，在吗');
-    assert.equal(saved.presets[0].name, '改过的预设');
+    assert.equal(saved.presets.find((item) => item.id === myPreset.id).name, '改过的预设');
     assert.equal(store.dirty, false);
   } finally {
     t.mock.timers.reset();
@@ -264,7 +266,7 @@ test('源码级: App.vue 不再有 deep 全局 watcher，页面的写点都接�
   assert.ok(app.includes('store.releaseSaves()'), '长任务入口的 finally 要释放保存');
 
   // 会直接改 store.data 的页面：都 emit('change')，由 App.vue 接成 store.save()
-  // （ChatView 的 mode 与 SkillsView 的开关走的是 store 动作，另有断言）
+  // （SkillsView 的开关走的是 store 动作，另有断言）
   // 阶段 3：世界书页搬进插件目录（Page.vue），立绘页随苍玄助手去页面而删除。
   const pages = [
     ['WorldbookView', 'src/苍玄助手/plugins/builtin/worldbook/Page.vue'],
@@ -287,11 +289,12 @@ test('源码级: App.vue 不再有 deep 全局 watcher，页面的写点都接�
   assert.ok(settingsSrc.includes("emit('change')"), 'SettingsView 的 touch 要 emit(change)，否则 App.vue 收不到写点');
   assert.ok(!/<CapabilityView/.test(app), 'App.vue 不该再直接挂 CapabilityView（能力是设置里的一格）');
 
-  // ChatView：Agent｜聊天 由 store.setMode 落盘
-  assert.match(app, /@mode-change="store\.setMode\(\$event\)"/);
+  // ChatView：Agent｜聊天 开关已删（B9）—— 死字段不许回流
+  assert.ok(!app.includes('mode-change'), 'App.vue 不该再接 mode-change');
   const chat = codeOnly(readFileSync('src/苍玄助手/views/ChatView.vue', 'utf8'));
-  assert.ok(chat.includes("emit('mode-change'"), 'ChatView 的 mode 写点要 emit(mode-change)');
-  assert.ok(!chat.includes('v-model="session.mode"'), 'ChatView 不该再直接 v-model 改 session.mode');
+  assert.ok(!chat.includes('session.mode'), 'ChatView 不该再读 session.mode');
+  assert.ok(!chat.includes('MODE_ITEMS'), 'ChatView 不该再留着模式开关的选项表');
+  assert.ok(!chat.includes('SegBar'), 'ChatView 不该再挂 SegBar');
 
   // SkillsView 的启用开关 → CapabilityView 转发 → App.vue → store.updateSkill
   const skills = codeOnly(readFileSync('src/苍玄助手/views/SkillsView.vue', 'utf8'));

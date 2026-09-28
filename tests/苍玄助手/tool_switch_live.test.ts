@@ -33,11 +33,11 @@ test('手动关掉的工具**不进**这一轮（开关的唯一理由）', () =
   assert.ok(off.length === on.length - 1, '只该少这一条，其余不受影响（实际差 ' + (on.length - off.length) + '）');
 });
 
-test('手动打开的按需工具**进**这一轮（entry_meta 默认不给）', () => {
+test('手动打开的按需工具**进**这一轮（portrait_prompt 默认不给）', () => {
   const base = liveToolNames({});
-  assert.ok(!base.includes('entry_meta'), '基线：entry_meta 默认不给（default_on=false）');
-  const on = liveToolNames({ entry_meta: { enabled: true } });
-  assert.ok(on.includes('entry_meta'), '手动开 → 它该进');
+  assert.ok(!base.includes('portrait_prompt'), '基线：portrait_prompt 默认不给（default_on=false）');
+  const on = liveToolNames({ portrait_prompt: { enabled: true } });
+  assert.ok(on.includes('portrait_prompt'), '手动开 → 它该进');
 });
 
 test('跟随（没设过）保持内置 default_on，不被当成关', () => {
