@@ -11,10 +11,15 @@
     ],
     "target": "ESNext",
     "module": "ESNext",
+<<<<<<< HEAD
     "outDir": "dist",
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
+=======
+    "rootDir": ".",
+    "outDir": "dist",
+>>>>>>> 78eb7a3ba462a0fa917dd6ac64129b4b43acd14c
     "paths": {
       "@util/*": [
         "./util/*"
